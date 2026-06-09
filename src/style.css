@@ -1,0 +1,332 @@
+/* ===== Base font sizes ===== */
+:root {
+    --font-size-base: 13px;
+    --font-size-sm: 11px;
+    --font-size-xs: 10px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-size-2xl: 20px;
+}
+
+[data-font-size="small"] {
+    --font-size-base: 12px;
+    --font-size-sm: 10px;
+    --font-size-xs: 9px;
+    --font-size-lg: 13px;
+    --font-size-xl: 15px;
+    --font-size-2xl: 18px;
+}
+
+[data-font-size="large"] {
+    --font-size-base: 15px;
+    --font-size-sm: 13px;
+    --font-size-xs: 11px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+    --font-size-2xl: 24px;
+}
+
+/* ===== Dark theme (default, Catppuccin Mocha) ===== */
+:root,
+[data-theme="dark"] {
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #181825;
+    --bg-tertiary: #11111b;
+    --bg-hover: #313244;
+    --bg-selected: #45475a;
+    --text-primary: #cdd6f4;
+    --text-secondary: #a6adc8;
+    --text-muted: #6c7086;
+    --accent: #89b4fa;
+    --accent-hover: #74c7ec;
+    --danger: #f38ba8;
+    --danger-hover: #eba0ac;
+    --success: #a6e3a1;
+    --warning: #f9e2af;
+    --border: #313244;
+    --scrollbar: #45475a;
+    --input-bg: #313244;
+    --card-bg: #1e1e2e;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --dialog-overlay: rgba(0, 0, 0, 0.6);
+}
+
+/* ===== Light theme (Catppuccin Latte) ===== */
+[data-theme="light"] {
+    --bg-primary: #eff1f5;
+    --bg-secondary: #e6e9ef;
+    --bg-tertiary: #ccd0da;
+    --bg-hover: #ccd0da;
+    --bg-selected: #bcc0cc;
+    --text-primary: #4c4f69;
+    --text-secondary: #5c5f77;
+    --text-muted: #9ca0b0;
+    --accent: #1e66f5;
+    --accent-hover: #2a6ef5;
+    --danger: #d20f39;
+    --danger-hover: #e64553;
+    --success: #40a02b;
+    --warning: #df8e1d;
+    --border: #ccd0da;
+    --scrollbar: #bcc0cc;
+    --input-bg: #e6e9ef;
+    --card-bg: #eff1f5;
+    --shadow: rgba(0, 0, 0, 0.08);
+    --dialog-overlay: rgba(0, 0, 0, 0.35);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family:
+        "Segoe UI",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Helvetica Neue",
+        sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    user-select: none;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+input,
+select,
+button {
+    font-family: inherit;
+}
+
+input {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+}
+
+input:focus {
+    border-color: var(--accent);
+}
+
+button {
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+}
+
+button:hover {
+    background: var(--bg-hover);
+}
+
+button:active {
+    background: var(--bg-selected);
+}
+
+button.accent {
+    background: var(--accent);
+    color: var(--bg-primary);
+}
+
+button.accent:hover {
+    background: var(--accent-hover);
+}
+
+button.danger {
+    background: var(--danger);
+    color: var(--bg-primary);
+}
+
+button.danger:hover {
+    background: var(--danger-hover);
+}
+
+.icon-btn {
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+}
+
+.icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.context-menu {
+    position: fixed;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 200px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.context-menu-item:hover {
+    background: var(--bg-hover);
+}
+
+.context-menu-item .shortcut {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 8px;
+}
+
+.dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+.dialog {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 360px;
+    max-width: 500px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h3 {
+    margin-bottom: 16px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dialog input {
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dialog-actions button {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.toast {
+    position: fixed;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 1001;
+    box-shadow: 0 4px 16px var(--shadow);
+    animation: toast-in 0.2s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toast-error {
+    border-color: var(--danger);
+    background: linear-gradient(
+        135deg,
+        var(--bg-secondary),
+        rgba(243, 139, 168, 0.08)
+    );
+}
+
+.toast-icon {
+    color: var(--danger);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
