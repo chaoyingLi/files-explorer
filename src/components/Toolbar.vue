@@ -217,19 +217,16 @@ function clearSearch() {
     border-bottom: 1px solid var(--border);
     gap: 8px;
     height: 44px;
-    -webkit-app-region: drag;
 }
 .toolbar-left {
     display: flex;
     gap: 2px;
-    -webkit-app-region: no-drag;
 }
 .toolbar-center {
     flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;
-    -webkit-app-region: no-drag;
 }
 .address-bar {
     flex: 1;

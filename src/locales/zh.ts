@@ -2,6 +2,12 @@ export default {
   app: {
     title: "文件资源管理器",
   },
+  titlebar: {
+    minimize: "最小化",
+    maximize: "最大化",
+    restore: "还原",
+    close: "关闭",
+  },
   toolbar: {
     back: "后退",
     forward: "前进",

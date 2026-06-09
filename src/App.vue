@@ -4,6 +4,7 @@
         @click="onGlobalClick"
         @contextmenu.prevent="onGlobalContextMenu"
     >
+        <TitleBar />
         <Toolbar
             @open-settings="showSettings = true"
             @navigate-back="handleToolbarBack"
@@ -106,6 +107,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useTabStore, type Tab, type LayoutPane } from "@/stores/tabStore";
 import * as tauri from "@/utils/tauri";
 import type { ContextMenuOption } from "@/types";
+import TitleBar from "@/components/TitleBar.vue";
 import DeleteConfirmDialog from "@/components/Dialogs/DeleteConfirmDialog.vue";
 import Toolbar from "@/components/Toolbar.vue";
 import Sidebar from "@/components/Sidebar.vue";

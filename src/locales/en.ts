@@ -2,6 +2,12 @@ export default {
   app: {
     title: "Files Explorer",
   },
+  titlebar: {
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore",
+    close: "Close",
+  },
   toolbar: {
     back: "Back",
     forward: "Forward",
