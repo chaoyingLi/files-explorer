@@ -38,6 +38,7 @@ export default {
     details: "Details",
     list: "List",
     grid: "Grid",
+    tree: "Tree",
   },
   contextMenu: {
     newFolder: "New Folder",

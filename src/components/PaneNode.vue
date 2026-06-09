@@ -17,7 +17,9 @@
                 @dragleave="tabStore.onTabDragLeave(tab.id)"
                 @drop.prevent="$emit('tabDrop', node.id, tab.id, $event)"
             >
-                <span class="pane-tab-title">{{ tab.title || "This PC" }}</span>
+                <span class="pane-tab-title">{{
+                    tab.title || t("sidebar.thisPc")
+                }}</span>
                 <button
                     v-if="node.tabs.length > 1"
                     class="pane-tab-close"
@@ -83,6 +85,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import {
     useTabStore,
     type LayoutNode,
@@ -90,6 +93,8 @@ import {
 } from "@/stores/tabStore";
 import Breadcrumb from "@/components/Breadcrumb.vue";
 import FileList from "@/components/FileList.vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{ node: LayoutNode; focusedPaneId: string }>();
 defineEmits<{

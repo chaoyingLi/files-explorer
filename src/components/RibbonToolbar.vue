@@ -358,6 +358,77 @@
                 </svg>
                 <span class="ribbon-label">{{ t("fileList.grid") }}</span>
             </button>
+            <!-- Tree view -->
+            <button
+                class="ribbon-btn"
+                :class="{ active: store.viewMode === 'tree' }"
+                :title="t('fileList.tree')"
+                @click="switchToTree"
+            >
+                <svg viewBox="0 0 20 20" fill="none">
+                    <rect
+                        x="3"
+                        y="3"
+                        width="4"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.7"
+                    />
+                    <rect
+                        x="9"
+                        y="3"
+                        width="8"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.4"
+                    />
+                    <rect
+                        x="3"
+                        y="8"
+                        width="4"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.7"
+                    />
+                    <rect
+                        x="9"
+                        y="8"
+                        width="8"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.4"
+                    />
+                    <rect
+                        x="3"
+                        y="13"
+                        width="4"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.7"
+                    />
+                    <rect
+                        x="9"
+                        y="13"
+                        width="8"
+                        height="2"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.4"
+                    />
+                    <path
+                        d="M5 5v3M5 10v3"
+                        stroke="currentColor"
+                        stroke-width="1.2"
+                        opacity="0.5"
+                    />
+                </svg>
+                <span class="ribbon-label">{{ t("fileList.tree") }}</span>
+            </button>
         </div>
     </div>
 </template>
@@ -370,7 +441,12 @@ import { useFileStore } from "@/stores/fileStore";
 const { t } = useI18n();
 const store = useFileStore();
 
-defineEmits<{ action: [action: string] }>();
+const emit = defineEmits<{ action: [action: string] }>();
+
+function switchToTree() {
+    store.setViewMode("tree");
+    store.collapseAllTree();
+}
 
 const hasSelection = computed(() => store.selectedFiles.size > 0);
 const selectedCount = computed(() => store.selectedFiles.size);

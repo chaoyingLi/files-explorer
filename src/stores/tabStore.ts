@@ -7,6 +7,7 @@ export interface Tab {
   title: string;
   files: any[];
   selectedFiles: string[];
+  treeExpanded?: string[];
 }
 export interface LayoutPane {
   type: "pane";
@@ -41,7 +42,7 @@ function cpane(path: string, title: string): LayoutPane {
 }
 
 export const useTabStore = defineStore("tab", () => {
-  const root = ref<LayoutNode>(cpane("", "This PC"));
+  const root = ref<LayoutNode>(cpane("", ""));
   let lfp = "";
 
   function fpbytab(tid: string): LayoutPane | null {
@@ -102,8 +103,9 @@ export const useTabStore = defineStore("tab", () => {
   function addTab(pid: string, path: string, title: string) {
     const p = fpid(pid);
     if (!p) return;
-    p.tabs.push({ id: nid(), path, title, files: [], selectedFiles: [] });
-    p.activeTabId = tc.toString();
+    const newId = nid();
+    p.tabs.push({ id: newId, path, title, files: [], selectedFiles: [] });
+    p.activeTabId = newId;
   }
   function closeTab(pid: string, tid: string) {
     const p = fpid(pid);
@@ -188,7 +190,7 @@ export const useTabStore = defineStore("tab", () => {
     ): boolean {
       if (n.type === "pane" && n.id === pid) {
         if (!par || !pc || idx < 0) {
-          root.value = cpane("", "This PC");
+          root.value = cpane("", "");
           return true;
         }
         pc.splice(idx, 1);

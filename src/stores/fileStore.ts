@@ -15,13 +15,17 @@ export const useFileStore = defineStore("file", () => {
   const isSearching = ref(false);
   const loading = ref(false);
   const error = ref("");
-  const viewMode = ref<"details" | "list" | "grid">("details");
+  const viewMode = ref<"details" | "list" | "grid" | "tree">("details");
   const contextMenuTarget = ref<FileEntry | null>(null);
   const specialDirs = ref<SpecialDirs | null>(null);
 
   // Cut state: tracks which files are marked for cut (shown as semi-transparent)
   const cutFiles = ref<Set<string>>(new Set());
   const isCutPending = ref(false);
+
+  // Tree view state
+  const treeExpanded = ref<Set<string>>(new Set());
+  const treeChildrenCache = ref<Map<string, FileEntry[]>>(new Map());
 
   // Delete confirm dialog state
   const showDeleteConfirm = ref(false);
@@ -38,7 +42,7 @@ export const useFileStore = defineStore("file", () => {
   );
 
   const currentDirectoryName = computed(() => {
-    if (!currentPath.value) return "This PC";
+    if (!currentPath.value) return "";
     const parts = currentPath.value.replace(/\\/g, "/").split("/");
     return parts[parts.length - 1] || currentPath.value;
   });
@@ -92,6 +96,8 @@ export const useFileStore = defineStore("file", () => {
     isSearching.value = false;
     cutFiles.value = new Set();
     isCutPending.value = false;
+    treeExpanded.value = new Set();
+    treeChildrenCache.value = new Map();
 
     try {
       files.value = await tauri.listDirectory(path);
@@ -327,13 +333,90 @@ export const useFileStore = defineStore("file", () => {
     await navigateTo(drive.name);
   }
 
-  function setViewMode(mode: "details" | "list" | "grid") {
+  function setViewMode(mode: "details" | "list" | "grid" | "tree") {
     viewMode.value = mode;
+  }
+
+  // ── Tree view operations ──
+  async function toggleTreeExpand(dirPath: string) {
+    const expanded = new Set(treeExpanded.value);
+    if (expanded.has(dirPath)) {
+      // Collapse: remove this and all descendants
+      expanded.delete(dirPath);
+      const cache = new Map(treeChildrenCache.value);
+      cache.delete(dirPath);
+      treeExpanded.value = expanded;
+      treeChildrenCache.value = cache;
+      return;
+    }
+    // Expand: fetch children
+    try {
+      const children = await tauri.listDirectory(dirPath);
+      const cache = new Map(treeChildrenCache.value);
+      cache.set(dirPath, children);
+      expanded.add(dirPath);
+      treeExpanded.value = expanded;
+      treeChildrenCache.value = cache;
+    } catch (e) {
+      // Ignore errors (e.g., permission denied)
+    }
+  }
+
+  function isTreeExpanded(dirPath: string): boolean {
+    return treeExpanded.value.has(dirPath);
+  }
+
+  function getTreeChildren(dirPath: string): FileEntry[] {
+    return treeChildrenCache.value.get(dirPath) || [];
+  }
+
+  function setTreeExpanded(paths: string[]) {
+    treeExpanded.value = new Set(paths);
+  }
+
+  function getTreeExpandedArray(): string[] {
+    return [...treeExpanded.value];
+  }
+
+  function collapseAllTree() {
+    treeExpanded.value = new Set();
+    treeChildrenCache.value = new Map();
   }
 
   function isFileCut(path: string): boolean {
     return cutFiles.value.has(path);
   }
+
+  // ── Tree view visible items computation ──
+  const treeVisibleItems = computed(() => {
+    const result: {
+      file: FileEntry;
+      depth: number;
+      expanded: boolean;
+      hasChildren: boolean;
+    }[] = [];
+    function walk(items: FileEntry[], depth: number) {
+      for (const item of items) {
+        const expanded = item.is_dir && treeExpanded.value.has(item.path);
+        const hasChildren = item.is_dir;
+        result.push({ file: item, depth, expanded, hasChildren });
+        if (expanded) {
+          const children = treeChildrenCache.value.get(item.path);
+          if (children) {
+            walk(children, depth + 1);
+          }
+        }
+      }
+    }
+    // Sort: directories first, then alphabetical
+    const sorted = [...files.value].sort((a, b) => {
+      if (a.is_dir && !b.is_dir) return -1;
+      if (!a.is_dir && b.is_dir) return 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+    walk(sorted, 0);
+    return result;
+  });
 
   // Undo last action
   async function performUndo(): Promise<string> {
@@ -427,6 +510,13 @@ export const useFileStore = defineStore("file", () => {
     search,
     openDrive,
     isFileCut,
+    treeVisibleItems,
+    toggleTreeExpand,
+    isTreeExpanded,
+    getTreeChildren,
+    setTreeExpanded,
+    getTreeExpandedArray,
+    collapseAllTree,
     performUndo,
     checkUndoStatus,
   };

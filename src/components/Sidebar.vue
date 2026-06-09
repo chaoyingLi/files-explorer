@@ -6,6 +6,7 @@
                 class="sidebar-item home-item"
                 :class="{ active: !store.currentPath }"
                 @click="navigateHome"
+                @contextmenu.prevent="emit('contextMenu', '', $event)"
             >
                 <svg class="sidebar-icon home-icon" viewBox="0 0 24 24">
                     <path
@@ -28,6 +29,7 @@
                 class="sidebar-item"
                 :class="{ active: isDriveActive(drive) }"
                 @click="openDrive(drive)"
+                @contextmenu.prevent="emit('contextMenu', drive.name, $event)"
             >
                 <svg class="sidebar-icon drive-icon" viewBox="0 0 24 24">
                     <rect
@@ -68,6 +70,7 @@
                 class="sidebar-item"
                 :class="{ active: isPathActive(item.path) }"
                 @click="handleQuickAccess(item.path)"
+                @contextmenu.prevent="emit('contextMenu', item.path, $event)"
             >
                 <svg
                     class="sidebar-icon"
@@ -92,6 +95,7 @@ const store = useFileStore();
 const emit = defineEmits<{
     navigate: [path: string];
     navigateHome: [];
+    contextMenu: [path: string, event: MouseEvent];
 }>();
 
 const quickAccess = computed(() => {

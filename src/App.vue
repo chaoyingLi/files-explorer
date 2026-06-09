@@ -17,6 +17,7 @@
             <Sidebar
                 @navigate="handleSidebarNavigate"
                 @navigate-home="handleSidebarHome"
+                @context-menu="handleSidebarContext"
             />
             <div class="panes-area">
                 <PaneNode
@@ -125,6 +126,7 @@ const tabStore = useTabStore();
 
 const showContextMenu = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
+const sidebarContextPath = ref("");
 const showNewDialog = ref(false);
 const newDialogType = ref("folder");
 const showRenameDialog = ref(false);
@@ -342,7 +344,30 @@ async function handleContextAction(action: string) {
         case "splitRight":
         case "splitUp":
         case "splitDown":
-            if (store.currentPath) {
+            // Determine the target path: sidebar context > right-click selection > current path
+            let splitPath = "";
+            let splitTitle = "";
+            if (sidebarContextPath.value) {
+                splitPath = sidebarContextPath.value;
+                const parts = splitPath
+                    .replace(/\\/g, "/")
+                    .split("/")
+                    .filter(Boolean);
+                splitTitle = parts[parts.length - 1] || splitPath;
+                sidebarContextPath.value = "";
+            } else if (store.selectedFiles.size === 1) {
+                const sel = [...store.selectedFiles][0];
+                const sf = store.files.find((f: any) => f.path === sel);
+                if (sf?.is_dir) {
+                    splitPath = sel;
+                    splitTitle = sf.name;
+                }
+            }
+            if (!splitPath) {
+                splitPath = store.currentPath;
+                splitTitle = store.currentDirectoryName;
+            }
+            if (splitPath) {
                 const dir = action.replace("split", "").toLowerCase() as
                     | "left"
                     | "right"
@@ -350,23 +375,13 @@ async function handleContextAction(action: string) {
                     | "down";
                 const fp = tabStore.getFocusedPane();
                 if (fp) {
-                    let sp = store.currentPath,
-                        st = store.currentDirectoryName;
-                    if (store.selectedFiles.size === 1) {
-                        const sel = [...store.selectedFiles][0];
-                        const sf = store.files.find((f: any) => f.path === sel);
-                        if (sf?.is_dir) {
-                            sp = sel;
-                            st = sf.name;
-                        }
-                    }
                     const ot = tabStore.getFocusedTab();
                     if (ot) saveFileStateToTab(ot);
-                    tabStore.splitPane(fp.id, sp, st, dir);
-                    store.navigateTo(sp, false).then(() => {
-                        const nt = tabStore.getFocusedTab();
-                        if (nt) saveFileStateToTab(nt);
-                    });
+                    tabStore.splitPane(fp.id, splitPath, splitTitle, dir);
+                    await store.navigateTo(splitPath, false);
+                    // Sync the loaded files to the new pane's tab
+                    const nt = tabStore.getFocusedTab();
+                    if (nt) saveFileStateToTab(nt);
                 }
             }
             break;
@@ -376,13 +391,15 @@ async function handleContextAction(action: string) {
 function saveFileStateToTab(tab: Tab) {
     tab.files = store.files;
     tab.path = store.currentPath;
-    tab.title = store.currentDirectoryName || "This PC";
+    tab.title = store.currentDirectoryName || t("sidebar.thisPc");
     tab.selectedFiles = [...store.selectedFiles];
+    tab.treeExpanded = store.getTreeExpandedArray();
 }
 function loadFileStateFromTab(tab: Tab) {
     store.files = tab.files || [];
     store.selectedFiles = new Set(tab.selectedFiles || []);
     store.currentPath = tab.path || "";
+    store.setTreeExpanded(tab.treeExpanded || []);
 }
 
 function onPaneFocusEvent(paneId: string) {
@@ -425,14 +442,35 @@ function onTabCloseEvent(paneId: string, tabId: string) {
         }
     }
 }
-function onNewTabEvent(paneId: string) {
+async function onNewTabEvent(paneId: string) {
+    // Save current tab state before switching
     const ot = tabStore.getFocusedTab();
     if (ot) saveFileStateToTab(ot);
+
+    // Focus the target pane and create the new tab
+    tabStore.focusPane(paneId);
+    focusedPaneId.value = paneId;
     tabStore.addTab(
         paneId,
         store.currentPath || "",
-        store.currentDirectoryName || "This PC",
+        store.currentDirectoryName || t("sidebar.thisPc"),
     );
+
+    // Load the new tab's saved state into the store
+    const fp = tabStore.getFocusedPane();
+    if (fp) {
+        const nt = fp.tabs.find((t: Tab) => t.id === fp.activeTabId);
+        if (nt) {
+            loadFileStateFromTab(nt);
+            if (nt.path) {
+                await store.navigateTo(nt.path, false);
+                const tab = tabStore.getFocusedTab();
+                if (tab) saveFileStateToTab(tab);
+            } else {
+                await store.loadDrives();
+            }
+        }
+    }
 }
 async function navigatePaneEvent(paneId: string, path: string) {
     const ot = tabStore.getFocusedTab();
@@ -461,6 +499,13 @@ async function handleSidebarHome() {
     const fp = tabStore.getFocusedPane();
     if (!fp) return;
     await navigatePaneEvent(fp.id, "");
+}
+
+// Sidebar right-click: navigate to item and show context menu
+function handleSidebarContext(path: string, event: MouseEvent) {
+    sidebarContextPath.value = path || "";
+    showContextMenu.value = true;
+    contextMenuPos.value = { x: event.clientX, y: event.clientY };
 }
 
 // Toolbar navigation through pane system
