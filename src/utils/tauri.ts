@@ -88,8 +88,12 @@ export async function openInTerminal(path: string): Promise<void> {
 export async function searchFiles(
   directory: string,
   query: string,
-): Promise<FileEntry[]> {
+): Promise<void> {
   return invoke("search_files", { directory, query });
+}
+
+export async function cancelSearch(): Promise<void> {
+  return invoke("cancel_search");
 }
 
 export async function getSpecialDirs(): Promise<SpecialDirs> {

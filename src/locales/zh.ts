@@ -14,6 +14,9 @@ export default {
     up: "向上",
     refresh: "刷新",
     search: "搜索",
+    stopSearch: "停止搜索",
+    searchWildcardHint:
+      "通配符：*（任意字符）、?（单个字符）、>10MB / <1GB（大小）、|（或）",
     address: "地址",
   },
   sidebar: {
@@ -28,9 +31,17 @@ export default {
     music: "音乐",
     videos: "视频",
   },
+  search: {
+    resultsTabTitle: "在 {folder} 搜索 {query} 的结果",
+    resultsTab: "在 {folder} 搜索 {query} 的结果（{count}）",
+    resultsTabTruncated: "在 {folder} 搜索 {query} 的结果（{count}+）",
+    noDirectory: "没有可搜索的目录",
+  },
   fileList: {
     name: "名称",
+    path: "路径",
     dateModified: "修改日期",
+    dateCreated: "创建日期",
     type: "类型",
     size: "大小",
     thisPc: "此电脑",
@@ -40,6 +51,8 @@ export default {
     loading: "加载中...",
     searchResults: '搜索 "{query}" 的结果（{count} 项）',
     noResults: '未找到 "{query}" 的相关结果',
+    searching: "搜索中...",
+    items: "项",
     layout: "布局",
     details: "详细信息",
     list: "列表",

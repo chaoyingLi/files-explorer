@@ -1,8 +1,22 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{command, State};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::SystemTime;
+use tauri::{command, AppHandle, Emitter, State};
 use walkdir::WalkDir;
+
+fn ts_from_metadata(
+    metadata: &fs::Metadata,
+    getter: fn(&fs::Metadata) -> Result<SystemTime, std::io::Error>,
+) -> i64 {
+    getter(metadata)
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileEntry {
@@ -11,6 +25,7 @@ pub struct FileEntry {
     pub is_dir: bool,
     pub size: u64,
     pub modified: i64,
+    pub created: i64,
     pub extension: String,
 }
 
@@ -30,6 +45,14 @@ pub struct CopyProgress {
     pub current: u64,
     pub total: u64,
     pub file: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchProgress {
+    pub files: Vec<FileEntry>,
+    pub total: u64,
+    pub done: bool,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,6 +79,7 @@ struct AppState {
     clipboard: std::sync::Mutex<Vec<PathBuf>>,
     clipboard_action: std::sync::Mutex<String>, // "copy" or "cut"
     undo_history: std::sync::Mutex<Vec<FileAction>>,
+    search_cancel: Arc<AtomicBool>,
 }
 
 #[command]
@@ -85,12 +109,8 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
                 let name = entry.file_name().to_string_lossy().to_string();
                 let is_dir = metadata.is_dir();
                 let size = if is_dir { 0 } else { metadata.len() };
-                let modified = metadata
-                    .modified()
-                    .ok()
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs() as i64)
-                    .unwrap_or(0);
+                let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
+                let created = ts_from_metadata(&metadata, fs::Metadata::created);
                 let extension = if is_dir {
                     String::new()
                 } else {
@@ -106,6 +126,7 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
                     is_dir,
                     size,
                     modified,
+                    created,
                     extension,
                 });
             }
@@ -539,12 +560,8 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
     } else {
         metadata.len()
     };
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+    let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
+    let created = ts_from_metadata(&metadata, fs::Metadata::created);
     let extension = if is_dir {
         String::new()
     } else {
@@ -559,6 +576,7 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
         is_dir,
         size,
         modified,
+        created,
         extension,
     })
 }
@@ -577,59 +595,226 @@ fn open_file(path: String) -> Result<(), String> {
     opener::open(path).map_err(|e| format!("Failed to open: {}", e))
 }
 
-#[command]
-fn search_files(directory: String, query: String) -> Result<Vec<FileEntry>, String> {
-    let mut results = Vec::new();
-    let query_lower = query.to_lowercase();
+// ── Wildcard / size / OR search ──
 
-    for entry in WalkDir::new(&directory)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_name()
-                .to_string_lossy()
-                .to_lowercase()
-                .contains(&query_lower)
-        })
-    {
-        let path = entry.path();
-        let metadata = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-
-        results.push(FileEntry {
-            name: entry.file_name().to_string_lossy().to_string(),
-            path: path.to_string_lossy().to_string(),
-            is_dir: entry.file_type().is_dir(),
-            size: if entry.file_type().is_dir() {
-                0
-            } else {
-                metadata.len()
-            },
-            modified: metadata
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0),
-            extension: if entry.file_type().is_dir() {
-                String::new()
-            } else {
-                path.extension()
-                    .map(|e| e.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            },
-        });
+/// Match a filename against a glob pattern (* = any chars, ? = one char)
+fn wildcard_match(pattern: &str, filename: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let f: Vec<char> = filename.chars().collect();
+    fn rec(p: &[char], f: &[char]) -> bool {
+        match (p.is_empty(), f.is_empty()) {
+            (true, true) => true,
+            (true, false) => false,
+            (false, true) => p.iter().all(|&c| c == '*'),
+            (false, false) => {
+                if p[0] == '*' {
+                    rec(&p[1..], f) || rec(p, &f[1..])
+                } else if p[0] == '?' || p[0].to_ascii_lowercase() == f[0].to_ascii_lowercase() {
+                    rec(&p[1..], &f[1..])
+                } else {
+                    false
+                }
+            }
+        }
     }
+    rec(&p, &f)
+}
 
-    Ok(results)
+/// Parse a size filter like ">10MB" or "<1GB" into (operator, bytes)
+fn parse_size_filter(s: &str) -> Option<(char, u64)> {
+    let s = s.trim();
+    let op = s.chars().next()?;
+    if op != '>' && op != '<' {
+        return None;
+    }
+    let rest = s[1..].trim();
+    // Extract numeric part
+    let num_end = rest
+        .find(|c: char| !c.is_ascii_digit() && c != '.')
+        .unwrap_or(rest.len());
+    if num_end == 0 {
+        return None;
+    }
+    let num: f64 = rest[..num_end].parse().ok()?;
+    let unit = rest[num_end..].trim().to_lowercase();
+    let multiplier = match unit.as_str() {
+        "b" | "" => 1.0,
+        "k" | "kb" => 1024.0,
+        "m" | "mb" => 1024.0 * 1024.0,
+        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
+        "t" | "tb" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    Some((op, (num * multiplier) as u64))
+}
+
+/// Check whether a single condition matches a file
+fn condition_matches_file(condition: &str, name: &str, size: u64) -> bool {
+    let cond = condition.trim();
+    if cond.is_empty() {
+        return false;
+    }
+    // Size filter?
+    if let Some((op, threshold)) = parse_size_filter(cond) {
+        return match op {
+            '>' => size > threshold,
+            '<' => size < threshold,
+            _ => false,
+        };
+    }
+    // Wildcard pattern? (contains * or ?)
+    if cond.contains('*') || cond.contains('?') {
+        return wildcard_match(cond, name);
+    }
+    // Plain text: substring match (case-insensitive)
+    name.to_lowercase().contains(&cond.to_lowercase())
 }
 
 #[command]
 fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
+}
+
+const SEARCH_MAX_RESULTS: u64 = 2000;
+const SEARCH_BATCH_SIZE: usize = 100;
+
+/// Run search in a dedicated thread so it never blocks the UI
+#[command]
+fn search_files(
+    app: AppHandle,
+    state: State<AppState>,
+    directory: String,
+    query: String,
+) -> Result<(), String> {
+    // Reset cancel flag
+    state.search_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.search_cancel.clone();
+
+    let conditions: Vec<String> = query
+        .split('|')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if conditions.is_empty() {
+        let _ = app.emit(
+            "search-progress",
+            SearchProgress {
+                files: vec![],
+                total: 0,
+                done: true,
+                truncated: false,
+            },
+        );
+        return Ok(());
+    }
+
+    let dir = directory.clone();
+    let app_clone = app.clone();
+
+    // Spawn on a dedicated OS thread — never blocks Tauri's IPC thread
+    std::thread::spawn(move || {
+        let mut batch: Vec<FileEntry> = Vec::new();
+        let mut total: u64 = 0;
+        let mut truncated = false;
+
+        for entry in WalkDir::new(&dir)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            // Check cancellation (thread-safe AtomicBool)
+            if cancel.load(Ordering::SeqCst) {
+                let files = std::mem::take(&mut batch);
+                let _ = app_clone.emit(
+                    "search-progress",
+                    SearchProgress {
+                        files,
+                        total,
+                        done: true,
+                        truncated: false,
+                    },
+                );
+                return;
+            }
+
+            if total >= SEARCH_MAX_RESULTS {
+                truncated = true;
+                break;
+            }
+
+            let path = entry.path().to_path_buf();
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let metadata = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let file_size = if entry.file_type().is_dir() {
+                0
+            } else {
+                metadata.len()
+            };
+            let is_dir = entry.file_type().is_dir();
+            let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
+            let created = ts_from_metadata(&metadata, fs::Metadata::created);
+            let extension = if is_dir {
+                String::new()
+            } else {
+                path.extension()
+                    .map(|e| e.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            };
+
+            let matched = conditions
+                .iter()
+                .any(|cond| condition_matches_file(cond, &file_name, file_size));
+            if !matched {
+                continue;
+            }
+
+            total += 1;
+            batch.push(FileEntry {
+                name: file_name,
+                path: path.to_string_lossy().to_string(),
+                is_dir,
+                size: file_size,
+                modified,
+                created,
+                extension,
+            });
+
+            if batch.len() >= SEARCH_BATCH_SIZE {
+                let files = std::mem::take(&mut batch);
+                let payload = SearchProgress {
+                    files,
+                    total,
+                    done: false,
+                    truncated: false,
+                };
+                if app_clone.emit("search-progress", payload).is_err() {
+                    break;
+                }
+            }
+        }
+
+        let files = std::mem::take(&mut batch);
+        let _ = app_clone.emit(
+            "search-progress",
+            SearchProgress {
+                files,
+                total,
+                done: true,
+                truncated,
+            },
+        );
+    });
+
+    Ok(())
+}
+
+#[command]
+fn cancel_search(state: State<AppState>) -> Result<(), String> {
+    state.search_cancel.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -738,6 +923,7 @@ pub fn run() {
             clipboard: std::sync::Mutex::new(Vec::new()),
             clipboard_action: std::sync::Mutex::new(String::new()),
             undo_history: std::sync::Mutex::new(Vec::new()),
+            search_cancel: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             list_directory,
@@ -759,6 +945,7 @@ pub fn run() {
             get_clipboard_info,
             undo_last_action,
             get_undo_info,
+            cancel_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

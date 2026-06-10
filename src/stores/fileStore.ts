@@ -10,8 +10,6 @@ export const useFileStore = defineStore("file", () => {
   const selectedFiles = ref<Set<string>>(new Set());
   const history = ref<string[]>([]);
   const historyIndex = ref(-1);
-  const searchQuery = ref("");
-  const searchResults = ref<FileEntry[]>([]);
   const isSearching = ref(false);
   const loading = ref(false);
   const error = ref("");
@@ -91,9 +89,11 @@ export const useFileStore = defineStore("file", () => {
   async function navigateTo(path: string, addToHistory = true) {
     loading.value = true;
     error.value = "";
-    searchQuery.value = "";
-    searchResults.value = [];
-    isSearching.value = false;
+    // Cancel any in-progress search
+    if (isSearching.value) {
+      isSearching.value = false;
+      cancelCurrentSearch();
+    }
     cutFiles.value = new Set();
     isCutPending.value = false;
     treeExpanded.value = new Set();
@@ -152,8 +152,6 @@ export const useFileStore = defineStore("file", () => {
   async function navigateHome() {
     currentPath.value = "";
     files.value = [];
-    searchQuery.value = "";
-    searchResults.value = [];
     isSearching.value = false;
     selectedFiles.value.clear();
     cutFiles.value = new Set();
@@ -309,24 +307,9 @@ export const useFileStore = defineStore("file", () => {
     }
   }
 
-  async function search(query: string) {
-    if (!query.trim()) {
-      isSearching.value = false;
-      searchResults.value = [];
-      return;
-    }
-
-    loading.value = true;
-    isSearching.value = true;
-    searchQuery.value = query;
-
-    try {
-      searchResults.value = await tauri.searchFiles(currentPath.value, query);
-    } catch (e) {
-      error.value = String(e);
-    } finally {
-      loading.value = false;
-    }
+  async function cancelCurrentSearch() {
+    await tauri.cancelSearch();
+    isSearching.value = false;
   }
 
   async function openDrive(drive: DiskInfo) {
@@ -464,8 +447,6 @@ export const useFileStore = defineStore("file", () => {
     selectedFiles,
     history,
     historyIndex,
-    searchQuery,
-    searchResults,
     isSearching,
     loading,
     error,
@@ -507,7 +488,6 @@ export const useFileStore = defineStore("file", () => {
     paste,
     openSelectedFile,
     setViewMode,
-    search,
     openDrive,
     isFileCut,
     treeVisibleItems,
@@ -517,6 +497,7 @@ export const useFileStore = defineStore("file", () => {
     setTreeExpanded,
     getTreeExpandedArray,
     collapseAllTree,
+    cancelCurrentSearch,
     performUndo,
     checkUndoStatus,
   };

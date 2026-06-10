@@ -65,15 +65,62 @@
             </button>
         </div>
         <div class="toolbar-center">
-            <div class="address-bar">
-                <input
-                    ref="addressInput"
-                    v-model="addressValue"
-                    class="address-input"
-                    spellcheck="false"
-                    @keydown.enter="navigateToAddress"
-                    @focus="onAddressFocus"
-                />
+            <div class="address-bar-wrapper">
+                <div class="address-bar">
+                    <input
+                        ref="addressInput"
+                        v-model="addressValue"
+                        class="address-input"
+                        spellcheck="false"
+                        @keydown.enter="onAddressEnter"
+                        @keydown.escape="showAddressDropdown = false"
+                        @keydown.down.prevent="onAddressArrowDown"
+                        @keydown.up.prevent="onAddressArrowUp"
+                        @focus="onAddressFocus"
+                        @input="onAddressInput"
+                        @blur="onAddressBlur"
+                    />
+                </div>
+                <!-- Address autocomplete dropdown -->
+                <div
+                    v-if="showAddressDropdown && addressSuggestions.length > 0"
+                    class="address-dropdown"
+                    @mousedown.prevent
+                >
+                    <div
+                        v-for="(item, idx) in addressSuggestions"
+                        :key="item.path"
+                        class="address-suggestion"
+                        :class="{ highlighted: idx === addressSelectedIndex }"
+                        @mousedown.prevent="selectAddressSuggestion(item)"
+                        @mouseenter="addressSelectedIndex = idx"
+                    >
+                        <svg
+                            class="suggestion-icon"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                        >
+                            <path
+                                v-if="item.is_dir"
+                                d="M2 4.5c0-.83.67-1.5 1.5-1.5h2.5a1.5 1.5 0 011.1.5l.7.85a.5.5 0 00.38.18H12c.83 0 1.5.67 1.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11V4.5z"
+                                fill="var(--accent)"
+                                opacity="0.8"
+                            />
+                            <path
+                                v-else
+                                d="M4 2h3.8l2.7 2.7V12a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"
+                                fill="var(--text-muted)"
+                                opacity="0.6"
+                            />
+                        </svg>
+                        <span class="suggestion-name">{{ item.name }}</span>
+                        <span class="suggestion-meta">{{
+                            item.is_dir
+                                ? t("fileTypes.folder")
+                                : item.extension.toUpperCase()
+                        }}</span>
+                    </div>
+                </div>
             </div>
             <div class="search-bar">
                 <svg class="search-icon" viewBox="0 0 20 20" fill="none">
@@ -95,11 +142,32 @@
                     v-model="searchQuery"
                     class="search-input"
                     :placeholder="t('toolbar.search')"
+                    :title="t('toolbar.searchWildcardHint')"
                     spellcheck="false"
-                    @input="onSearchInput"
+                    @keydown.enter="onSearchEnter"
                 />
+                <!-- Stop button when searching -->
                 <button
-                    v-if="searchQuery"
+                    v-if="store.isSearching && searchQuery"
+                    class="icon-btn stop-btn"
+                    :title="t('toolbar.stopSearch')"
+                    @click="cancelSearch"
+                >
+                    <svg viewBox="0 0 20 20" fill="none">
+                        <rect
+                            x="5"
+                            y="5"
+                            width="10"
+                            height="10"
+                            rx="1.5"
+                            fill="currentColor"
+                            opacity="0.7"
+                        />
+                    </svg>
+                </button>
+                <!-- Clear button when not searching -->
+                <button
+                    v-else-if="searchQuery"
                     class="icon-btn clear-btn"
                     @click="clearSearch"
                 >
@@ -146,10 +214,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import type { FileEntry } from "@/types";
 
 const { t, locale } = useI18n();
 const store = useFileStore();
@@ -157,7 +226,27 @@ const settings = useSettingsStore();
 const addressInput = ref<HTMLInputElement | null>(null);
 const addressValue = ref("");
 const searchQuery = ref("");
-let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// ── Address autocomplete ──
+const showAddressDropdown = ref(false);
+const addressSelectedIndex = ref(0);
+
+const addressSuggestions = computed(() => {
+    const val = addressValue.value.trim();
+    if (!val || !store.currentPath || !showAddressDropdown.value) return [];
+    const lower = val.toLowerCase();
+
+    // Filter and sort: directories first, then by name
+    const matched = store.files.filter((f: FileEntry) =>
+        f.name.toLowerCase().startsWith(lower),
+    );
+    matched.sort((a: FileEntry, b: FileEntry) => {
+        if (a.is_dir && !b.is_dir) return -1;
+        if (!a.is_dir && b.is_dir) return 1;
+        return a.name.localeCompare(b.name);
+    });
+    return matched.slice(0, 15);
+});
 
 const emit = defineEmits<{
     openSettings: [];
@@ -166,6 +255,7 @@ const emit = defineEmits<{
     navigateUp: [];
     refresh: [];
     navigateAddress: [path: string];
+    searchSubmit: [query: string];
 }>();
 
 // Sync locale from settings store
@@ -184,27 +274,75 @@ watch(
     },
 );
 
+function navigateToAddress(path?: string) {
+    const p = path || addressValue.value.trim();
+    if (p && p !== t("statusBar.thisPc")) {
+        emit("navigateAddress", p);
+    }
+    showAddressDropdown.value = false;
+}
+
 function onAddressFocus() {
     addressInput.value?.select();
+    showAddressDropdown.value = true;
+    addressSelectedIndex.value = 0;
 }
-function navigateToAddress() {
-    const p = addressValue.value.trim();
-    if (p && p !== t("statusBar.thisPc")) emit("navigateAddress", p);
+function onAddressInput() {
+    showAddressDropdown.value = true;
+    addressSelectedIndex.value = 0;
 }
-function onSearchInput() {
-    if (searchTimeout) clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-        if (searchQuery.value.trim()) store.search(searchQuery.value.trim());
-        else {
-            store.isSearching = false;
-            store.searchResults = [];
+function onAddressBlur() {
+    // Delay to allow click on suggestion
+    setTimeout(() => {
+        showAddressDropdown.value = false;
+    }, 150);
+}
+function onAddressEnter() {
+    if (showAddressDropdown.value && addressSuggestions.value.length > 0) {
+        const sel = addressSuggestions.value[addressSelectedIndex.value];
+        if (sel) {
+            const parent =
+                store.currentPath.endsWith("\\") ||
+                store.currentPath.endsWith("/")
+                    ? store.currentPath
+                    : store.currentPath +
+                      (store.currentPath.includes("/") ? "/" : "\\");
+            navigateToAddress(parent + sel.name);
+            return;
         }
-    }, 300);
+    }
+    navigateToAddress();
+}
+function onAddressArrowDown() {
+    const max = addressSuggestions.value.length - 1;
+    addressSelectedIndex.value = Math.min(addressSelectedIndex.value + 1, max);
+}
+function onAddressArrowUp() {
+    addressSelectedIndex.value = Math.max(addressSelectedIndex.value - 1, 0);
+}
+function selectAddressSuggestion(item: FileEntry) {
+    const parent =
+        store.currentPath.endsWith("\\") || store.currentPath.endsWith("/")
+            ? store.currentPath
+            : store.currentPath +
+              (store.currentPath.includes("/") ? "/" : "\\");
+    navigateToAddress(parent + item.name);
+}
+function onSearchEnter() {
+    const q = searchQuery.value.trim();
+    if (q) {
+        emit("searchSubmit", q);
+    } else {
+        store.cancelCurrentSearch();
+    }
+}
+async function cancelSearch() {
+    searchQuery.value = "";
+    await store.cancelCurrentSearch();
 }
 function clearSearch() {
     searchQuery.value = "";
-    store.isSearching = false;
-    store.searchResults = [];
+    store.cancelCurrentSearch();
 }
 </script>
 
@@ -228,8 +366,13 @@ function clearSearch() {
     align-items: center;
     gap: 8px;
 }
-.address-bar {
+.address-bar-wrapper {
     flex: 1;
+    position: relative;
+}
+
+.address-bar {
+    width: 100%;
 }
 .address-input {
     width: 100%;
@@ -240,6 +383,57 @@ function clearSearch() {
     border-radius: 6px;
     padding: 0 12px;
     color: var(--text-primary);
+}
+
+.address-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    max-height: 360px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 8px 32px var(--shadow);
+}
+
+.address-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.05s;
+}
+
+.address-suggestion:hover,
+.address-suggestion.highlighted {
+    background: var(--bg-hover);
+}
+
+.suggestion-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.suggestion-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
 }
 .search-bar {
     display: flex;
@@ -271,11 +465,16 @@ function clearSearch() {
     border: none;
     outline: none;
 }
-.clear-btn {
+.clear-btn,
+.stop-btn {
     padding: 1px;
     min-width: 18px;
     height: 18px;
     flex-shrink: 0;
+}
+
+.stop-btn:hover {
+    color: var(--danger) !important;
 }
 .settings-btn {
     flex-shrink: 0;

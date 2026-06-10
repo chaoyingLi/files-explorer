@@ -11,9 +11,18 @@
                     sortAsc ? "▲" : "▼"
                 }}</span>
             </div>
+            <div v-if="isSearchTab" class="col-path-header">
+                {{ t("fileList.path") }}
+            </div>
             <div class="col-date" @click="sortBy('modified')">
                 {{ t("fileList.dateModified") }}
                 <span v-if="sortField === 'modified'" class="sort-arrow">{{
+                    sortAsc ? "▲" : "▼"
+                }}</span>
+            </div>
+            <div class="col-created" @click="sortBy('created')">
+                {{ t("fileList.dateCreated") }}
+                <span v-if="sortField === 'created'" class="sort-arrow">{{
                     sortAsc ? "▲" : "▼"
                 }}</span>
             </div>
@@ -125,37 +134,15 @@
         </div>
 
         <div
-            v-if="store.isSearching && store.searchResults.length > 0"
-            class="search-results-header"
-        >
-            {{
-                t("fileList.searchResults", {
-                    query: store.searchQuery,
-                    count: store.searchResults.length,
-                })
-            }}
-        </div>
-
-        <div
             v-if="currentPath && !store.loading"
             class="file-items"
             :class="'view-' + store.viewMode"
         >
             <div
-                v-if="displayFiles.length === 0 && !store.isSearching"
+                v-if="displayFiles.length === 0 && !store.loading"
                 class="empty-state"
             >
                 {{ t("fileList.emptyFolder") }}
-            </div>
-            <div
-                v-if="
-                    store.isSearching &&
-                    store.searchResults.length === 0 &&
-                    !store.loading
-                "
-                class="empty-state"
-            >
-                {{ t("fileList.noResults", { query: store.searchQuery }) }}
             </div>
             <!-- Details & List views -->
             <template
@@ -168,6 +155,7 @@
                     :compact="store.viewMode === 'list'"
                     :selected="store.selectedFiles.has(file.path)"
                     :is-cut="store.isFileCut(file.path)"
+                    :show-path="isSearchTab"
                     @click="onFileClick(file, $event)"
                     @dblclick="store.openSelectedFile(file)"
                     @contextmenu="onFileContextMenu(file, $event)"
@@ -403,6 +391,8 @@ const activeTabData = computed(() => {
     return pane.tabs.find((t) => t.id === pane.activeTabId);
 });
 
+const isSearchTab = computed(() => activeTabData.value?.isSearch ?? false);
+
 const currentFiles = computed({
     get: () => (activeTabData.value ? activeTabData.value.files : store.files),
     set: (v) => {
@@ -419,7 +409,7 @@ const currentPath = computed({
     },
 });
 
-const sortField = ref<"name" | "modified" | "size">("name");
+const sortField = ref<"name" | "modified" | "created" | "size">("name");
 const sortAsc = ref(true);
 
 const quickAccessFolders = computed(() => {
@@ -437,14 +427,12 @@ const quickAccessFolders = computed(() => {
 });
 
 const displayFiles = computed(() => {
-    const source = store.isSearching ? store.searchResults : currentFiles.value;
+    const source = currentFiles.value;
     const sorted = [...source].sort((a, b) => {
         let cmp = 0;
 
-        if (!store.isSearching) {
-            if (a.is_dir && !b.is_dir) return -1;
-            if (!a.is_dir && b.is_dir) return 1;
-        }
+        if (a.is_dir && !b.is_dir) return -1;
+        if (!a.is_dir && b.is_dir) return 1;
 
         switch (sortField.value) {
             case "name":
@@ -454,6 +442,9 @@ const displayFiles = computed(() => {
                 break;
             case "modified":
                 cmp = b.modified - a.modified;
+                break;
+            case "created":
+                cmp = b.created - a.created;
                 break;
             case "size":
                 cmp = b.size - a.size;
@@ -487,7 +478,7 @@ const treeVisible = computed(() => {
             }
         }
     }
-    const source = store.isSearching ? store.searchResults : currentFiles.value;
+    const source = currentFiles.value;
     const sorted = [...source].sort((a, b) => {
         if (a.is_dir && !b.is_dir) return -1;
         if (!a.is_dir && b.is_dir) return 1;
@@ -497,7 +488,7 @@ const treeVisible = computed(() => {
     return result;
 });
 
-function sortBy(field: "name" | "modified" | "size") {
+function sortBy(field: "name" | "modified" | "created" | "size") {
     if (sortField.value === field) {
         sortAsc.value = !sortAsc.value;
     } else {
@@ -636,10 +627,21 @@ function gridColorClass(file: FileEntry): string {
     background: var(--bg-hover);
 }
 
+.col-path-header {
+    width: 260px;
+    flex-shrink: 0;
+    cursor: default !important;
+}
+
 .col-name {
     flex: 1;
 }
 .col-date {
+    width: 160px;
+    flex-shrink: 0;
+}
+
+.col-created {
     width: 160px;
     flex-shrink: 0;
 }

@@ -57,7 +57,37 @@
                 </svg>
             </button>
         </div>
+        <!-- Search tab: show search header -->
+        <div v-if="activeTab?.isSearch" class="search-header">
+            <svg class="search-header-icon" viewBox="0 0 18 18" fill="none">
+                <circle
+                    cx="7.5"
+                    cy="7.5"
+                    r="5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                />
+                <path
+                    d="M11 11l4 4"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                />
+            </svg>
+            <span class="search-header-query">{{
+                activeTab?.searchQuery
+            }}</span>
+            <span v-if="activeTab?.searchDone" class="search-header-count">
+                {{ activeTab?.searchTotal }} {{ t("fileList.items") }}
+            </span>
+            <span v-else class="search-header-searching">
+                {{ t("fileList.searching") }}
+                <span class="search-spinner"></span>
+            </span>
+        </div>
+        <!-- Normal tab: show breadcrumb -->
         <Breadcrumb
+            v-else
             :path="activeTab?.path ?? ''"
             @navigate="(p: string) => $emit('navigate', node.id, p)"
         />
@@ -69,16 +99,20 @@
             :key="child.id"
             :node="child"
             :focused-pane-id="focusedPaneId"
-            @focus="$emit('focus', $event)"
-            @tabClick="$emit('tabClick', $event[0], $event[1])"
-            @tabClose="$emit('tabClose', $event[0], $event[1])"
-            @tabNew="$emit('tabNew', $event)"
-            @tabDrop="
-                (a: string, b: string, c: DragEvent) =>
-                    $emit('tabDrop', a, b, c)
+            @focus="(id: string) => $emit('focus', id)"
+            @tabClick="
+                (pid: string, tid: string) => $emit('tabClick', pid, tid)
             "
-            @paneClose="$emit('paneClose', $event)"
-            @navigate="$emit('navigate', $event[0], $event[1])"
+            @tabClose="
+                (pid: string, tid: string) => $emit('tabClose', pid, tid)
+            "
+            @tabNew="(pid: string) => $emit('tabNew', pid)"
+            @tabDrop="
+                (pid: string, tid: string, e: DragEvent) =>
+                    $emit('tabDrop', pid, tid, e)
+            "
+            @paneClose="(pid: string) => $emit('paneClose', pid)"
+            @navigate="(pid: string, p: string) => $emit('navigate', pid, p)"
         />
     </div>
 </template>
@@ -227,5 +261,64 @@ export default { name: "PaneNode" };
 .pane-close-btn:hover {
     background: var(--bg-hover);
     color: var(--danger);
+}
+
+/* ── Search tab header ── */
+.search-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    min-height: 32px;
+    font-size: 13px;
+}
+
+.search-header-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.search-header-query {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-header-count {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.search-header-searching {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.search-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: search-spin 0.6s linear infinite;
+}
+
+@keyframes search-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 </style>

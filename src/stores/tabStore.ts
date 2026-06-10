@@ -8,6 +8,10 @@ export interface Tab {
   files: any[];
   selectedFiles: string[];
   treeExpanded?: string[];
+  isSearch?: boolean;
+  searchQuery?: string;
+  searchDone?: boolean;
+  searchTotal?: number;
 }
 export interface LayoutPane {
   type: "pane";
@@ -111,8 +115,15 @@ export const useTabStore = defineStore("tab", () => {
     const p = fpid(pid);
     if (!p || p.tabs.length <= 1) return;
     const i = p.tabs.findIndex((t) => t.id === tid);
+    if (i < 0) return; // tab not found
+    // Splice BEFORE computing target so indices are stable
     p.tabs.splice(i, 1);
-    if (p.activeTabId === tid) p.activeTabId = p.tabs[p.tabs.length - 1].id;
+    if (p.activeTabId === tid) {
+      // Find the new active tab: prefer the one that was adjacent (same index if exists, else last)
+      const newActive = p.tabs[Math.min(i, p.tabs.length - 1)];
+      p.activeTabId = newActive?.id ?? p.tabs[p.tabs.length - 1]?.id ?? "";
+    }
+    triggerRef(root);
   }
   function switchTab(pid: string, tid: string) {
     const p = fpid(pid);

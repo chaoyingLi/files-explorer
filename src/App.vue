@@ -12,6 +12,7 @@
             @navigate-up="handleToolbarUp"
             @refresh="handleToolbarRefresh"
             @navigate-address="handleToolbarAddress"
+            @search-submit="handleSearchSubmit"
         />
         <RibbonToolbar @action="handleContextAction" />
         <div class="main-content">
@@ -391,17 +392,28 @@ async function handleContextAction(action: string) {
 }
 
 function saveFileStateToTab(tab: Tab) {
-    tab.files = store.files;
     tab.path = store.currentPath;
-    tab.title = store.currentDirectoryName || t("sidebar.thisPc");
     tab.selectedFiles = [...store.selectedFiles];
     tab.treeExpanded = store.getTreeExpandedArray();
+    // Search tab properties are managed by handleSearchSubmit, never overwrite
+    if (tab.isSearch) return;
+    tab.files = store.files;
+    tab.title = store.currentDirectoryName || t("sidebar.thisPc");
 }
 function loadFileStateFromTab(tab: Tab) {
     store.files = tab.files || [];
     store.selectedFiles = new Set(tab.selectedFiles || []);
     store.currentPath = tab.path || "";
     store.setTreeExpanded(tab.treeExpanded || []);
+    // If we're loading a search tab with results, ensure store.files match
+    if (
+        tab.isSearch &&
+        tab.files &&
+        tab.files.length > 0 &&
+        store.files.length === 0
+    ) {
+        store.files = tab.files;
+    }
 }
 
 function onPaneFocusEvent(paneId: string) {
@@ -420,6 +432,14 @@ function onPaneFocusEvent(paneId: string) {
 }
 function onTabClickEvent(paneId: string, tabId: string) {
     const ot = tabStore.getFocusedTab();
+    // If leaving a search tab, clean up
+    if (ot?.isSearch) {
+        store.cancelCurrentSearch();
+        if (searchTabUnlisten) {
+            searchTabUnlisten();
+            searchTabUnlisten = null;
+        }
+    }
     if (ot) saveFileStateToTab(ot);
     tabStore.switchTab(paneId, tabId);
     tabStore.focusPane(paneId);
@@ -433,15 +453,41 @@ function onTabClickEvent(paneId: string, tabId: string) {
         }
     }
 }
-function onTabCloseEvent(paneId: string, tabId: string) {
+async function onTabCloseEvent(paneId: string, tabId: string) {
+    // If closing a search tab, cancel the search & stop listening
+    const pane = tabStore.findPaneById(paneId);
+    const isClosingSearch = pane?.tabs.find((t) => t.id === tabId)?.isSearch;
+    if (isClosingSearch) {
+        store.cancelCurrentSearch();
+        if (searchTabUnlisten) {
+            searchTabUnlisten();
+            searchTabUnlisten = null;
+        }
+    }
+
     tabStore.closeTab(paneId, tabId);
     const p = tabStore.findPaneById(paneId);
-    if (p) {
-        const t = p.tabs.find((x: Tab) => x.id === p.activeTabId);
-        if (t) {
-            loadFileStateFromTab(t);
-            if (!t.path) store.loadDrives();
+    if (!p) return;
+    // If closeTab refused to close (last tab), switch to This PC
+    const t = p.tabs.find((x: Tab) => x.id === p.activeTabId);
+    if (t) {
+        // If the remaining tab is a search tab that couldn't be closed,
+        // convert it to a normal tab by navigating to its directory
+        if (t.isSearch && t.id === tabId) {
+            t.isSearch = false;
+            t.searchQuery = undefined;
+            t.searchDone = undefined;
+            if (t.path) {
+                await store.navigateTo(t.path, false);
+                const nt = tabStore.getFocusedTab();
+                if (nt) saveFileStateToTab(nt);
+            } else {
+                await store.navigateHome();
+            }
+            return;
         }
+        loadFileStateFromTab(t);
+        if (!t.path) store.loadDrives();
     }
 }
 async function onNewTabEvent(paneId: string) {
@@ -527,6 +573,105 @@ async function handleToolbarAddress(path: string) {
     const fp = tabStore.getFocusedPane();
     if (!fp) return;
     await navigatePaneEvent(fp.id, path);
+}
+
+// ── Search in new tab ──
+let searchTabUnlisten: (() => void) | null = null;
+
+async function handleSearchSubmit(query: string) {
+    // Cancel any running search
+    await store.cancelCurrentSearch();
+    if (searchTabUnlisten) {
+        searchTabUnlisten();
+        searchTabUnlisten = null;
+    }
+
+    // Get focused pane to add the new tab
+    const fp = tabStore.getFocusedPane();
+    if (!fp) return;
+
+    // Save current tab state
+    const ot = tabStore.getFocusedTab();
+    if (ot) saveFileStateToTab(ot);
+
+    // Determine search directory: use currentPath, or the focused tab's path
+    const searchDir = store.currentPath || ot?.path || "";
+    if (!searchDir) {
+        showToast(t("toast.error") + ": " + t("search.noDirectory"), true);
+        return;
+    }
+
+    // Create a new search tab with consistent title format
+    const searchTitle = t("search.resultsTabTitle", {
+        query,
+        folder: searchDir,
+    });
+    tabStore.addTab(fp.id, searchDir, searchTitle);
+    tabStore.focusPane(fp.id);
+    focusedPaneId.value = fp.id;
+
+    // Initialize the new tab's search state
+    const nt = tabStore.getFocusedTab();
+    if (!nt) return;
+    nt.files = [];
+    nt.isSearch = true;
+    nt.searchQuery = query;
+    nt.searchDone = false;
+    nt.searchTotal = 0;
+    // IMPORTANT: reset store.files BEFORE setting currentPath
+    // so the watch saves empty files to the search tab, not the old tab's files
+    store.files = [];
+    store.selectedFiles = new Set();
+    store.isSearching = true;
+    store.currentPath = searchDir;
+
+    // Listen for streaming search results
+    const { listen } = await import("@tauri-apps/api/event");
+    searchTabUnlisten = await listen<{
+        files: any[];
+        total: number;
+        done: boolean;
+        truncated: boolean;
+    }>("search-progress", (event) => {
+        const p = event.payload;
+        if (p.files.length > 0) {
+            nt.files = [...(nt.files || []), ...p.files];
+        }
+        if (p.done) {
+            nt.searchDone = true;
+            nt.searchTotal = p.total;
+            store.isSearching = false;
+            if (p.truncated) {
+                nt.title = t("search.resultsTabTruncated", {
+                    query,
+                    count: p.total,
+                    folder: searchDir,
+                });
+            } else {
+                nt.title = t("search.resultsTab", {
+                    query,
+                    count: p.total,
+                    folder: searchDir,
+                });
+            }
+            if (searchTabUnlisten) {
+                searchTabUnlisten();
+                searchTabUnlisten = null;
+            }
+        }
+    });
+
+    // Start the search from the current directory
+    try {
+        await tauri.searchFiles(searchDir, query);
+    } catch (e: any) {
+        store.isSearching = false;
+        showToast(t("toast.error") + ": " + e, true);
+        if (searchTabUnlisten) {
+            searchTabUnlisten();
+            searchTabUnlisten = null;
+        }
+    }
 }
 
 // Auto-save: sync store changes to focused tab

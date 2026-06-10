@@ -32,10 +32,7 @@ const itemCount = computed(() => {
     if (!store.currentPath) {
         return `${store.drives.length} ${t("statusBar.drives")}`;
     }
-    const count = store.isSearching
-        ? store.searchResults.length
-        : store.files.length;
-    return t("statusBar.items", { count });
+    return t("statusBar.items", { count: store.files.length });
 });
 </script>
 

@@ -67,9 +67,18 @@
                 {{ file.name }}
                 <span v-if="isCut" class="cut-badge">✂</span>
             </span>
+            <span v-if="showPath && compact" class="file-path-sub">{{
+                file.path
+            }}</span>
+        </div>
+        <div v-if="showPath && !compact" class="col-path" :title="file.path">
+            {{ file.path }}
         </div>
         <div class="col-date" v-if="!compact">
             {{ formatDate(file.modified) }}
+        </div>
+        <div class="col-created" v-if="!compact">
+            {{ formatDate(file.created) }}
         </div>
         <div class="col-type" v-if="!compact">{{ fileType }}</div>
         <div class="col-size" v-if="!compact">{{ formatSize(file.size) }}</div>
@@ -86,6 +95,7 @@ const props = defineProps<{
     selected: boolean;
     compact?: boolean;
     isCut?: boolean;
+    showPath?: boolean;
 }>();
 
 defineEmits<{
@@ -288,6 +298,12 @@ function onDragStart(e: DragEvent) {
     color: var(--text-secondary);
     font-size: 12px;
 }
+.col-created {
+    width: 160px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
 .col-type {
     width: 100px;
     flex-shrink: 0;
@@ -329,6 +345,28 @@ function onDragStart(e: DragEvent) {
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.file-path-sub {
+    font-size: var(--font-size-sm, 11px);
+    color: var(--text-muted);
+    margin-left: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.col-path {
+    width: 260px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm, 11px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 8px;
 }
 
 .cut-badge {

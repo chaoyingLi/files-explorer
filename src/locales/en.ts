@@ -14,6 +14,9 @@ export default {
     up: "Up",
     refresh: "Refresh",
     search: "Search",
+    stopSearch: "Stop search",
+    searchWildcardHint:
+      "Wildcards: * (any), ? (one char), >10MB / <1GB (size), | (or)",
     address: "Address",
   },
   sidebar: {
@@ -28,9 +31,17 @@ export default {
     music: "Music",
     videos: "Videos",
   },
+  search: {
+    resultsTabTitle: 'Results of "{query}" in {folder}',
+    resultsTab: 'Results of "{query}" in {folder} ({count})',
+    resultsTabTruncated: 'Results of "{query}" in {folder} ({count}+)',
+    noDirectory: "No directory to search",
+  },
   fileList: {
     name: "Name",
+    path: "Path",
     dateModified: "Date Modified",
+    dateCreated: "Date Created",
     type: "Type",
     size: "Size",
     thisPc: "This PC",
@@ -40,6 +51,8 @@ export default {
     loading: "Loading...",
     searchResults: 'Search results for "{query}" ({count} items)',
     noResults: 'No results found for "{query}"',
+    searching: "Searching...",
+    items: "items",
     layout: "Layout",
     details: "Details",
     list: "List",
