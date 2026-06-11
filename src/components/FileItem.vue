@@ -88,7 +88,14 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry } from "@/types";
+import {
+    getFileCategory,
+    colorClassForCategory,
+    formatFileSize,
+    formatFileDate,
+} from "@/utils/fileTypes";
 
 const props = defineProps<{
     file: FileEntry;
@@ -105,6 +112,10 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const category = computed(() =>
+    getFileCategory(props.file.extension, props.file.is_dir),
+);
 
 const fileType = computed(() => {
     if (props.file.is_dir) return t("fileTypes.folder");
@@ -159,112 +170,16 @@ const fileType = computed(() => {
     );
 });
 
-// Determine color category CSS class for theme-consistent colors
-const colorClass = computed(() => {
-    if (props.file.is_dir) return "color-folder";
-    const ext = props.file.extension.toLowerCase();
-    if (
-        [
-            "js",
-            "ts",
-            "jsx",
-            "tsx",
-            "vue",
-            "py",
-            "rs",
-            "go",
-            "java",
-            "c",
-            "cpp",
-            "h",
-            "rb",
-            "swift",
-            "kt",
-        ].includes(ext)
-    )
-        return "color-code";
-    if (
-        ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"].includes(ext)
-    )
-        return "color-image";
-    if (["mp3", "wav", "flac", "ogg", "aac"].includes(ext))
-        return "color-audio";
-    if (["mp4", "avi", "mkv", "mov", "wmv"].includes(ext)) return "color-video";
-    if (["zip", "rar", "7z", "tar", "gz", "xz"].includes(ext))
-        return "color-archive";
-    if (["pdf"].includes(ext)) return "color-pdf";
-    if (["exe", "dll", "msi"].includes(ext)) return "color-app";
-    if (["html", "css", "scss", "less"].includes(ext)) return "color-web";
-    return "color-default";
-});
+const colorClass = computed(() => colorClassForCategory(category.value));
 
-const iconClass = computed(() => {
-    if (props.file.is_dir) return "icon-folder";
-    const ext = props.file.extension.toLowerCase();
-    if (
-        [
-            "js",
-            "ts",
-            "jsx",
-            "tsx",
-            "vue",
-            "py",
-            "rs",
-            "go",
-            "java",
-            "c",
-            "cpp",
-            "h",
-        ].includes(ext)
-    )
-        return "icon-code";
-    if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext))
-        return "icon-image";
-    if (["mp3", "wav", "flac"].includes(ext)) return "icon-audio";
-    if (["mp4", "avi", "mkv"].includes(ext)) return "icon-video";
-    if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "icon-archive";
-    if (["pdf"].includes(ext)) return "icon-pdf";
-    return "icon-file";
-});
-
-function formatSize(bytes: number): string {
-    if (bytes === 0) return props.file.is_dir ? "" : "0 B";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let i = 0;
-    let size = bytes;
-    while (size >= 1024 && i < units.length - 1) {
-        size /= 1024;
-        i++;
-    }
-    return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
-function formatDate(timestamp: number): string {
-    if (timestamp === 0) return "";
-    const date = new Date(timestamp * 1000);
-    const now = new Date();
-    const isToday =
-        date.getDate() === now.getDate() &&
-        date.getMonth() === now.getMonth() &&
-        date.getFullYear() === now.getFullYear();
-    if (isToday)
-        return date.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    return date.toLocaleDateString([], {
-        month: "short",
-        day: "numeric",
-        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-    });
-}
-
+// ── Drag-and-drop via custom DOM events ──
 let _dragMousemove: ((e: MouseEvent) => void) | null = null;
 let _dragMouseup: ((e: MouseEvent) => void) | null = null;
 
 function onMouseDown(e: MouseEvent) {
-    if (e.button !== 0) return; // left button only
+    if (e.button !== 0) return;
     const store = useFileStore();
+    const tabStore = useTabStore();
     const selected = store.selectedFiles;
     const paths = selected.has(props.file.path)
         ? [...selected]
@@ -274,7 +189,6 @@ function onMouseDown(e: MouseEvent) {
     const startY = e.clientY;
     let dragging = false;
 
-    // Create ghost element
     const ghost = document.createElement("div");
     ghost.style.cssText =
         "position:fixed;pointer-events:none;z-index:9999;opacity:0.7;padding:4px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-primary);white-space:nowrap;box-shadow:0 4px 16px var(--shadow);left:-9999px;top:-9999px;";
@@ -287,10 +201,8 @@ function onMouseDown(e: MouseEvent) {
             const dx = ev.clientX - startX;
             const dy = ev.clientY - startY;
             if (dx * dx + dy * dy > 25) {
-                // 5px threshold
                 dragging = true;
-                (window as any).__dragPaths = paths.join("\n");
-                (window as any).__dragActive = true;
+                tabStore.startDrag(paths);
                 document.body.classList.add("global-dragging");
             }
         }
@@ -310,33 +222,36 @@ function onMouseDown(e: MouseEvent) {
 
         if (!dragging) return;
 
-        // Find drop target at mouse position
         const el = document.elementFromPoint(ev.clientX, ev.clientY);
         if (!el) {
-            (window as any).__dragActive = false;
+            tabStore.endDrag();
             return;
         }
-        const fileList = el.closest(".file-list");
+        const fileList = el.closest(".file-list") as HTMLElement | null;
         if (!fileList) {
-            (window as any).__dragActive = false;
+            tabStore.endDrag();
             return;
         }
-        // Emit a custom DOM event that FileList listens for
-        fileList.dispatchEvent(
-            new CustomEvent("filedrop", {
-                detail: {
-                    paths: paths.join("\n"),
-                    ctrl: ev.ctrlKey || ev.metaKey,
-                },
-                bubbles: false,
-            }),
-        );
+        // Dispatch per-instance event (fixes multi-pane drag-drop)
+        const detail = {
+            paths: paths.join("\n"),
+            ctrl: ev.ctrlKey || ev.metaKey,
+        };
+        fileList.dispatchEvent(new CustomEvent("filedrop", { detail }));
+        tabStore.endDrag();
     }
 
     _dragMousemove = onMove;
     _dragMouseup = onUp;
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+}
+
+function formatSize(bytes: number): string {
+    return formatFileSize(bytes);
+}
+function formatDate(ts: number): string {
+    return formatFileDate(ts);
 }
 </script>
 
@@ -457,7 +372,6 @@ function onMouseDown(e: MouseEvent) {
 }
 </style>
 
-<!-- Non-scoped: CSS variables must be on :root (not scoped to component) -->
 <style>
 /* ── Root icon color variables (folder = warm Win11 yellow) ── */
 :root,

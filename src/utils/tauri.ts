@@ -5,6 +5,10 @@ export async function listDirectory(path: string): Promise<FileEntry[]> {
   return invoke("list_directory", { path });
 }
 
+export async function listDirectoryStreamed(path: string): Promise<void> {
+  return invoke("list_directory_streamed", { path });
+}
+
 export async function getDrives(): Promise<DiskInfo[]> {
   return invoke("get_drives");
 }

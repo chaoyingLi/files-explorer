@@ -227,6 +227,20 @@ export const useTabStore = defineStore("tab", () => {
 
   const htid = ref<string | null>(null);
   let ht: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Drag-and-drop state (replaces window globals) ──
+  const dragPaths = ref<string[]>([]);
+  const dragActive = ref(false);
+
+  function startDrag(paths: string[]) {
+    dragPaths.value = paths;
+    dragActive.value = true;
+  }
+  function endDrag() {
+    dragActive.value = false;
+    dragPaths.value = [];
+  }
+
   function tdenter(tid: string) {
     htid.value = tid;
     if (ht) clearTimeout(ht);
@@ -283,5 +297,9 @@ export const useTabStore = defineStore("tab", () => {
     getFocusedSelectedFiles: gfsf,
     setFocusedSelectedFiles: sfsf,
     getFocusedPath: gfp,
+    dragActive,
+    dragPaths,
+    startDrag,
+    endDrag,
   };
 });

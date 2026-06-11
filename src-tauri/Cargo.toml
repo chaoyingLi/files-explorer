@@ -24,6 +24,8 @@ walkdir = "2"
 chrono = { version = "0.4", features = ["serde"] }
 trash = "3"
 opener = "0.7"
+log = "0.4"
+simplelog = "0.12"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

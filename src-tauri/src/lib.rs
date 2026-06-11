@@ -1,3 +1,4 @@
+use log;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -86,6 +87,7 @@ struct AppState {
 fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     let dir_path = Path::new(&path);
     if !dir_path.exists() {
+        log::warn!("list_directory: path not found: {}", path);
         return Err(format!("Path does not exist: {}", path));
     }
     if !dir_path.is_dir() {
@@ -146,6 +148,53 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     });
 
     Ok(entries)
+}
+
+const LIST_BATCH_SIZE: usize = 100;
+
+#[command]
+fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), String> {
+    let dir = Path::new(&path);
+    if !dir.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+    let app2 = app.clone();
+    std::thread::spawn(move || {
+        let mut batch: Vec<FileEntry> = Vec::new();
+        if let Ok(rd) = fs::read_dir(&path) {
+            for e in rd.flatten() {
+                let fp = e.path();
+                let md = e.metadata().ok().or_else(|| fs::metadata(&fp).ok());
+                let Some(md) = md else { continue };
+                batch.push(FileEntry {
+                    name: e.file_name().to_string_lossy().to_string(),
+                    path: fp.to_string_lossy().to_string(),
+                    is_dir: md.is_dir(),
+                    size: if md.is_dir() { 0 } else { md.len() },
+                    modified: ts_from_metadata(&md, fs::Metadata::modified),
+                    created: ts_from_metadata(&md, fs::Metadata::created),
+                    extension: if md.is_dir() {
+                        String::new()
+                    } else {
+                        fp.extension()
+                            .map(|x| x.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    },
+                });
+                if batch.len() >= LIST_BATCH_SIZE {
+                    let _ = app2.emit("list-progress", std::mem::take(&mut batch));
+                }
+            }
+        }
+        if !batch.is_empty() {
+            let _ = app2.emit("list-progress", batch);
+        }
+        let _ = app2.emit("list-done", true);
+    });
+    Ok(())
 }
 
 #[command]
@@ -332,6 +381,7 @@ fn create_directory(state: State<AppState>, path: String) -> Result<(), String> 
             .unwrap_or_default()
             .as_secs() as i64,
     });
+    trim_undo_history(&mut history);
     Ok(())
 }
 
@@ -352,6 +402,7 @@ fn create_file(state: State<AppState>, path: String) -> Result<(), String> {
             .unwrap_or_default()
             .as_secs() as i64,
     });
+    trim_undo_history(&mut history);
     Ok(())
 }
 
@@ -388,6 +439,7 @@ fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> Re
             .unwrap_or_default()
             .as_secs() as i64,
     });
+    trim_undo_history(&mut history);
     Ok(())
 }
 
@@ -415,6 +467,8 @@ fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), Strin
     Ok(())
 }
 
+const PASTE_CONFLICT_SUFFIX: &str = " - Copy";
+
 #[command]
 fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), String> {
     let clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
@@ -429,7 +483,10 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
 
     for src_path in clipboard.iter() {
         if let Some(file_name) = src_path.file_name() {
-            let dest_path = dest.join(file_name);
+            let original_dest = dest.join(file_name);
+            // Resolve name conflict: append " - Copy", " - Copy (2)", etc.
+            let dest_path = resolve_paste_conflict(&original_dest);
+
             if src_path.is_dir() {
                 copy_dir_recursive(src_path, &dest_path)?;
                 if is_cut {
@@ -444,6 +501,20 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
                         .map_err(|e| format!("Failed to remove source: {}", e))?;
                 }
             }
+            // Record undo for paste operations
+            if !is_cut {
+                let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
+                history.push(FileAction {
+                    kind: ActionKind::Copy {
+                        src: src_path.to_string_lossy().to_string(),
+                        dest: dest_path.to_string_lossy().to_string(),
+                    },
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64,
+                });
+            }
         }
     }
 
@@ -455,6 +526,53 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
     }
 
     Ok(())
+}
+
+/// Resolve name conflict by appending " - Copy", " - Copy (2)", etc.
+fn resolve_paste_conflict(path: &Path) -> PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let mut counter: u32 = 1;
+    loop {
+        let new_name = if counter == 1 {
+            if ext.is_empty() {
+                format!("{}{}", stem, PASTE_CONFLICT_SUFFIX)
+            } else {
+                format!("{}{}.{}", stem, PASTE_CONFLICT_SUFFIX, ext)
+            }
+        } else {
+            if ext.is_empty() {
+                format!("{} ({})", stem, counter)
+            } else {
+                format!("{} ({}).{}", stem, counter, ext)
+            }
+        };
+        let candidate = parent.join(&new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+        if counter > 999 {
+            break;
+        }
+    }
+    // Fallback: use timestamp
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    parent.join(format!("{}_{}.{}", stem, ts, ext))
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -555,11 +673,7 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let is_dir = metadata.is_dir();
-    let size = if is_dir {
-        calculate_dir_size(p)
-    } else {
-        metadata.len()
-    };
+    let size = if is_dir { 0 } else { metadata.len() };
     let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
     let created = ts_from_metadata(&metadata, fs::Metadata::created);
     let extension = if is_dir {
@@ -581,14 +695,7 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
     })
 }
 
-fn calculate_dir_size(path: &Path) -> u64 {
-    WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .map(|e| e.metadata().map(|m| m.len()).unwrap_or(0))
-        .sum()
-}
+// (calculate_dir_size removed - use async walkdir for large dirs if needed)
 
 #[command]
 fn open_file(path: String) -> Result<(), String> {
@@ -676,10 +783,16 @@ fn path_exists(path: String) -> bool {
 }
 
 const SEARCH_MAX_RESULTS: u64 = 2000;
-const SEARCH_BATCH_SIZE: usize = 100;
+const SEARCH_BATCH_SIZE: usize = 500;
 
 #[command]
 fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> Result<(), String> {
+    log::info!(
+        "move_files: {} items to {} (copy={})",
+        paths.len(),
+        dest_dir,
+        copy
+    );
     let dest = Path::new(&dest_dir);
     for src_str in &paths {
         let src = Path::new(src_str);
@@ -916,13 +1029,18 @@ fn get_clipboard_info(state: State<AppState>) -> Result<ClipboardInfo, String> {
     })
 }
 
+const MAX_UNDO_HISTORY: usize = 50;
+
 #[command]
 fn undo_last_action(state: State<AppState>) -> Result<String, String> {
     let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
     let action = history.pop().ok_or("Nothing to undo".to_string())?;
     match &action.kind {
-        ActionKind::Delete { .. } => Err("Cannot undo delete operation".to_string()),
+        ActionKind::Delete => Err("Cannot undo delete operation".to_string()),
         ActionKind::Rename { old_path, new_path } => {
+            if !Path::new(new_path).exists() {
+                return Err(format!("Cannot undo: {new_path} no longer exists"));
+            }
             fs::rename(new_path, old_path).map_err(|e| format!("Undo rename failed: {}", e))?;
             Ok(format!("Undid rename: restored {old_path}"))
         }
@@ -934,15 +1052,26 @@ fn undo_last_action(state: State<AppState>) -> Result<String, String> {
             }
             Ok(format!("Undid create: removed {path}"))
         }
-        ActionKind::Copy { src: _, dest } => {
+        ActionKind::Copy { src, dest } => {
+            if !Path::new(dest).exists() {
+                return Err(format!("Cannot undo: {dest} no longer exists"));
+            }
             let dest_path = Path::new(dest);
             if dest_path.is_dir() {
                 fs::remove_dir_all(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
             } else {
                 fs::remove_file(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
             }
-            Ok(format!("Undid copy: removed {dest}"))
+            Ok(format!("Undid copy of {src}: removed {dest}"))
         }
+    }
+}
+
+/// Trim undo history to MAX_UNDO_HISTORY entries
+fn trim_undo_history(history: &mut Vec<FileAction>) {
+    if history.len() > MAX_UNDO_HISTORY {
+        let excess = history.len() - MAX_UNDO_HISTORY;
+        history.drain(0..excess);
     }
 }
 
@@ -965,6 +1094,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_directory,
+            list_directory_streamed,
             get_drives,
             get_parent_directory,
             create_directory,

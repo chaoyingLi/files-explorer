@@ -2,8 +2,38 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { FileEntry, DiskInfo, SpecialDirs } from "@/types";
 import * as tauri from "@/utils/tauri";
+import { useTabStore } from "@/stores/tabStore";
 
 export const useFileStore = defineStore("file", () => {
+  // Lazy reference to avoid circular init
+  let _tabStore: ReturnType<typeof useTabStore> | null = null;
+  function getTabStore() {
+    if (!_tabStore) _tabStore = useTabStore();
+    return _tabStore;
+  }
+
+  function syncToTab() {
+    const tab = getTabStore().getFocusedTab();
+    if (!tab || tab.isSearch) return;
+    tab.path = currentPath.value;
+    tab.files = files.value;
+    tab.selectedFiles =
+      selectedFiles.value.size > 0 ? [...selectedFiles.value] : [];
+    tab.treeExpanded =
+      treeExpanded.value.size > 0 ? [...treeExpanded.value] : [];
+  }
+
+  function loadFromTab() {
+    const tab = getTabStore().getFocusedTab();
+    if (!tab) return;
+    // Skip if already loaded (same tab reference check)
+    if (files.value === tab.files) return;
+    files.value = tab.files || [];
+    selectedFiles.value = new Set(tab.selectedFiles || []);
+    currentPath.value = tab.path || "";
+    if (tab.treeExpanded) treeExpanded.value = new Set(tab.treeExpanded);
+  }
+
   const currentPath = ref("");
   const files = ref<FileEntry[]>([]);
   const drives = ref<DiskInfo[]>([]);
@@ -86,41 +116,110 @@ export const useFileStore = defineStore("file", () => {
     }
   }
 
+  let _listUnlisten: (() => void) | null = null;
+
   async function navigateTo(path: string, addToHistory = true) {
     loading.value = true;
     error.value = "";
-    // Cancel any in-progress search
     if (isSearching.value) {
       isSearching.value = false;
       cancelCurrentSearch();
+    }
+    if (_listUnlisten) {
+      _listUnlisten();
+      _listUnlisten = null;
     }
     cutFiles.value = new Set();
     isCutPending.value = false;
     treeExpanded.value = new Set();
     treeChildrenCache.value = new Map();
+    files.value = [];
+    currentPath.value = path;
+    selectedFiles.value.clear();
 
-    try {
-      files.value = await tauri.listDirectory(path);
-      currentPath.value = path;
-
-      if (addToHistory) {
-        if (historyIndex.value < history.value.length - 1) {
-          history.value = history.value.slice(0, historyIndex.value + 1);
-        }
-        history.value.push(path);
-        historyIndex.value = history.value.length - 1;
+    if (addToHistory) {
+      if (historyIndex.value < history.value.length - 1) {
+        history.value = history.value.slice(0, historyIndex.value + 1);
       }
-
-      selectedFiles.value.clear();
-      // Keep max 50 history entries
+      history.value.push(path);
+      historyIndex.value = history.value.length - 1;
       if (history.value.length > 50) {
         history.value = history.value.slice(-50);
         historyIndex.value = history.value.length - 1;
       }
-    } catch (e) {
-      error.value = String(e);
-    } finally {
-      loading.value = false;
+    }
+
+    try {
+      const { listen } = await import("@tauri-apps/api/event");
+      let batchIndex = 0;
+      let resolved = false;
+
+      // Register ALL listeners BEFORE starting the stream (race condition fix)
+      const unlistenProgress = await listen<FileEntry[]>(
+        "list-progress",
+        (event) => {
+          if (resolved) return;
+          batchIndex++;
+          for (const f of event.payload) {
+            files.value.push(f);
+          }
+          if (batchIndex % 3 === 0) {
+            const sorted = [...files.value].sort((a, b) => {
+              if (a.is_dir && !b.is_dir) return -1;
+              if (!a.is_dir && b.is_dir) return 1;
+              return a.name.localeCompare(b.name, undefined, {
+                sensitivity: "base",
+              });
+            });
+            files.value = sorted;
+          }
+        },
+      );
+
+      const streamDone = new Promise<void>((resolve, reject) => {
+        listen<boolean>("list-done", () => {
+          if (resolved) return;
+          resolved = true;
+          unlistenProgress();
+          const sorted = [...files.value].sort((a, b) => {
+            if (a.is_dir && !b.is_dir) return -1;
+            if (!a.is_dir && b.is_dir) return 1;
+            return a.name.localeCompare(b.name, undefined, {
+              sensitivity: "base",
+            });
+          });
+          files.value = sorted;
+          loading.value = false;
+          syncToTab();
+          resolve();
+        }).then((u) => {
+          /* kept alive via closure */
+        });
+        listen<string>("list-error", (ev) => {
+          if (resolved) return;
+          resolved = true;
+          unlistenProgress();
+          loading.value = false;
+          error.value = ev.payload;
+          reject(new Error(ev.payload));
+        }).then((u) => {
+          /* kept alive */
+        });
+      });
+
+      // NOW start the stream
+      await tauri.listDirectoryStreamed(path);
+      await streamDone;
+    } catch (_e) {
+      // Fallback to sync
+      try {
+        files.value = await tauri.listDirectory(path);
+        loading.value = false;
+        syncToTab();
+      } catch (e2) {
+        error.value = String(e2);
+        loading.value = false;
+      }
     }
   }
 
@@ -500,5 +599,7 @@ export const useFileStore = defineStore("file", () => {
     cancelCurrentSearch,
     performUndo,
     checkUndoStatus,
+    syncToTab,
+    loadFromTab,
   };
 });

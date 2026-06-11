@@ -12,10 +12,12 @@
                     fill="var(--accent)"
                 />
             </svg>
-            <span class="app-title">{{ t('app.title') }}</span>
+            <span class="app-title">{{ t("app.title") }}</span>
         </div>
         <div class="titlebar-center">
-            <span class="titlebar-path" v-if="store.currentPath">{{ store.currentPath }}</span>
+            <span class="titlebar-path" v-if="store.currentPath">{{
+                store.currentPath
+            }}</span>
         </div>
         <div class="titlebar-right" data-tauri-drag-region="">
             <button
@@ -24,20 +26,50 @@
                 :title="t('titlebar.minimize')"
             >
                 <svg viewBox="0 0 12 12">
-                    <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    <path
+                        d="M2 6h8"
+                        stroke="currentColor"
+                        stroke-width="1.2"
+                        stroke-linecap="round"
+                    />
                 </svg>
             </button>
             <button
                 class="titlebar-btn"
                 @click="toggleMaximize"
-                :title="isMaximized ? t('titlebar.restore') : t('titlebar.maximize')"
+                :title="
+                    isMaximized ? t('titlebar.restore') : t('titlebar.maximize')
+                "
             >
                 <svg v-if="isMaximized" viewBox="0 0 12 12">
-                    <rect x="1.5" y="3.5" width="7" height="7" rx="0.8" fill="none" stroke="currentColor" stroke-width="1.1"/>
-                    <path d="M3.5 3.5V2.5a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-1" stroke="currentColor" stroke-width="1.1" fill="none"/>
+                    <rect
+                        x="1.5"
+                        y="3.5"
+                        width="7"
+                        height="7"
+                        rx="0.8"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.1"
+                    />
+                    <path
+                        d="M3.5 3.5V2.5a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-1"
+                        stroke="currentColor"
+                        stroke-width="1.1"
+                        fill="none"
+                    />
                 </svg>
                 <svg v-else viewBox="0 0 12 12">
-                    <rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                    <rect
+                        x="1.5"
+                        y="1.5"
+                        width="9"
+                        height="9"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.2"
+                    />
                 </svg>
             </button>
             <button
@@ -46,7 +78,12 @@
                 :title="t('titlebar.close')"
             >
                 <svg viewBox="0 0 12 12">
-                    <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    <path
+                        d="M2 2l8 8M10 2l-8 8"
+                        stroke="currentColor"
+                        stroke-width="1.2"
+                        stroke-linecap="round"
+                    />
                 </svg>
             </button>
         </div>
@@ -155,7 +192,9 @@ onMounted(async () => {
     justify-content: center;
     border-radius: 4px;
     color: var(--text-secondary);
-    transition: background 0.1s, color 0.1s;
+    transition:
+        background 0.1s,
+        color 0.1s;
 }
 
 .titlebar-btn svg {

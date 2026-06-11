@@ -1,10 +1,10 @@
 <template>
     <div
+        ref="listEl"
         class="file-list"
         :class="{ 'drop-active': isDragOver && !!currentPath }"
         @click.self="store.clearSelection()"
         @contextmenu.prevent="onContextMenu"
-        @filedrop="onCustomFileDrop"
     >
         <div v-if="isDragOver && currentPath" class="drop-indicator">
             <svg viewBox="0 0 16 16" class="drop-icon">
@@ -380,13 +380,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry, DiskInfo } from "@/types";
 import * as tauri from "@/utils/tauri";
 import FileItem from "@/components/FileItem.vue";
+import {
+    getFileCategory,
+    treeColorClassForCategory,
+    gridColorClassForCategory,
+    formatFileSize,
+    type FileCategory,
+} from "@/utils/fileTypes";
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -428,6 +435,7 @@ const currentPath = computed({
 
 const sortField = ref<"name" | "modified" | "created" | "size">("name");
 const sortAsc = ref(true);
+const listEl = ref<HTMLElement | null>(null);
 
 const quickAccessFolders = computed(() => {
     const items: { name: string; path: string }[] = [];
@@ -528,31 +536,20 @@ function onFileContextMenu(file: FileEntry, e: MouseEvent) {
     emit("fileContextMenu", file, e);
 }
 
-// ── Drag-and-drop via custom DOM events (bypasses HTML5 DnD) ──
+// ── Drag-and-drop via store ──
 const isDragOver = ref(false);
 
-// Global mousemove: track drag state to show/hide drop indicator
 function onGlobalMove() {
-    if (!(window as any).__dragActive || !currentPath.value) {
-        isDragOver.value = false;
-        return;
-    }
-    isDragOver.value = true;
+    isDragOver.value = !!(tabStore.dragActive && currentPath.value);
 }
 
-// Handle custom filedrop event dispatched from FileItem
-function onCustomFileDrop(e: Event) {
-    const detail = (e as CustomEvent).detail;
-    if (!detail || !currentPath.value) return;
-    (window as any).__dragActive = false;
+function handleFileDrop(raw: string, ctrl: boolean) {
+    if (!raw || !currentPath.value) return;
+    tabStore.endDrag();
     isDragOver.value = false;
 
-    const raw: string = detail.paths;
-    const ctrl: boolean = detail.ctrl;
-    if (!raw) return;
     const paths = raw.split("\n").filter(Boolean);
     const dir = currentPath.value;
-    // Don't move onto itself
     if (
         paths.some(
             (p) =>
@@ -565,37 +562,42 @@ function onCustomFileDrop(e: Event) {
 
     tauri
         .moveFiles(paths, dir, ctrl)
-        .then(() => store.refresh())
+        .then(async () => {
+            // Refresh THIS pane's file list directly (not store.refresh which uses focused pane)
+            const refreshed = await tauri.listDirectory(dir);
+            currentFiles.value = refreshed;
+        })
         .catch((err) => console.error("Move failed:", err));
 }
 
-// Poll for drag state every 200ms during drag (lightweight)
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(() => {
-        if ((window as any).__dragActive) {
-            isDragOver.value = true;
-        } else {
-            if (isDragOver.value) isDragOver.value = false;
-        }
-    }, 200);
-}
-function stopPolling() {
-    if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
+// Watch drag state reactively instead of polling
+let dragWatchStop: (() => void) | null = null;
+
+function onFileDropEvent(e: Event) {
+    const detail = (e as CustomEvent).detail as {
+        paths: string;
+        ctrl: boolean;
+    };
+    handleFileDrop(detail.paths, detail.ctrl);
 }
 
 onMounted(() => {
-    startPolling();
+    dragWatchStop = watch(
+        () => tabStore.dragActive,
+        (active) => {
+            if (!active && isDragOver.value) {
+                isDragOver.value = false;
+            }
+        },
+    );
     window.addEventListener("mousemove", onGlobalMove);
+    listEl.value?.addEventListener("filedrop", onFileDropEvent);
 });
 
 onUnmounted(() => {
-    stopPolling();
+    if (dragWatchStop) dragWatchStop();
     window.removeEventListener("mousemove", onGlobalMove);
+    listEl.value?.removeEventListener("filedrop", onFileDropEvent);
 });
 
 // ── Tree view handlers ──
@@ -617,15 +619,7 @@ async function onTreeItemDoubleClick(item: any) {
     }
 }
 function formatSize(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let i = 0;
-    let size = bytes;
-    while (size >= 1024 && i < units.length - 1) {
-        size /= 1024;
-        i++;
-    }
-    return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    return formatFileSize(bytes);
 }
 
 function usePercent(drive: DiskInfo): number {
@@ -634,49 +628,15 @@ function usePercent(drive: DiskInfo): number {
 }
 
 function treeColorClass(file: FileEntry): string {
-    if (file.is_dir) return "";
-    const ext = file.extension.toLowerCase();
-    if (
-        ["js", "ts", "vue", "py", "rs", "go", "java", "c", "cpp", "h"].includes(
-            ext,
-        )
-    )
-        return "tree-color-code";
-    if (
-        ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"].includes(ext)
-    )
-        return "tree-color-image";
-    if (["mp3", "wav", "flac", "ogg", "aac"].includes(ext))
-        return "tree-color-audio";
-    if (["mp4", "avi", "mkv", "mov", "wmv"].includes(ext))
-        return "tree-color-video";
-    if (["zip", "rar", "7z", "tar", "gz", "xz"].includes(ext))
-        return "tree-color-archive";
-    if (["pdf"].includes(ext)) return "tree-color-pdf";
-    if (["exe", "dll", "msi"].includes(ext)) return "tree-color-app";
-    if (["html", "css", "scss", "less"].includes(ext)) return "tree-color-web";
-    return "tree-color-default";
+    return treeColorClassForCategory(
+        getFileCategory(file.extension, file.is_dir),
+    );
 }
 
 function gridColorClass(file: FileEntry): string {
-    if (file.is_dir) return "grid-folder-color";
-    const ext = file.extension.toLowerCase();
-    if (
-        ["js", "ts", "vue", "py", "rs", "go", "java", "c", "cpp", "h"].includes(
-            ext,
-        )
-    )
-        return "grid-color-code";
-    if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext))
-        return "grid-color-image";
-    if (["mp3", "wav", "flac"].includes(ext)) return "grid-color-audio";
-    if (["mp4", "avi", "mkv"].includes(ext)) return "grid-color-video";
-    if (["zip", "rar", "7z", "tar", "gz"].includes(ext))
-        return "grid-color-archive";
-    if (["pdf"].includes(ext)) return "grid-color-pdf";
-    if (["exe", "dll", "msi"].includes(ext)) return "grid-color-app";
-    if (["html", "css", "scss", "less"].includes(ext)) return "grid-color-web";
-    return "grid-color-default";
+    return gridColorClassForCategory(
+        getFileCategory(file.extension, file.is_dir),
+    );
 }
 </script>
 
