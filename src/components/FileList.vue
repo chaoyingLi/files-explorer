@@ -1,9 +1,24 @@
 <template>
     <div
         class="file-list"
+        :class="{ 'drop-active': isDragOver && !!currentPath }"
         @click.self="store.clearSelection()"
         @contextmenu.prevent="onContextMenu"
+        @filedrop="onCustomFileDrop"
     >
+        <div v-if="isDragOver && currentPath" class="drop-indicator">
+            <svg viewBox="0 0 16 16" class="drop-icon">
+                <path
+                    d="M8 2v10M3 7l5 5 5-5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+            <span>{{ t("fileList.dropToMove") }}</span>
+        </div>
         <div class="file-list-header">
             <div class="col-name" @click="sortBy('name')">
                 {{ t("fileList.name") }}
@@ -365,11 +380,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry, DiskInfo } from "@/types";
+import * as tauri from "@/utils/tauri";
 import FileItem from "@/components/FileItem.vue";
 
 const { t } = useI18n();
@@ -381,6 +397,7 @@ const props = defineProps<{ paneId?: string }>();
 const emit = defineEmits<{
     contextMenu: [e: MouseEvent];
     fileContextMenu: [file: FileEntry, e: MouseEvent];
+    fileDrop: [targetDir: string, paths: string[], ctrlKey: boolean];
 }>();
 
 // Get pane's active tab data - NEVER fall back to store when paneId is set
@@ -511,6 +528,76 @@ function onFileContextMenu(file: FileEntry, e: MouseEvent) {
     emit("fileContextMenu", file, e);
 }
 
+// ── Drag-and-drop via custom DOM events (bypasses HTML5 DnD) ──
+const isDragOver = ref(false);
+
+// Global mousemove: track drag state to show/hide drop indicator
+function onGlobalMove() {
+    if (!(window as any).__dragActive || !currentPath.value) {
+        isDragOver.value = false;
+        return;
+    }
+    isDragOver.value = true;
+}
+
+// Handle custom filedrop event dispatched from FileItem
+function onCustomFileDrop(e: Event) {
+    const detail = (e as CustomEvent).detail;
+    if (!detail || !currentPath.value) return;
+    (window as any).__dragActive = false;
+    isDragOver.value = false;
+
+    const raw: string = detail.paths;
+    const ctrl: boolean = detail.ctrl;
+    if (!raw) return;
+    const paths = raw.split("\n").filter(Boolean);
+    const dir = currentPath.value;
+    // Don't move onto itself
+    if (
+        paths.some(
+            (p) =>
+                p === dir ||
+                p.startsWith(dir + "\\") ||
+                p.startsWith(dir + "/"),
+        )
+    )
+        return;
+
+    tauri
+        .moveFiles(paths, dir, ctrl)
+        .then(() => store.refresh())
+        .catch((err) => console.error("Move failed:", err));
+}
+
+// Poll for drag state every 200ms during drag (lightweight)
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+        if ((window as any).__dragActive) {
+            isDragOver.value = true;
+        } else {
+            if (isDragOver.value) isDragOver.value = false;
+        }
+    }, 200);
+}
+function stopPolling() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+}
+
+onMounted(() => {
+    startPolling();
+    window.addEventListener("mousemove", onGlobalMove);
+});
+
+onUnmounted(() => {
+    stopPolling();
+    window.removeEventListener("mousemove", onGlobalMove);
+});
+
 // ── Tree view handlers ──
 function onTreeArrowClick(item: any) {
     if (item.file.is_dir) {
@@ -600,6 +687,36 @@ function gridColorClass(file: FileEntry): string {
     flex-direction: column;
     overflow: hidden;
     background: var(--bg-primary);
+    position: relative;
+}
+
+.file-list.drop-active {
+    background: rgba(137, 180, 250, 0.04);
+    outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+}
+
+.drop-indicator {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    z-index: 50;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: none;
+    background: rgba(137, 180, 250, 0.06);
+    backdrop-filter: blur(2px);
+}
+
+.drop-icon {
+    width: 32px;
+    height: 32px;
+    opacity: 0.8;
 }
 
 .file-list-header {

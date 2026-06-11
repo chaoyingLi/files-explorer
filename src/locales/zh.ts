@@ -49,6 +49,7 @@ export default {
     folders: "文件夹",
     emptyFolder: "此文件夹为空",
     loading: "加载中...",
+    dropToMove: "拖放以移动文件到此处",
     searchResults: '搜索 "{query}" 的结果（{count} 项）',
     noResults: '未找到 "{query}" 的相关结果',
     searching: "搜索中...",
@@ -109,6 +110,7 @@ export default {
     cut: "已剪切到剪贴板",
     pasted: "已粘贴",
     deleted: "已删除",
+    moved: "已移动",
     error: "错误",
   },
   fileTypes: {

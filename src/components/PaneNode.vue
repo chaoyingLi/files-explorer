@@ -91,7 +91,13 @@
             :path="activeTab?.path ?? ''"
             @navigate="(p: string) => $emit('navigate', node.id, p)"
         />
-        <FileList :pane-id="node.id" />
+        <FileList
+            :pane-id="node.id"
+            @file-drop="
+                (dir: string, paths: string[], ctrl: boolean) =>
+                    $emit('fileDrop', node.id, dir, paths, ctrl)
+            "
+        />
     </div>
     <div v-else class="pane-split" :class="'split-' + node.direction">
         <PaneNode
@@ -113,6 +119,10 @@
             "
             @paneClose="(pid: string) => $emit('paneClose', pid)"
             @navigate="(pid: string, p: string) => $emit('navigate', pid, p)"
+            @fileDrop="
+                (pid: string, dir: string, paths: string[], ctrl: boolean) =>
+                    $emit('fileDrop', pid, dir, paths, ctrl)
+            "
         />
     </div>
 </template>
@@ -139,6 +149,7 @@ defineEmits<{
     paneClose: [paneId: string];
     tabDrop: [paneId: string, tabId: string, e: DragEvent];
     navigate: [paneId: string, path: string];
+    fileDrop: [paneId: string, dir: string, paths: string[], ctrl: boolean];
 }>();
 
 const tabStore = useTabStore();

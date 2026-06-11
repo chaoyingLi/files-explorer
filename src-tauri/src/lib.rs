@@ -678,6 +678,44 @@ fn path_exists(path: String) -> bool {
 const SEARCH_MAX_RESULTS: u64 = 2000;
 const SEARCH_BATCH_SIZE: usize = 100;
 
+#[command]
+fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> Result<(), String> {
+    let dest = Path::new(&dest_dir);
+    for src_str in &paths {
+        let src = Path::new(src_str);
+        if !src.exists() {
+            continue;
+        }
+        let file_name = match src.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+        let dest_path = dest.join(&file_name);
+        if dest_path.exists() {
+            return Err(format!("Target already exists: {}", file_name));
+        }
+        // Try fast rename first (same filesystem)
+        if !copy && std::fs::rename(src, &dest_path).is_ok() {
+            continue;
+        }
+        // Cross-device or copy: fall back to copy-then-delete
+        if src.is_dir() {
+            copy_dir_recursive(src, &dest_path)?;
+        } else {
+            std::fs::copy(src, &dest_path).map_err(|e| format!("Failed to copy: {}", e))?;
+        }
+        if !copy {
+            if src.is_dir() {
+                std::fs::remove_dir_all(src)
+                    .map_err(|e| format!("Failed to remove source: {}", e))?;
+            } else {
+                std::fs::remove_file(src).map_err(|e| format!("Failed to remove source: {}", e))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Run search in a dedicated thread so it never blocks the UI
 #[command]
 fn search_files(
@@ -946,6 +984,7 @@ pub fn run() {
             undo_last_action,
             get_undo_info,
             cancel_search,
+            move_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

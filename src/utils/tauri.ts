@@ -104,6 +104,14 @@ export async function pathExists(path: string): Promise<boolean> {
   return invoke("path_exists", { path });
 }
 
+export async function moveFiles(
+  paths: string[],
+  destDir: string,
+  copy: boolean,
+): Promise<void> {
+  return invoke("move_files", { paths, destDir, copy });
+}
+
 export async function undoLastAction(): Promise<string> {
   return invoke("undo_last_action");
 }

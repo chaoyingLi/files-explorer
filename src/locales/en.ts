@@ -49,6 +49,7 @@ export default {
     folders: "Folders",
     emptyFolder: "This folder is empty",
     loading: "Loading...",
+    dropToMove: "Drop to move files here",
     searchResults: 'Search results for "{query}" ({count} items)',
     noResults: 'No results found for "{query}"',
     searching: "Searching...",
@@ -110,6 +111,7 @@ export default {
     cut: "Cut to clipboard",
     pasted: "Pasted",
     deleted: "Deleted",
+    moved: "Moved",
     error: "Error",
   },
   fileTypes: {

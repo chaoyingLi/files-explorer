@@ -5,8 +5,7 @@
         @contextmenu.prevent="$emit('contextmenu', $event)"
         @click="$emit('click', $event)"
         @dblclick="$emit('dblclick', $event)"
-        draggable="true"
-        @dragstart="onDragStart"
+        @mousedown="onMouseDown"
     >
         <div class="col-name">
             <div
@@ -88,6 +87,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { useFileStore } from "@/stores/fileStore";
 import type { FileEntry } from "@/types";
 
 const props = defineProps<{
@@ -259,8 +259,84 @@ function formatDate(timestamp: number): string {
     });
 }
 
-function onDragStart(e: DragEvent) {
-    e.dataTransfer?.setData("text/plain", props.file.path);
+let _dragMousemove: ((e: MouseEvent) => void) | null = null;
+let _dragMouseup: ((e: MouseEvent) => void) | null = null;
+
+function onMouseDown(e: MouseEvent) {
+    if (e.button !== 0) return; // left button only
+    const store = useFileStore();
+    const selected = store.selectedFiles;
+    const paths = selected.has(props.file.path)
+        ? [...selected]
+        : [props.file.path];
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+
+    // Create ghost element
+    const ghost = document.createElement("div");
+    ghost.style.cssText =
+        "position:fixed;pointer-events:none;z-index:9999;opacity:0.7;padding:4px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-primary);white-space:nowrap;box-shadow:0 4px 16px var(--shadow);left:-9999px;top:-9999px;";
+    ghost.textContent =
+        paths.length > 1 ? `${paths.length} items` : props.file.name;
+    document.body.appendChild(ghost);
+
+    function onMove(ev: MouseEvent) {
+        if (!dragging) {
+            const dx = ev.clientX - startX;
+            const dy = ev.clientY - startY;
+            if (dx * dx + dy * dy > 25) {
+                // 5px threshold
+                dragging = true;
+                (window as any).__dragPaths = paths.join("\n");
+                (window as any).__dragActive = true;
+                document.body.classList.add("global-dragging");
+            }
+        }
+        if (dragging) {
+            ghost.style.left = ev.clientX + 12 + "px";
+            ghost.style.top = ev.clientY + 8 + "px";
+        }
+    }
+
+    function onUp(ev: MouseEvent) {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        _dragMousemove = null;
+        _dragMouseup = null;
+        ghost.remove();
+        document.body.classList.remove("global-dragging");
+
+        if (!dragging) return;
+
+        // Find drop target at mouse position
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (!el) {
+            (window as any).__dragActive = false;
+            return;
+        }
+        const fileList = el.closest(".file-list");
+        if (!fileList) {
+            (window as any).__dragActive = false;
+            return;
+        }
+        // Emit a custom DOM event that FileList listens for
+        fileList.dispatchEvent(
+            new CustomEvent("filedrop", {
+                detail: {
+                    paths: paths.join("\n"),
+                    ctrl: ev.ctrlKey || ev.metaKey,
+                },
+                bubbles: false,
+            }),
+        );
+    }
+
+    _dragMousemove = onMove;
+    _dragMouseup = onUp;
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
 }
 </script>
 
