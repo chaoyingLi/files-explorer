@@ -20,29 +20,63 @@
             <span>{{ t("fileList.dropToMove") }}</span>
         </div>
         <div class="file-list-header">
-            <div class="col-name" @click="sortBy('name')">
+            <div
+                class="col-name"
+                :style="{ width: colWidths.name + 'px' }"
+                @click="sortBy('name')"
+            >
                 {{ t("fileList.name") }}
                 <span v-if="sortField === 'name'" class="sort-arrow">{{
                     sortAsc ? "▲" : "▼"
                 }}</span>
             </div>
+            <div
+                class="col-handle"
+                @mousedown="onResizeStart('name', $event)"
+            ></div>
             <div v-if="isSearchTab" class="col-path-header">
                 {{ t("fileList.path") }}
             </div>
-            <div class="col-date" @click="sortBy('modified')">
+            <div
+                class="col-date"
+                :style="{ width: colWidths.date + 'px' }"
+                @click="sortBy('modified')"
+            >
                 {{ t("fileList.dateModified") }}
                 <span v-if="sortField === 'modified'" class="sort-arrow">{{
                     sortAsc ? "▲" : "▼"
                 }}</span>
             </div>
-            <div class="col-created" @click="sortBy('created')">
+            <div
+                class="col-handle"
+                @mousedown="onResizeStart('date', $event)"
+            ></div>
+            <div
+                class="col-created"
+                :style="{ width: colWidths.created + 'px' }"
+                @click="sortBy('created')"
+            >
                 {{ t("fileList.dateCreated") }}
                 <span v-if="sortField === 'created'" class="sort-arrow">{{
                     sortAsc ? "▲" : "▼"
                 }}</span>
             </div>
-            <div class="col-type">{{ t("fileList.type") }}</div>
-            <div class="col-size" @click="sortBy('size')">
+            <div
+                class="col-handle"
+                @mousedown="onResizeStart('created', $event)"
+            ></div>
+            <div class="col-type" :style="{ width: colWidths.type + 'px' }">
+                {{ t("fileList.type") }}
+            </div>
+            <div
+                class="col-handle"
+                @mousedown="onResizeStart('type', $event)"
+            ></div>
+            <div
+                class="col-size"
+                :style="{ width: colWidths.size + 'px' }"
+                @click="sortBy('size')"
+            >
                 {{ t("fileList.size") }}
                 <span v-if="sortField === 'size'" class="sort-arrow">{{
                     sortAsc ? "▲" : "▼"
@@ -152,6 +186,7 @@
             v-if="currentPath && !store.loading"
             class="file-items"
             :class="'view-' + store.viewMode"
+            :style="colVars"
         >
             <div
                 v-if="displayFiles.length === 0 && !store.loading"
@@ -380,7 +415,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useTabStore } from "@/stores/tabStore";
@@ -436,6 +471,60 @@ const currentPath = computed({
 const sortField = ref<"name" | "modified" | "created" | "size">("name");
 const sortAsc = ref(true);
 const listEl = ref<HTMLElement | null>(null);
+
+// ── Column widths ──
+const colWidths = reactive(loadColWidths());
+const colVars = computed(() => ({
+    "--col-name": colWidths.name + "px",
+    "--col-date": colWidths.date + "px",
+    "--col-created": colWidths.created + "px",
+    "--col-type": colWidths.type + "px",
+    "--col-size": colWidths.size + "px",
+}));
+function loadColWidths() {
+    try {
+        const r = localStorage.getItem("cols");
+        if (r)
+            return {
+                name: 280,
+                date: 140,
+                created: 140,
+                type: 100,
+                size: 90,
+                ...JSON.parse(r),
+            };
+    } catch {}
+    return { name: 280, date: 140, created: 140, type: 100, size: 90 };
+}
+function saveColWidths() {
+    localStorage.setItem("cols", JSON.stringify(colWidths));
+}
+let _col: string | null = null,
+    _sx = 0,
+    _sw = 0;
+function onResizeStart(col: string, e: MouseEvent) {
+    _col = col;
+    _sx = e.clientX;
+    _sw = (colWidths as any)[col] || 100;
+    addEventListener("mousemove", onResizeMove);
+    addEventListener("mouseup", onResizeEnd);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+}
+function onResizeMove(e: MouseEvent) {
+    if (!_col) return;
+    const min = (colWidths as any)[_col] >= 200 ? 120 : 60;
+    (colWidths as any)[_col] = Math.max(min, _sw + e.clientX - _sx);
+}
+function onResizeEnd() {
+    removeEventListener("mousemove", onResizeMove);
+    removeEventListener("mouseup", onResizeEnd);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    _col = null;
+    saveColWidths();
+}
 
 const quickAccessFolders = computed(() => {
     const items: { name: string; path: string }[] = [];
@@ -649,6 +738,10 @@ function gridColorClass(file: FileEntry): string {
     background: var(--bg-primary);
     position: relative;
 }
+.file-list.drop-active {
+    outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+}
 
 .file-list.drop-active {
     background: rgba(137, 180, 250, 0.04);
@@ -682,26 +775,39 @@ function gridColorClass(file: FileEntry): string {
 .file-list-header {
     display: flex;
     align-items: center;
-    padding: 4px 12px;
+    padding: 2px 8px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
     font-size: 12px;
     color: var(--text-muted);
     font-weight: 500;
     min-height: 28px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
-
-.file-list-header > div {
+.file-list-header > div:not(.col-handle) {
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 4px 6px;
     border-radius: 4px;
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
+    overflow: hidden;
 }
-
-.file-list-header > div:hover {
+.file-list-header > div:not(.col-handle):hover {
     background: var(--bg-hover);
+}
+.col-handle {
+    width: 4px;
+    height: 20px;
+    cursor: col-resize;
+    flex-shrink: 0;
+    border-radius: 2px;
+    transition: background 0.15s;
+}
+.col-handle:hover {
+    background: var(--accent);
 }
 
 .col-path-header {
@@ -850,7 +956,7 @@ function gridColorClass(file: FileEntry): string {
 .file-items {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 
 .file-items.view-list .file-item {

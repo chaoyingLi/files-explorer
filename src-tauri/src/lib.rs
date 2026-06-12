@@ -445,66 +445,218 @@ fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> Re
 
 #[command]
 fn copy_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), String> {
-    let mut clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
-    let mut action = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-    clipboard.clear();
-    for p in &paths {
-        clipboard.push(PathBuf::from(p));
+    log::info!("copy_clipboard: {} items", paths.len());
+    // 1. Set internal clipboard (guaranteed to work)
+    {
+        let mut cb = state.clipboard.lock().map_err(|e| e.to_string())?;
+        let mut act = state.clipboard_action.lock().map_err(|e| e.to_string())?;
+        cb.clear();
+        for p in &paths {
+            cb.push(PathBuf::from(p));
+        }
+        *act = "copy".to_string();
     }
-    *action = "copy".to_string();
+    // 2. Best-effort write to system clipboard
+    write_to_system_clipboard(&paths);
     Ok(())
 }
 
 #[command]
 fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), String> {
-    let mut clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
-    let mut action = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-    clipboard.clear();
-    for p in &paths {
-        clipboard.push(PathBuf::from(p));
+    log::info!("cut_clipboard: {} items", paths.len());
+    // 1. Set internal clipboard
+    {
+        let mut cb = state.clipboard.lock().map_err(|e| e.to_string())?;
+        let mut act = state.clipboard_action.lock().map_err(|e| e.to_string())?;
+        cb.clear();
+        for p in &paths {
+            cb.push(PathBuf::from(p));
+        }
+        *act = "cut".to_string();
     }
-    *action = "cut".to_string();
+    // 2. Best-effort write to system clipboard
+    write_to_system_clipboard(&paths);
     Ok(())
+}
+
+fn write_to_system_clipboard(paths: &[String]) {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        extern "system" {
+            fn OpenClipboard(h: *mut std::ffi::c_void) -> i32;
+            fn EmptyClipboard() -> i32;
+            fn SetClipboardData(f: u32, m: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+            fn CloseClipboard() -> i32;
+            fn GlobalAlloc(f: u32, b: usize) -> *mut std::ffi::c_void;
+            fn GlobalLock(m: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+            fn GlobalUnlock(m: *mut std::ffi::c_void) -> i32;
+        }
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return;
+        }
+        EmptyClipboard();
+        let mut wide: Vec<u16> = Vec::new();
+        for p in paths {
+            wide.extend(p.encode_utf16());
+            wide.push(0);
+        }
+        wide.push(0);
+        let hdr = std::mem::size_of::<u32>() * 5;
+        let sz = hdr + wide.len() * 2;
+        let h = GlobalAlloc(2, sz);
+        if h.is_null() {
+            CloseClipboard();
+            return;
+        }
+        let p = GlobalLock(h) as *mut u8;
+        std::ptr::write_bytes(p, 0, sz);
+        (p as *mut u32).write(hdr as u32);
+        (p.add(16) as *mut u32).write(1); // fWide = TRUE at offset 16
+        std::ptr::copy_nonoverlapping(wide.as_ptr(), p.add(hdr) as *mut u16, wide.len());
+        GlobalUnlock(h);
+        SetClipboardData(15, h);
+        CloseClipboard();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(mut c) = arboard::Clipboard::new() {
+            let _ = c.set_text(&paths.join("\n"));
+        }
+    }
+}
+
+fn read_from_system_clipboard() -> Option<Vec<String>> {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        extern "system" {
+            fn OpenClipboard(h: *mut std::ffi::c_void) -> i32;
+            fn GetClipboardData(f: u32) -> *mut std::ffi::c_void;
+            fn CloseClipboard() -> i32;
+            fn IsClipboardFormatAvailable(f: u32) -> i32;
+            fn DragQueryFileW(h: *mut std::ffi::c_void, i: u32, b: *mut u16, c: u32) -> u32;
+        }
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return None;
+        }
+        if IsClipboardFormatAvailable(15) == 0 {
+            CloseClipboard();
+            return None;
+        }
+        let hd = GetClipboardData(15);
+        if hd.is_null() {
+            CloseClipboard();
+            return None;
+        }
+        let cnt = DragQueryFileW(hd, 0xFFFFFFFF, std::ptr::null_mut(), 0);
+        let mut v = Vec::with_capacity(cnt as usize);
+        let mut b = vec![0u16; 32768];
+        for i in 0..cnt {
+            let l = DragQueryFileW(hd, i, b.as_mut_ptr(), b.len() as u32) as usize;
+            if l > 0 {
+                v.push(String::from_utf16_lossy(&b[..l]));
+            }
+        }
+        CloseClipboard();
+        return Some(v);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(mut c) = arboard::Clipboard::new() {
+            if let Ok(t) = c.get_text() {
+                return Some(t.lines().map(|s| s.to_string()).collect());
+            }
+        }
+        None
+    }
 }
 
 const PASTE_CONFLICT_SUFFIX: &str = " - Copy";
 
 #[command]
 fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), String> {
+    log::info!("paste_clipboard: to {}", dest_dir);
+
+    // Always try system clipboard FIRST
+    if let Some(sys_paths) = read_from_system_clipboard() {
+        if !sys_paths.is_empty() {
+            // Check if internal clipboard says "cut" (for cut-paste delete)
+            let is_cut = {
+                state
+                    .clipboard_action
+                    .lock()
+                    .map(|a| *a == "cut")
+                    .unwrap_or(false)
+            };
+            let dest = Path::new(&dest_dir);
+            for src_str in &sys_paths {
+                let src = Path::new(src_str);
+                if !src.exists() {
+                    continue;
+                }
+                if let Some(n) = src.file_name() {
+                    let dp = resolve_paste_conflict(&dest.join(n));
+                    if src.is_dir() {
+                        copy_dir_recursive(src, &dp)?;
+                        if is_cut {
+                            fs::remove_dir_all(src).map_err(|e| format!("Remove failed: {}", e))?;
+                        }
+                    } else {
+                        fs::copy(src, &dp).map_err(|e| format!("Copy failed: {}", e))?;
+                        if is_cut {
+                            fs::remove_file(src).map_err(|e| format!("Remove failed: {}", e))?;
+                        }
+                    }
+                    let mut h = state.undo_history.lock().map_err(|e| e.to_string())?;
+                    h.push(FileAction {
+                        kind: ActionKind::Copy {
+                            src: src_str.clone(),
+                            dest: dp.to_string_lossy().to_string(),
+                        },
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs() as i64,
+                    });
+                    trim_undo_history(&mut h);
+                }
+            }
+            if is_cut {
+                let _ = state.clipboard.lock().map(|mut c| c.clear());
+                let _ = state
+                    .clipboard_action
+                    .lock()
+                    .map(|mut a| *a = String::new());
+            }
+            return Ok(());
+        }
+    }
+
+    // Fall back to internal clipboard
     let clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
     let action = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-
     if clipboard.is_empty() {
         return Err("Clipboard is empty".to_string());
     }
 
     let dest = Path::new(&dest_dir);
     let is_cut = *action == "cut";
-
     for src_path in clipboard.iter() {
         if let Some(file_name) = src_path.file_name() {
-            let original_dest = dest.join(file_name);
-            // Resolve name conflict: append " - Copy", " - Copy (2)", etc.
-            let dest_path = resolve_paste_conflict(&original_dest);
-
+            let dest_path = resolve_paste_conflict(&dest.join(file_name));
             if src_path.is_dir() {
                 copy_dir_recursive(src_path, &dest_path)?;
                 if is_cut {
-                    fs::remove_dir_all(src_path)
-                        .map_err(|e| format!("Failed to remove source: {}", e))?;
+                    fs::remove_dir_all(src_path).map_err(|e| format!("Failed to remove: {}", e))?;
                 }
             } else {
-                fs::copy(src_path, &dest_path)
-                    .map_err(|e| format!("Failed to copy file: {}", e))?;
+                fs::copy(src_path, &dest_path).map_err(|e| format!("Failed to copy: {}", e))?;
                 if is_cut {
-                    fs::remove_file(src_path)
-                        .map_err(|e| format!("Failed to remove source: {}", e))?;
+                    fs::remove_file(src_path).map_err(|e| format!("Failed to remove: {}", e))?;
                 }
             }
-            // Record undo for paste operations
             if !is_cut {
-                let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
-                history.push(FileAction {
+                let mut h = state.undo_history.lock().map_err(|e| e.to_string())?;
+                h.push(FileAction {
                     kind: ActionKind::Copy {
                         src: src_path.to_string_lossy().to_string(),
                         dest: dest_path.to_string_lossy().to_string(),
@@ -514,17 +666,15 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
                         .unwrap_or_default()
                         .as_secs() as i64,
                 });
+                trim_undo_history(&mut h);
             }
         }
     }
-
     if is_cut {
         drop(clipboard);
         drop(action);
-        let mut clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
-        clipboard.clear();
+        state.clipboard.lock().map_err(|e| e.to_string())?.clear();
     }
-
     Ok(())
 }
 
@@ -1016,20 +1166,25 @@ fn get_special_dirs() -> Result<SpecialDirs, String> {
     })
 }
 
+const MAX_UNDO_HISTORY: usize = 50;
+
 #[command]
 fn get_clipboard_info(state: State<AppState>) -> Result<ClipboardInfo, String> {
-    let clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
-    let action = state.clipboard_action.lock().map_err(|e| e.to_string())?;
+    if let Some(p) = read_from_system_clipboard() {
+        if !p.is_empty() {
+            return Ok(ClipboardInfo {
+                paths: p,
+                action: "copy".into(),
+            });
+        }
+    }
+    let c = state.clipboard.lock().map_err(|e| e.to_string())?;
+    let a = state.clipboard_action.lock().map_err(|e| e.to_string())?;
     Ok(ClipboardInfo {
-        paths: clipboard
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect(),
-        action: action.clone(),
+        paths: c.iter().map(|x| x.to_string_lossy().to_string()).collect(),
+        action: a.clone(),
     })
 }
-
-const MAX_UNDO_HISTORY: usize = 50;
 
 #[command]
 fn undo_last_action(state: State<AppState>) -> Result<String, String> {

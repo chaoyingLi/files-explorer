@@ -276,33 +276,37 @@ function formatDate(ts: number): string {
 }
 
 .col-name {
-    flex: 1;
+    width: var(--col-name, 280px);
+    min-width: 120px;
     display: flex;
     align-items: center;
     gap: 10px;
-    min-width: 0;
 }
 
 .col-date {
-    width: 160px;
+    width: var(--col-date, 140px);
+    min-width: 70px;
     flex-shrink: 0;
     color: var(--text-secondary);
     font-size: 12px;
 }
 .col-created {
-    width: 160px;
+    width: var(--col-created, 140px);
+    min-width: 70px;
     flex-shrink: 0;
     color: var(--text-secondary);
     font-size: 12px;
 }
 .col-type {
-    width: 100px;
+    width: var(--col-type, 100px);
+    min-width: 60px;
     flex-shrink: 0;
     color: var(--text-secondary);
     font-size: 12px;
 }
 .col-size {
-    width: 100px;
+    width: var(--col-size, 90px);
+    min-width: 60px;
     flex-shrink: 0;
     text-align: right;
     color: var(--text-secondary);
