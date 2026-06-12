@@ -105,6 +105,11 @@ export function useContextMenu() {
       },
       { label: "", action: "", separator: true },
       {
+        label: t("contextMenu.properties"),
+        action: "properties",
+      },
+      { label: "", action: "", separator: true },
+      {
         label: t("contextMenu.selectAll"),
         action: "selectAll",
         shortcut: t("shortcuts.ctrlA"),

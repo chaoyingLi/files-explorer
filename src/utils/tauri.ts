@@ -85,6 +85,10 @@ export async function openFile(path: string): Promise<void> {
   return invoke("open_file", { path });
 }
 
+export async function showFileProperties(path: string): Promise<void> {
+  return invoke("show_file_properties", { path });
+}
+
 export async function openInTerminal(path: string): Promise<void> {
   return invoke("open_in_terminal", { path });
 }

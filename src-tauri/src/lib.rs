@@ -852,6 +852,60 @@ fn open_file(path: String) -> Result<(), String> {
     opener::open(path).map_err(|e| format!("Failed to open: {}", e))
 }
 
+#[command]
+fn show_file_properties(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut std::ffi::c_void,
+                operation: *const u16,
+                file: *const u16,
+                parameters: *const u16,
+                directory: *const u16,
+                showCmd: i32,
+            ) -> *mut std::ffi::c_void;
+        }
+        let op: Vec<u16> = "properties\0".encode_utf16().collect();
+        let fp: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                op.as_ptr(),
+                fp.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed: {}", e))?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(parent) = Path::new(&path).parent() {
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("Failed: {}", e))?;
+        }
+    }
+
+    Ok(())
+}
+
 // ── Wildcard / size / OR search ──
 
 /// Match a filename against a glob pattern (* = any chars, ? = one char)
@@ -1261,6 +1315,7 @@ pub fn run() {
             paste_clipboard,
             get_file_info,
             open_file,
+            show_file_properties,
             open_in_terminal,
             search_files,
             path_exists,

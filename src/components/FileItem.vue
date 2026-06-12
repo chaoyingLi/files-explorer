@@ -10,10 +10,20 @@
         <div class="col-name">
             <div
                 class="file-icon-wrap"
-                :class="file.is_dir ? 'icon-folder' : colorClass"
+                :class="file.is_dir ? 'icon-folder' : ''"
             >
-                <!-- Folder icon (Win11 style, solid colors) -->
-                <svg v-if="file.is_dir" class="file-icon" viewBox="0 0 24 24">
+                <!-- Fluent UI file-type icon -->
+                <div
+                    v-if="fileIconSvg && !file.is_dir"
+                    class="file-icon"
+                    v-html="fileIconSvg"
+                ></div>
+                <!-- Folder icon -->
+                <svg
+                    v-else-if="file.is_dir"
+                    class="file-icon"
+                    viewBox="0 0 24 24"
+                >
                     <path
                         d="M3 7.3c0-.94.76-1.7 1.7-1.7h4a1.7 1.7 0 011.36.64l1.28 1.6a.5.5 0 00.38.18h8.58c.94 0 1.7.76 1.7 1.7v6.7a2 2 0 01-2 2H5a2 2 0 01-2-2V7.3z"
                         fill="var(--folder-back)"
@@ -96,6 +106,7 @@ import {
     formatFileSize,
     formatFileDate,
 } from "@/utils/fileTypes";
+import { getFileIconSvg } from "@/utils/fileIcons";
 
 const props = defineProps<{
     file: FileEntry;
@@ -115,6 +126,12 @@ const { t } = useI18n();
 
 const category = computed(() =>
     getFileCategory(props.file.extension, props.file.is_dir),
+);
+
+const colorClass = computed(() => colorClassForCategory(category.value));
+
+const fileIconSvg = computed(() =>
+    getFileIconSvg(props.file.extension, props.file.is_dir),
 );
 
 const fileType = computed(() => {
@@ -170,8 +187,7 @@ const fileType = computed(() => {
     );
 });
 
-const colorClass = computed(() => colorClassForCategory(category.value));
-
+// Drag-and-drop
 // ── Drag-and-drop via custom DOM events ──
 let _dragMousemove: ((e: MouseEvent) => void) | null = null;
 let _dragMouseup: ((e: MouseEvent) => void) | null = null;
@@ -327,6 +343,10 @@ function formatDate(ts: number): string {
     height: 22px;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
     transition: transform 0.1s;
+}
+.file-icon :deep(svg) {
+    width: 100%;
+    height: 100%;
 }
 
 .file-item:hover .file-icon {

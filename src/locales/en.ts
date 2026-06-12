@@ -72,6 +72,7 @@ export default {
     openInTerminal: "Open in Terminal",
     selectAll: "Select All",
     refresh: "Refresh",
+    properties: "Properties",
   },
   tab: {
     newTab: "New Tab",

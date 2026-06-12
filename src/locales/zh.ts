@@ -72,6 +72,7 @@ export default {
     openInTerminal: "在终端打开",
     selectAll: "全选",
     refresh: "刷新",
+    properties: "属性",
   },
   tab: {
     newTab: "新建标签页",

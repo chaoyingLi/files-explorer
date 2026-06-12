@@ -131,6 +131,15 @@ export function useFileActions(
           toast.show(t("toast.error") + ": " + e, true);
         }
         break;
+      case "properties":
+        if (store.selectedFiles.size === 1) {
+          try {
+            await tauri.showFileProperties([...store.selectedFiles][0]);
+          } catch (e: any) {
+            toast.show(t("toast.error") + ": " + e, true);
+          }
+        }
+        break;
     }
   }
 

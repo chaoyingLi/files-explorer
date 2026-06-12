@@ -3,6 +3,7 @@
         ref="listEl"
         class="file-list"
         :class="{ 'drop-active': isDragOver && !!currentPath }"
+        :style="colVars"
         @click.self="store.clearSelection()"
         @contextmenu.prevent="onContextMenu"
     >
@@ -25,10 +26,8 @@
                 :style="{ width: colWidths.name + 'px' }"
                 @click="sortBy('name')"
             >
-                {{ t("fileList.name") }}
-                <span v-if="sortField === 'name'" class="sort-arrow">{{
-                    sortAsc ? "▲" : "▼"
-                }}</span>
+                {{ t("fileList.name")
+                }}{{ sortField === "name" ? (sortAsc ? " ▲" : " ▼") : "" }}
             </div>
             <div
                 class="col-handle"
@@ -42,10 +41,8 @@
                 :style="{ width: colWidths.date + 'px' }"
                 @click="sortBy('modified')"
             >
-                {{ t("fileList.dateModified") }}
-                <span v-if="sortField === 'modified'" class="sort-arrow">{{
-                    sortAsc ? "▲" : "▼"
-                }}</span>
+                {{ t("fileList.dateModified")
+                }}{{ sortField === "modified" ? (sortAsc ? " ▲" : " ▼") : "" }}
             </div>
             <div
                 class="col-handle"
@@ -56,10 +53,8 @@
                 :style="{ width: colWidths.created + 'px' }"
                 @click="sortBy('created')"
             >
-                {{ t("fileList.dateCreated") }}
-                <span v-if="sortField === 'created'" class="sort-arrow">{{
-                    sortAsc ? "▲" : "▼"
-                }}</span>
+                {{ t("fileList.dateCreated")
+                }}{{ sortField === "created" ? (sortAsc ? " ▲" : " ▼") : "" }}
             </div>
             <div
                 class="col-handle"
@@ -77,10 +72,8 @@
                 :style="{ width: colWidths.size + 'px' }"
                 @click="sortBy('size')"
             >
-                {{ t("fileList.size") }}
-                <span v-if="sortField === 'size'" class="sort-arrow">{{
-                    sortAsc ? "▲" : "▼"
-                }}</span>
+                {{ t("fileList.size")
+                }}{{ sortField === "size" ? (sortAsc ? " ▲" : " ▼") : "" }}
             </div>
         </div>
 
@@ -186,7 +179,6 @@
             v-if="currentPath && !store.loading"
             class="file-items"
             :class="'view-' + store.viewMode"
-            :style="colVars"
         >
             <div
                 v-if="displayFiles.length === 0 && !store.loading"
@@ -472,8 +464,7 @@ const sortField = ref<"name" | "modified" | "created" | "size">("name");
 const sortAsc = ref(true);
 const listEl = ref<HTMLElement | null>(null);
 
-// ── Column widths ──
-const colWidths = reactive(loadColWidths());
+const colWidths = reactive<Record<string, number>>(loadCW());
 const colVars = computed(() => ({
     "--col-name": colWidths.name + "px",
     "--col-date": colWidths.date + "px",
@@ -481,7 +472,7 @@ const colVars = computed(() => ({
     "--col-type": colWidths.type + "px",
     "--col-size": colWidths.size + "px",
 }));
-function loadColWidths() {
+function loadCW() {
     try {
         const r = localStorage.getItem("cols");
         if (r)
@@ -496,7 +487,7 @@ function loadColWidths() {
     } catch {}
     return { name: 280, date: 140, created: 140, type: 100, size: 90 };
 }
-function saveColWidths() {
+function saveCW() {
     localStorage.setItem("cols", JSON.stringify(colWidths));
 }
 let _col: string | null = null,
@@ -505,7 +496,7 @@ let _col: string | null = null,
 function onResizeStart(col: string, e: MouseEvent) {
     _col = col;
     _sx = e.clientX;
-    _sw = (colWidths as any)[col] || 100;
+    _sw = colWidths[col] || 100;
     addEventListener("mousemove", onResizeMove);
     addEventListener("mouseup", onResizeEnd);
     document.body.style.cursor = "col-resize";
@@ -514,8 +505,7 @@ function onResizeStart(col: string, e: MouseEvent) {
 }
 function onResizeMove(e: MouseEvent) {
     if (!_col) return;
-    const min = (colWidths as any)[_col] >= 200 ? 120 : 60;
-    (colWidths as any)[_col] = Math.max(min, _sw + e.clientX - _sx);
+    colWidths[_col] = Math.max(60, _sw + e.clientX - _sx);
 }
 function onResizeEnd() {
     removeEventListener("mousemove", onResizeMove);
@@ -523,7 +513,7 @@ function onResizeEnd() {
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
     _col = null;
-    saveColWidths();
+    saveCW();
 }
 
 const quickAccessFolders = computed(() => {
@@ -738,10 +728,6 @@ function gridColorClass(file: FileEntry): string {
     background: var(--bg-primary);
     position: relative;
 }
-.file-list.drop-active {
-    outline: 2px dashed var(--accent);
-    outline-offset: -2px;
-}
 
 .file-list.drop-active {
     background: rgba(137, 180, 250, 0.04);
@@ -808,6 +794,31 @@ function gridColorClass(file: FileEntry): string {
 }
 .col-handle:hover {
     background: var(--accent);
+}
+.col-name {
+    flex: 1;
+    min-width: 120px;
+}
+.col-date {
+    width: var(--col-date, 140px);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.col-created {
+    width: var(--col-created, 140px);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.col-type {
+    width: var(--col-type, 100px);
+    min-width: 60px;
+    flex-shrink: 0;
+}
+.col-size {
+    width: var(--col-size, 90px);
+    min-width: 60px;
+    flex-shrink: 0;
+    text-align: right;
 }
 
 .col-path-header {
@@ -956,7 +967,7 @@ function gridColorClass(file: FileEntry): string {
 .file-items {
     flex: 1;
     overflow-y: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
 }
 
 .file-items.view-list .file-item {
