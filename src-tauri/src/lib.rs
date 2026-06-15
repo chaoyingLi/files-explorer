@@ -61,9 +61,19 @@ pub struct SearchProgress {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ActionKind {
     Delete,
-    Rename { old_path: String, new_path: String },
-    Create { path: String, is_dir: bool },
-    Copy { src: String, dest: String },
+    Rename {
+        old_path: String,
+        new_path: String,
+    },
+    Create {
+        path: String,
+        is_dir: bool,
+    },
+    Copy {
+        src: String,
+        dest: String,
+        was_cut: bool,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -492,6 +502,7 @@ fn write_to_system_clipboard(paths: &[String]) {
             fn GlobalAlloc(f: u32, b: usize) -> *mut std::ffi::c_void;
             fn GlobalLock(m: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
             fn GlobalUnlock(m: *mut std::ffi::c_void) -> i32;
+            fn GlobalFree(h: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
         }
         if OpenClipboard(std::ptr::null_mut()) == 0 {
             return;
@@ -516,7 +527,10 @@ fn write_to_system_clipboard(paths: &[String]) {
         (p.add(16) as *mut u32).write(1); // fWide = TRUE at offset 16
         std::ptr::copy_nonoverlapping(wide.as_ptr(), p.add(hdr) as *mut u16, wide.len());
         GlobalUnlock(h);
-        SetClipboardData(15, h);
+        // Bug 6 fix: on failure, free the allocated memory before closing
+        if SetClipboardData(15, h).is_null() {
+            GlobalFree(h);
+        }
         CloseClipboard();
     }
     #[cfg(not(target_os = "windows"))]
@@ -613,6 +627,7 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
                         kind: ActionKind::Copy {
                             src: src_str.clone(),
                             dest: dp.to_string_lossy().to_string(),
+                            was_cut: is_cut,
                         },
                         timestamp: std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -662,6 +677,7 @@ fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), Strin
                     kind: ActionKind::Copy {
                         src: src_path.to_string_lossy().to_string(),
                         dest: dest_path.to_string_lossy().to_string(),
+                        was_cut: false,
                     },
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -905,19 +921,54 @@ fn show_file_properties(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .args(["-R", &path])
-            .spawn()
-            .map_err(|e| format!("Failed: {}", e))?;
+        // macOS: use AppleScript to select the file in Finder and open Get Info panel
+        let escaped_path = path.replace("\"", "\\\"");
+        let script = format!(
+            r#"tell application "Finder"
+                set f to POSIX file "{}" as alias
+                select f
+                activate
+            end tell
+            delay 0.3
+            tell application "System Events"
+                keystroke "i" using command down
+            end tell"#,
+            escaped_path
+        );
+        let result = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .spawn();
+        if result.is_err() {
+            // Fallback: reveal in Finder via open -R
+            std::process::Command::new("open")
+                .args(["-R", &path])
+                .spawn()
+                .map_err(|e| format!("Failed to show properties: {}", e))?;
+        }
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if let Some(parent) = Path::new(&path).parent() {
-            std::process::Command::new("xdg-open")
-                .arg(parent)
+        // Linux: try various file managers to show properties, fallback to terminal `file` command
+        #[cfg(target_os = "linux")]
+        {
+            let escaped = path.replace('"', "\\\"");
+            if std::process::Command::new("gio")
+                .args(["open", &format!("file:///{}", path.trim_start_matches('/'))])
                 .spawn()
-                .map_err(|e| format!("Failed: {}", e))?;
+                .is_err()
+            {
+                // Fallback: show file info in terminal
+                let _ = std::process::Command::new("sh")
+                    .args(["-c", &format!("file \"{}\" 2>/dev/null", escaped)])
+                    .spawn();
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            if let Some(parent) = Path::new(&path).parent() {
+                let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
+            }
         }
     }
 
@@ -1279,17 +1330,33 @@ fn undo_last_action(state: State<AppState>) -> Result<String, String> {
             }
             Ok(format!("Undid create: removed {path}"))
         }
-        ActionKind::Copy { src, dest } => {
-            if !Path::new(dest).exists() {
+        ActionKind::Copy { src, dest, was_cut } => {
+            let dest_path = Path::new(dest);
+            if !dest_path.exists() {
                 return Err(format!("Cannot undo: {dest} no longer exists"));
             }
-            let dest_path = Path::new(dest);
-            if dest_path.is_dir() {
-                fs::remove_dir_all(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
+            if *was_cut {
+                // Bug 11 fix: cut-paste undo — restore original file at src, then remove copy
+                let src_path = Path::new(src);
+                if dest_path.is_dir() {
+                    copy_dir_recursive(dest_path, src_path)?;
+                    fs::remove_dir_all(dest_path).map_err(|e| format!("Undo cut failed: {}", e))?;
+                } else {
+                    fs::copy(dest_path, src_path)
+                        .map_err(|e| format!("Undo cut restore failed: {}", e))?;
+                    fs::remove_file(dest_path).map_err(|e| format!("Undo cut failed: {}", e))?;
+                }
+                Ok(format!("Undid cut: restored {src}"))
             } else {
-                fs::remove_file(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
+                // Regular copy: just remove the copy
+                if dest_path.is_dir() {
+                    fs::remove_dir_all(dest_path)
+                        .map_err(|e| format!("Undo copy failed: {}", e))?;
+                } else {
+                    fs::remove_file(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
+                }
+                Ok(format!("Undid copy of {src}: removed {dest}"))
             }
-            Ok(format!("Undid copy of {src}: removed {dest}"))
         }
     }
 }

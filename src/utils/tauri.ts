@@ -1,6 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { FileEntry, DiskInfo, SpecialDirs, ClipboardInfo } from "@/types";
 
+/**
+ * Join path segments using the separator style detected from the base path.
+ * On Windows, if base uses backslashes, result uses backslashes;
+ * otherwise forward slashes.
+ */
+export function joinPath(base: string, name: string): string {
+  const sep = base.includes("\\") ? "\\" : "/";
+  if (base.endsWith("/") || base.endsWith("\\")) return base + name;
+  return base + sep + name;
+}
+
 export async function listDirectory(path: string): Promise<FileEntry[]> {
   return invoke("list_directory", { path });
 }

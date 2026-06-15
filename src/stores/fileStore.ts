@@ -4,6 +4,9 @@ import type { FileEntry, DiskInfo, SpecialDirs } from "@/types";
 import * as tauri from "@/utils/tauri";
 import { useTabStore } from "@/stores/tabStore";
 
+// Navigation token to cancel stale async operations
+let navigateSeq = 0;
+
 export const useFileStore = defineStore("file", () => {
   // Lazy reference to avoid circular init
   let _tabStore: ReturnType<typeof useTabStore> | null = null;
@@ -59,6 +62,8 @@ export const useFileStore = defineStore("file", () => {
   const showDeleteConfirm = ref(false);
   const deletePermanently = ref(false);
   const deleteTargetCount = ref(0);
+  // Snapshot of paths to delete (captured when dialog opens, immune to selection changes)
+  let deleteTargetsSnapshot: string[] = [];
 
   // Undo state
   const canUndo = ref(false);
@@ -138,16 +143,28 @@ export const useFileStore = defineStore("file", () => {
     selectedFiles.value.clear();
 
     if (addToHistory) {
-      if (historyIndex.value < history.value.length - 1) {
-        history.value = history.value.slice(0, historyIndex.value + 1);
-      }
-      history.value.push(path);
-      historyIndex.value = history.value.length - 1;
-      if (history.value.length > 50) {
-        history.value = history.value.slice(-50);
+      // Bug 10 fix: avoid duplicate history entries
+      const lastPath =
+        historyIndex.value >= 0 && historyIndex.value < history.value.length
+          ? history.value[historyIndex.value]
+          : undefined;
+      if (path !== lastPath) {
+        if (historyIndex.value < history.value.length - 1) {
+          history.value = history.value.slice(0, historyIndex.value + 1);
+        }
+        history.value.push(path);
         historyIndex.value = history.value.length - 1;
+        if (history.value.length > 50) {
+          history.value = history.value.slice(-50);
+          historyIndex.value = history.value.length - 1;
+        }
       }
     }
+
+    // Bug 4 fix: assign a navigation token to detect stale callbacks
+    const navId = ++navigateSeq;
+
+    let cleanupListeners: (() => void) | null = null;
 
     try {
       const { listen } = await import("@tauri-apps/api/event");
@@ -158,7 +175,8 @@ export const useFileStore = defineStore("file", () => {
       const unlistenProgress = await listen<FileEntry[]>(
         "list-progress",
         (event) => {
-          if (resolved) return;
+          // Bug 4: ignore stale callbacks from older navigation
+          if (resolved || navId !== navigateSeq) return;
           batchIndex++;
           for (const f of event.payload) {
             files.value.push(f);
@@ -176,11 +194,24 @@ export const useFileStore = defineStore("file", () => {
         },
       );
 
+      let unlistenDone: (() => void) | null = null;
+      let unlistenError: (() => void) | null = null;
+
+      const cleanupListenersFn = () => {
+        unlistenProgress();
+        if (unlistenDone) unlistenDone();
+        if (unlistenError) unlistenError();
+      };
+
+      // Bug 3 fix: properly store all unlisten functions
+      cleanupListeners = cleanupListenersFn;
+      _listUnlisten = cleanupListenersFn;
+
       const streamDone = new Promise<void>((resolve, reject) => {
         listen<boolean>("list-done", () => {
-          if (resolved) return;
+          if (resolved || navId !== navigateSeq) return;
           resolved = true;
-          unlistenProgress();
+          cleanupListenersFn();
           const sorted = [...files.value].sort((a, b) => {
             if (a.is_dir && !b.is_dir) return -1;
             if (!a.is_dir && b.is_dir) return 1;
@@ -193,17 +224,17 @@ export const useFileStore = defineStore("file", () => {
           syncToTab();
           resolve();
         }).then((u) => {
-          /* kept alive via closure */
+          unlistenDone = u;
         });
         listen<string>("list-error", (ev) => {
-          if (resolved) return;
+          if (resolved || navId !== navigateSeq) return;
           resolved = true;
-          unlistenProgress();
+          cleanupListenersFn();
           loading.value = false;
           error.value = ev.payload;
           reject(new Error(ev.payload));
         }).then((u) => {
-          /* kept alive */
+          unlistenError = u;
         });
       });
 
@@ -211,7 +242,8 @@ export const useFileStore = defineStore("file", () => {
       await tauri.listDirectoryStreamed(path);
       await streamDone;
     } catch (_e) {
-      // Fallback to sync
+      // Fallback to sync (only for the latest navigation)
+      if (navId !== navigateSeq) return;
       try {
         files.value = await tauri.listDirectory(path);
         loading.value = false;
@@ -219,6 +251,10 @@ export const useFileStore = defineStore("file", () => {
       } catch (e2) {
         error.value = String(e2);
         loading.value = false;
+      }
+    } finally {
+      if (cleanupListeners && _listUnlisten === cleanupListeners) {
+        _listUnlisten = null;
       }
     }
   }
@@ -295,23 +331,13 @@ export const useFileStore = defineStore("file", () => {
   }
 
   async function createNewFolder(name: string) {
-    const newPath =
-      currentPath.value +
-      (currentPath.value.endsWith("/") || currentPath.value.endsWith("\\")
-        ? ""
-        : "/") +
-      name;
+    const newPath = tauri.joinPath(currentPath.value, name);
     await tauri.createDirectory(newPath);
     await refresh();
   }
 
   async function createNewFile(name: string) {
-    const newPath =
-      currentPath.value +
-      (currentPath.value.endsWith("/") || currentPath.value.endsWith("\\")
-        ? ""
-        : "/") +
-      name;
+    const newPath = tauri.joinPath(currentPath.value, name);
     await tauri.createFile(newPath);
     await refresh();
   }
@@ -319,8 +345,10 @@ export const useFileStore = defineStore("file", () => {
   // Show delete confirmation dialog
   function requestDelete(permanently = false) {
     if (selectedFiles.value.size === 0) return;
+    // Bug 8 fix: snapshot selection immediately, before dialog closes
+    deleteTargetsSnapshot = [...selectedFiles.value];
     deletePermanently.value = permanently;
-    deleteTargetCount.value = selectedFiles.value.size;
+    deleteTargetCount.value = deleteTargetsSnapshot.length;
     showDeleteConfirm.value = true;
   }
 
@@ -331,7 +359,9 @@ export const useFileStore = defineStore("file", () => {
     message: string;
   }> {
     showDeleteConfirm.value = false;
-    const paths = [...selectedFiles.value];
+    // Bug 8 fix: use snapshot rather than live selection
+    const paths = deleteTargetsSnapshot;
+    deleteTargetsSnapshot = [];
     const result = await tauri.deleteItems(paths, deletePermanently.value);
     await refresh();
     if (result.failed.length > 0) {
@@ -358,13 +388,11 @@ export const useFileStore = defineStore("file", () => {
   }
 
   async function renameFile(oldPath: string, newName: string) {
-    const parent = oldPath.substring(
-      0,
-      oldPath.lastIndexOf("/") !== -1
-        ? oldPath.lastIndexOf("/")
-        : oldPath.lastIndexOf("\\"),
-    );
-    const newPath = parent + "/" + newName;
+    // Bug 1 fix: use the same separator style as the original path
+    const sep = oldPath.includes("/") ? "/" : "\\";
+    const lastSep = oldPath.lastIndexOf(sep);
+    const parent = lastSep >= 0 ? oldPath.substring(0, lastSep) : "";
+    const newPath = parent + sep + newName;
     await tauri.renameItem(oldPath, newPath);
     await refresh();
   }
@@ -526,6 +554,9 @@ export const useFileStore = defineStore("file", () => {
             break;
           case "Copy":
             undoDescription.value = `Undo copy: ${info.kind.dest}`;
+            break;
+          case "Delete":
+            undoDescription.value = "Recent delete (cannot undo)";
             break;
           default:
             undoDescription.value = "Undo last action";
