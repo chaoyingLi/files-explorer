@@ -93,6 +93,10 @@ export async function showInExplorer(path: string): Promise<void> {
   return invoke("show_in_explorer", { path });
 }
 
+export async function startNativeDrag(paths: string[]): Promise<string> {
+  return invoke("start_native_drag_cmd", { paths });
+}
+
 export async function openInTerminal(path: string): Promise<void> {
   return invoke("open_in_terminal", { path });
 }

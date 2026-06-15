@@ -115,6 +115,7 @@ import { usePanelNavigation } from "@/composables/usePanelNavigation";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useSearchService } from "@/composables/useSearchService";
 import { useDragDrop } from "@/composables/useDragDrop";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -231,6 +232,34 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
+    // Native OS file drop (Explorer / other apps drag files into window)
+    let _ndu: (() => void) | null = null;
+    try {
+        const win = getCurrentWebviewWindow();
+        _ndu = await win.onDragDropEvent(async (event: any) => {
+            const e = event.payload;
+            if (e.type !== "drop") return;
+            // Extract absolute file paths
+            const paths: string[] = (e.paths || [])
+                .map((p: any) => (typeof p === "string" ? p : p.path || ""))
+                .filter(Boolean);
+            if (paths.length === 0) return;
+            // Move files to focused pane's current directory
+            const dir = store.currentPath;
+            if (!dir) return;
+            try {
+                await tauri.moveFiles(paths, dir, false);
+                await store.refresh();
+                toast.show(`Imported ${paths.length} file(s)`);
+            } catch (err: any) {
+                toast.show(`Import failed: ${err}`, true);
+            }
+        });
+    } catch {
+        /* ignore if API not available */
+    }
+
+    // Init panels
     const allPanes = tabStore.getAllPanes();
     if (allPanes.length > 0) {
         const firstPane = allPanes[0];

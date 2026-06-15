@@ -179,6 +179,10 @@
             v-if="currentPath && !store.loading"
             class="file-items"
             :class="'view-' + store.viewMode"
+            :style="colVars"
+            @dragover.prevent="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
         >
             <div
                 v-if="displayFiles.length === 0 && !store.loading"
@@ -615,69 +619,64 @@ function onFileContextMenu(file: FileEntry, e: MouseEvent) {
     emit("fileContextMenu", file, e);
 }
 
-// ── Drag-and-drop via store ──
+// ── HTML5 Drag-and-Drop ──
 const isDragOver = ref(false);
 
-function onGlobalMove() {
-    isDragOver.value = !!(tabStore.dragActive && currentPath.value);
+function onDragOver(e: DragEvent) {
+    if (!currentPath.value) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = e.ctrlKey || e.metaKey ? "copy" : "move";
+    isDragOver.value = true;
 }
 
-function handleFileDrop(raw: string, ctrl: boolean) {
-    if (!raw || !currentPath.value) return;
-    tabStore.endDrag();
+function onDragLeave() {
     isDragOver.value = false;
+}
 
-    const paths = raw.split("\n").filter(Boolean);
+function onDrop(e: DragEvent) {
+    e.preventDefault();
+    isDragOver.value = false;
     const dir = currentPath.value;
-    if (
-        paths.some(
-            (p) =>
-                p === dir ||
-                p.startsWith(dir + "\\") ||
-                p.startsWith(dir + "/"),
-        )
-    )
-        return;
+    if (!dir || !e.dataTransfer) return;
 
+    let paths: string[] = [];
+
+    // Internal drag (from our FileItem via custom MIME type)
+    const internal = e.dataTransfer.getData(
+        "application/x-files-explorer-paths",
+    );
+    if (internal) {
+        try {
+            paths = JSON.parse(internal);
+        } catch {}
+    }
+    // External drag — read file URIs
+    if (paths.length === 0) {
+        const uriText = e.dataTransfer.getData("text/uri-list");
+        if (uriText) {
+            paths = uriText
+                .split("\r\n")
+                .filter(Boolean)
+                .map((u) => {
+                    let p = u.replace(/^file:\/+/i, "");
+                    try {
+                        p = decodeURIComponent(p);
+                    } catch {}
+                    return p.replace(/\//g, "\\");
+                });
+        }
+    }
+
+    if (paths.length === 0) return;
+
+    const ctrl = e.ctrlKey || e.metaKey;
     tauri
         .moveFiles(paths, dir, ctrl)
         .then(async () => {
-            // Refresh THIS pane's file list directly (not store.refresh which uses focused pane)
-            const refreshed = await tauri.listDirectory(dir);
-            currentFiles.value = refreshed;
+            currentFiles.value = await tauri.listDirectory(dir);
         })
-        .catch((err) => console.error("Move failed:", err));
+        .catch((err) => console.error("Drop failed:", err));
 }
-
-// Watch drag state reactively instead of polling
-let dragWatchStop: (() => void) | null = null;
-
-function onFileDropEvent(e: Event) {
-    const detail = (e as CustomEvent).detail as {
-        paths: string;
-        ctrl: boolean;
-    };
-    handleFileDrop(detail.paths, detail.ctrl);
-}
-
-onMounted(() => {
-    dragWatchStop = watch(
-        () => tabStore.dragActive,
-        (active) => {
-            if (!active && isDragOver.value) {
-                isDragOver.value = false;
-            }
-        },
-    );
-    window.addEventListener("mousemove", onGlobalMove);
-    listEl.value?.addEventListener("filedrop", onFileDropEvent);
-});
-
-onUnmounted(() => {
-    if (dragWatchStop) dragWatchStop();
-    window.removeEventListener("mousemove", onGlobalMove);
-    listEl.value?.removeEventListener("filedrop", onFileDropEvent);
-});
 
 // ── Tree view handlers ──
 function onTreeArrowClick(item: any) {

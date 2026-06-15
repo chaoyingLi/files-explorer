@@ -5,7 +5,7 @@
         @contextmenu.prevent="$emit('contextmenu', $event)"
         @click="$emit('click', $event)"
         @dblclick="$emit('dblclick', $event)"
-        @mousedown="onMouseDown"
+        @mousedown="startNativeFileDrag"
     >
         <div class="col-name">
             <div
@@ -107,6 +107,7 @@ import {
     formatFileDate,
 } from "@/utils/fileTypes";
 import { getFileIconSvg } from "@/utils/fileIcons";
+import * as tauri from "@/utils/tauri";
 
 const props = defineProps<{
     file: FileEntry;
@@ -187,78 +188,36 @@ const fileType = computed(() => {
     );
 });
 
-// Drag-and-drop
-// ── Drag-and-drop via custom DOM events ──
-let _dragMousemove: ((e: MouseEvent) => void) | null = null;
-let _dragMouseup: ((e: MouseEvent) => void) | null = null;
-
-function onMouseDown(e: MouseEvent) {
+// ── Native File Drag (COM DoDragDrop via Rust) ──
+function startNativeFileDrag(e: MouseEvent) {
     if (e.button !== 0) return;
+    console.log("drag:start", props.file.name);
     const store = useFileStore();
-    const tabStore = useTabStore();
     const selected = store.selectedFiles;
     const paths = selected.has(props.file.path)
         ? [...selected]
         : [props.file.path];
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let dragging = false;
-
-    const ghost = document.createElement("div");
-    ghost.style.cssText =
-        "position:fixed;pointer-events:none;z-index:9999;opacity:0.7;padding:4px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-primary);white-space:nowrap;box-shadow:0 4px 16px var(--shadow);left:-9999px;top:-9999px;";
-    ghost.textContent =
-        paths.length > 1 ? `${paths.length} items` : props.file.name;
-    document.body.appendChild(ghost);
+    const sx = e.clientX,
+        sy = e.clientY;
+    let started = false;
 
     function onMove(ev: MouseEvent) {
-        if (!dragging) {
-            const dx = ev.clientX - startX;
-            const dy = ev.clientY - startY;
-            if (dx * dx + dy * dy > 25) {
-                dragging = true;
-                tabStore.startDrag(paths);
-                document.body.classList.add("global-dragging");
-            }
-        }
-        if (dragging) {
-            ghost.style.left = ev.clientX + 12 + "px";
-            ghost.style.top = ev.clientY + 8 + "px";
-        }
-    }
-
-    function onUp(ev: MouseEvent) {
+        if (started) return;
+        const dx = ev.clientX - sx,
+            dy = ev.clientY - sy;
+        if (dx * dx + dy * dy <= 9) return; // 3px threshold
+        started = true;
+        console.log("drag:launch", paths.length, "files");
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
-        _dragMousemove = null;
-        _dragMouseup = null;
-        ghost.remove();
-        document.body.classList.remove("global-dragging");
-
-        if (!dragging) return;
-
-        const el = document.elementFromPoint(ev.clientX, ev.clientY);
-        if (!el) {
-            tabStore.endDrag();
-            return;
-        }
-        const fileList = el.closest(".file-list") as HTMLElement | null;
-        if (!fileList) {
-            tabStore.endDrag();
-            return;
-        }
-        // Dispatch per-instance event (fixes multi-pane drag-drop)
-        const detail = {
-            paths: paths.join("\n"),
-            ctrl: ev.ctrlKey || ev.metaKey,
-        };
-        fileList.dispatchEvent(new CustomEvent("filedrop", { detail }));
-        tabStore.endDrag();
+        tauri
+            .startNativeDrag(paths)
+            .catch((err: any) => console.error("drag:err", err));
     }
-
-    _dragMousemove = onMove;
-    _dragMouseup = onUp;
+    function onUp() {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+    }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
 }

@@ -8,6 +8,8 @@ use std::time::SystemTime;
 use tauri::{command, AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
+mod native_drag;
+
 fn ts_from_metadata(
     metadata: &fs::Metadata,
     getter: fn(&fs::Metadata) -> Result<SystemTime, std::io::Error>,
@@ -848,6 +850,11 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
 // (calculate_dir_size removed - use async walkdir for large dirs if needed)
 
 #[command]
+fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, String> {
+    native_drag::start_native_drag(&paths)
+}
+
+#[command]
 fn open_file(path: String) -> Result<(), String> {
     opener::open(path).map_err(|e| format!("Failed to open: {}", e))
 }
@@ -1327,6 +1334,7 @@ pub fn run() {
             get_file_info,
             open_file,
             show_in_explorer,
+            start_native_drag_cmd,
             show_file_properties,
             open_in_terminal,
             search_files,
