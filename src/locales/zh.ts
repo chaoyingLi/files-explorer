@@ -73,6 +73,7 @@ export default {
     selectAll: "全选",
     refresh: "刷新",
     properties: "属性",
+    showInExplorer: "在资源管理器显示",
   },
   tab: {
     newTab: "新建标签页",

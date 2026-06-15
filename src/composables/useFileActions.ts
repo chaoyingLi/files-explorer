@@ -133,10 +133,27 @@ export function useFileActions(
         break;
       case "properties":
         if (store.selectedFiles.size === 1) {
+          const path = [...store.selectedFiles][0];
+          console.log("properties: opening for", path);
           try {
-            await tauri.showFileProperties([...store.selectedFiles][0]);
+            await tauri.showFileProperties(path);
           } catch (e: any) {
             toast.show(t("toast.error") + ": " + e, true);
+          }
+        }
+        break;
+      case "showInExplorer":
+        {
+          const path =
+            store.selectedFiles.size === 1
+              ? [...store.selectedFiles][0]
+              : store.currentPath;
+          if (path) {
+            try {
+              await tauri.showInExplorer(path);
+            } catch (e: any) {
+              toast.show(t("toast.error") + ": " + e, true);
+            }
           }
         }
         break;

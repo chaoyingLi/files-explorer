@@ -10,6 +10,7 @@ export function useContextMenu() {
   const showContextMenu = ref(false);
   const contextMenuPos = ref({ x: 0, y: 0 });
   const sidebarContextPath = ref("");
+  const rightClickedPath = ref("");
 
   function openContextMenu(x: number, y: number) {
     contextMenuPos.value = { x, y };
@@ -108,6 +109,10 @@ export function useContextMenu() {
         label: t("contextMenu.properties"),
         action: "properties",
       },
+      {
+        label: t("contextMenu.showInExplorer"),
+        action: "showInExplorer",
+      },
       { label: "", action: "", separator: true },
       {
         label: t("contextMenu.selectAll"),
@@ -129,6 +134,7 @@ export function useContextMenu() {
     showContextMenu,
     contextMenuPos,
     sidebarContextPath,
+    rightClickedPath,
     contextMenuItems: items,
     openContextMenu,
     closeContextMenu,

@@ -853,6 +853,17 @@ fn open_file(path: String) -> Result<(), String> {
 }
 
 #[command]
+fn show_in_explorer(path: String) -> Result<(), String> {
+    log::info!("show_in_explorer: {}", path);
+    // Parse /select,<path> — comma must be in same arg
+    std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path))
+        .spawn()
+        .map_err(|e| format!("Failed: {}", e))?;
+    Ok(())
+}
+
+#[command]
 fn show_file_properties(path: String) -> Result<(), String> {
     let p = Path::new(&path);
     if !p.exists() {
@@ -862,26 +873,26 @@ fn show_file_properties(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         extern "system" {
-            fn ShellExecuteW(
+            fn SHObjectProperties(
                 hwnd: *mut std::ffi::c_void,
-                operation: *const u16,
-                file: *const u16,
-                parameters: *const u16,
-                directory: *const u16,
-                showCmd: i32,
-            ) -> *mut std::ffi::c_void;
+                dwType: u32,
+                pszName: *const u16,
+                pszParameters: *const u16,
+            ) -> i32;
         }
-        let op: Vec<u16> = "properties\0".encode_utf16().collect();
+        const SHOP_FILEPATH: u32 = 0x2;
         let fp: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
         unsafe {
-            ShellExecuteW(
+            let ret = SHObjectProperties(
                 std::ptr::null_mut(),
-                op.as_ptr(),
+                SHOP_FILEPATH,
                 fp.as_ptr(),
                 std::ptr::null(),
-                std::ptr::null(),
-                1,
             );
+            // Returns TRUE (1) on success, FALSE (0) on failure
+            if ret == 0 {
+                return Err(format!("SHObjectProperties failed with code: {}", ret));
+            }
         }
     }
 
@@ -1315,6 +1326,7 @@ pub fn run() {
             paste_clipboard,
             get_file_info,
             open_file,
+            show_in_explorer,
             show_file_properties,
             open_in_terminal,
             search_files,

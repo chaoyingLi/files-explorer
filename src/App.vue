@@ -165,6 +165,21 @@ function handleSidebarContext(path: string, event: MouseEvent) {
 
 async function handleContextAction(action: string) {
     ctx.closeContextMenu();
+    if (action === "showInExplorer") {
+        const path =
+            store.selectedFiles.size === 1
+                ? [...store.selectedFiles][0]
+                : store.currentPath;
+        if (path) {
+            try {
+                await tauri.showInExplorer(path);
+                toast.show("showInExplorer: " + path);
+            } catch (e: any) {
+                toast.show(t("toast.error") + ": " + e, true);
+            }
+        }
+        return;
+    }
     if (action.startsWith("split")) {
         const dir = action.replace("split", "").toLowerCase() as
             | "left"

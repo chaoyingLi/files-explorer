@@ -73,6 +73,7 @@ export default {
     selectAll: "Select All",
     refresh: "Refresh",
     properties: "Properties",
+    showInExplorer: "Show in Explorer",
   },
   tab: {
     newTab: "New Tab",

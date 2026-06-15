@@ -97,6 +97,7 @@
                 (dir: string, paths: string[], ctrl: boolean) =>
                     $emit('fileDrop', node.id, dir, paths, ctrl)
             "
+            @fileContextMenu="(file: any) => $emit('fileContextMenu', file)"
         />
     </div>
     <div v-else class="pane-split" :class="'split-' + node.direction">
@@ -149,7 +150,8 @@ defineEmits<{
     paneClose: [paneId: string];
     tabDrop: [paneId: string, tabId: string, e: DragEvent];
     navigate: [paneId: string, path: string];
-    fileDrop: [paneId: string, dir: string, paths: string[], ctrl: boolean];
+    fileDrop: [paneId: string, dir: string, paths: string[], ctrlKey: boolean];
+    fileContextMenu: [file: any];
 }>();
 
 const tabStore = useTabStore();
