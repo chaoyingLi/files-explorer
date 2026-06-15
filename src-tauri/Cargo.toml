@@ -26,6 +26,7 @@ trash = "3"
 opener = "0.7"
 log = "0.4"
 simplelog = "0.12"
+arboard = "3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

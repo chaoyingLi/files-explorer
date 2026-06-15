@@ -28,7 +28,13 @@ fn dirs_next() -> Option<String> {
             .ok()
             .map(|p| format!("{}\\files-explorer\\logs", p))
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(|p| format!("{}/Library/Logs/files-explorer", p))
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         std::env::var("HOME")
             .ok()

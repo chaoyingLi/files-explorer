@@ -356,8 +356,8 @@ fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
         if libc::statvfs(cpath.as_ptr(), &mut stat) != 0 {
             return Err("statvfs failed".to_string());
         }
-        let total = stat.f_frsize as u64 * stat.f_blocks;
-        let free = stat.f_frsize as u64 * stat.f_bavail;
+        let total = stat.f_frsize as u64 * stat.f_blocks as u64;
+        let free = stat.f_frsize as u64 * stat.f_bavail as u64;
         Ok(DiskInfo {
             name: path.to_string(),
             mount_point: path.to_string(),
@@ -878,11 +878,30 @@ fn open_file(path: String) -> Result<(), String> {
 #[command]
 fn show_in_explorer(path: String) -> Result<(), String> {
     log::info!("show_in_explorer: {}", path);
-    // Parse /select,<path> — comma must be in same arg
-    std::process::Command::new("explorer")
-        .arg(format!("/select,{}", path))
-        .spawn()
-        .map_err(|e| format!("Failed: {}", e))?;
+    #[cfg(target_os = "windows")]
+    {
+        // Parse /select,<path> — comma must be in same arg
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| format!("Failed: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed: {}", e))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("Failed: {}", e))?;
+        }
+    }
     Ok(())
 }
 
