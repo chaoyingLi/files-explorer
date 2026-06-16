@@ -37,11 +37,10 @@ export function useDragDrop(
       tp.tabs.find((t: Tab) => t.id === tp.activeTabId);
     if (!tt?.path) return;
     for (const sp of paths) {
-      const nm = sp.replace(/\\/g, "/").split("/").pop() || "";
-      const dp =
-        tt.path +
-        (tt.path.endsWith("\\") || tt.path.endsWith("/") ? "" : "\\") +
-        nm;
+      const dp = tauri.joinPath(
+        tt.path,
+        sp.replace(/\\/g, "/").split("/").pop() || "",
+      );
       if (sp !== dp) {
         try {
           await tauri.renameItem(sp, dp);

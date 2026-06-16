@@ -73,6 +73,7 @@ export default {
     refresh: "Refresh",
     properties: "Properties",
     showInExplorer: "Show in Explorer",
+    showInFinder: "Show in Finder",
   },
   tab: {
     newTab: "New Tab",
@@ -167,6 +168,13 @@ export default {
     del: "Del",
     f2: "F2",
     f5: "F5",
+    cmdShiftN: "⌘⇧N",
+    cmdN: "⌘N",
+    cmdX: "⌘X",
+    cmdC: "⌘C",
+    cmdV: "⌘V",
+    cmdA: "⌘A",
+    cmdDel: "⌘⌫",
   },
   language: {
     label: "Language",

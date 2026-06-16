@@ -7,6 +7,9 @@ export function useContextMenu() {
   const { t } = useI18n();
   const store = useFileStore();
 
+  const isMac =
+    typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+
   const showContextMenu = ref(false);
   const contextMenuPos = ref({ x: 0, y: 0 });
   const sidebarContextPath = ref("");
@@ -26,6 +29,9 @@ export function useContextMenu() {
     const singleSelection = store.selectedFiles.size === 1;
     const result: ContextMenuOption[] = [];
 
+    // Platform-aware shortcut key helper: use "cmd*" keys on macOS
+    const sk = (ctrlKey: string, cmdKey: string) => t(isMac ? cmdKey : ctrlKey);
+
     if (!store.currentPath) {
       result.push({ label: t("contextMenu.open"), action: "open" });
       return result;
@@ -35,12 +41,12 @@ export function useContextMenu() {
       {
         label: t("contextMenu.newFolder"),
         action: "newFolder",
-        shortcut: t("shortcuts.ctrlShiftN"),
+        shortcut: sk("shortcuts.ctrlShiftN", "shortcuts.cmdShiftN"),
       },
       {
         label: t("contextMenu.newFile"),
         action: "newFile",
-        shortcut: t("shortcuts.ctrlN"),
+        shortcut: sk("shortcuts.ctrlN", "shortcuts.cmdN"),
       },
       { label: "", action: "", separator: true },
     );
@@ -52,12 +58,12 @@ export function useContextMenu() {
         {
           label: t("contextMenu.cut"),
           action: "cut",
-          shortcut: t("shortcuts.ctrlX"),
+          shortcut: sk("shortcuts.ctrlX", "shortcuts.cmdX"),
         },
         {
           label: t("contextMenu.copy"),
           action: "copy",
-          shortcut: t("shortcuts.ctrlC"),
+          shortcut: sk("shortcuts.ctrlC", "shortcuts.cmdC"),
         },
         { label: "", action: "", separator: true },
         {
@@ -102,7 +108,7 @@ export function useContextMenu() {
       {
         label: t("contextMenu.paste"),
         action: "paste",
-        shortcut: t("shortcuts.ctrlV"),
+        shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
       },
       { label: "", action: "", separator: true },
       {
@@ -110,14 +116,16 @@ export function useContextMenu() {
         action: "properties",
       },
       {
-        label: t("contextMenu.showInExplorer"),
+        label: isMac
+          ? t("contextMenu.showInFinder")
+          : t("contextMenu.showInExplorer"),
         action: "showInExplorer",
       },
       { label: "", action: "", separator: true },
       {
         label: t("contextMenu.selectAll"),
         action: "selectAll",
-        shortcut: t("shortcuts.ctrlA"),
+        shortcut: sk("shortcuts.ctrlA", "shortcuts.cmdA"),
       },
       { label: "", action: "", separator: true },
       {

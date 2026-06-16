@@ -74,7 +74,26 @@ export function getFileCategory(
   extension: string,
   isDir: boolean,
 ): FileCategory {
-  if (isDir) return "folder";
+  if (isDir) {
+    // macOS bundle directories — treat as app/file, not folder
+    const BUNDLE_EXTS = [
+      "app",
+      "bundle",
+      "framework",
+      "xcodeproj",
+      "xcworkspace",
+      "prefpane",
+      "saver",
+      "plugin",
+      "pages",
+      "numbers",
+      "key",
+    ];
+    if (BUNDLE_EXTS.includes(extension.toLowerCase())) {
+      return "app";
+    }
+    return "folder";
+  }
   const ext = extension.toLowerCase();
   for (const [category, exts] of Object.entries(CATEGORY_MAP)) {
     if (category === "folder" || category === "default") continue;

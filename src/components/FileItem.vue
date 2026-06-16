@@ -12,15 +12,15 @@
                 class="file-icon-wrap"
                 :class="file.is_dir ? 'icon-folder' : ''"
             >
-                <!-- Fluent UI file-type icon -->
+                <!-- Fluent UI file-type icon (also for bundle dirs like .app) -->
                 <div
-                    v-if="fileIconSvg && !file.is_dir"
+                    v-if="fileIconSvg && (!file.is_dir || isBundle)"
                     class="file-icon"
                     v-html="fileIconSvg"
                 ></div>
-                <!-- Folder icon -->
+                <!-- Folder icon (skip for bundles) -->
                 <svg
-                    v-else-if="file.is_dir"
+                    v-else-if="file.is_dir && !isBundle"
                     class="file-icon"
                     viewBox="0 0 24 24"
                 >
@@ -106,7 +106,7 @@ import {
     formatFileSize,
     formatFileDate,
 } from "@/utils/fileTypes";
-import { getFileIconSvg } from "@/utils/fileIcons";
+import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 import * as tauri from "@/utils/tauri";
 
 const props = defineProps<{
@@ -130,6 +130,10 @@ const category = computed(() =>
 );
 
 const colorClass = computed(() => colorClassForCategory(category.value));
+
+const isBundle = computed(() =>
+    isBundleDirectory(props.file.extension, props.file.is_dir),
+);
 
 const fileIconSvg = computed(() =>
     getFileIconSvg(props.file.extension, props.file.is_dir),
@@ -370,6 +374,18 @@ function formatDate(ts: number): string {
     --file-icon-secondary: #c47a15;
     --folder-back: #c47a15;
     --file-icon-lines: #9ca0b0;
+}
+
+/* ── macOS folder blue (SF Symbols style) ── */
+[data-platform="macos"][data-theme="dark"] {
+    --file-icon-primary: #5ea8f5;
+    --file-icon-secondary: #3b8de0;
+    --folder-back: #3b8de0;
+}
+[data-platform="macos"][data-theme="light"] {
+    --file-icon-primary: #3994f5;
+    --file-icon-secondary: #2578d8;
+    --folder-back: #2578d8;
 }
 </style>
 

@@ -835,8 +835,10 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "chrono",
+ "dirs",
  "libc",
  "log",
+ "objc2",
  "opener",
  "serde",
  "serde_json",

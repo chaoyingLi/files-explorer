@@ -73,6 +73,7 @@ export default {
     refresh: "刷新",
     properties: "属性",
     showInExplorer: "在资源管理器显示",
+    showInFinder: "在访达中显示",
   },
   tab: {
     newTab: "新建标签页",
@@ -166,6 +167,13 @@ export default {
     del: "Del",
     f2: "F2",
     f5: "F5",
+    cmdShiftN: "⌘⇧N",
+    cmdN: "⌘N",
+    cmdX: "⌘X",
+    cmdC: "⌘C",
+    cmdV: "⌘V",
+    cmdA: "⌘A",
+    cmdDel: "⌘⌫",
   },
   language: {
     label: "语言",

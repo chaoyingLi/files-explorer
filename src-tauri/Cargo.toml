@@ -27,6 +27,10 @@ opener = "0.7"
 log = "0.4"
 simplelog = "0.12"
 arboard = "3"
+dirs = "6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -16,9 +16,9 @@
                     class="grid-rich-icon"
                     v-html="richIcon(file)"
                 ></div>
-                <!-- Win11-style Folder (48x48) -->
+                <!-- Win11-style Folder (48x48) - skip for bundles -->
                 <svg
-                    v-else-if="file.is_dir"
+                    v-else-if="file.is_dir && !isBundle(file)"
                     viewBox="0 0 48 48"
                     class="grid-folder"
                 >
@@ -105,7 +105,7 @@
 import { useFileStore } from "@/stores/fileStore";
 import type { FileEntry } from "@/types";
 import { getFileCategory, gridColorClassForCategory } from "@/utils/fileTypes";
-import { getFileIconSvg } from "@/utils/fileIcons";
+import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 
 defineProps<{
     files: FileEntry[];
@@ -130,8 +130,13 @@ function gridColorClass(file: FileEntry): string {
 }
 
 function richIcon(file: FileEntry): string | null {
-    if (file.is_dir) return null;
+    if (file.is_dir && !isBundleDirectory(file.extension, file.is_dir))
+        return null;
     return getFileIconSvg(file.extension, false);
+}
+
+function isBundle(file: FileEntry): boolean {
+    return isBundleDirectory(file.extension, file.is_dir);
 }
 </script>
 
@@ -177,13 +182,11 @@ function richIcon(file: FileEntry): string | null {
 .grid-rich-icon {
     width: 48px;
     height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 .grid-rich-icon svg {
     width: 100%;
     height: 100%;
+    display: block;
 }
 .grid-name {
     font-size: 12px;
@@ -303,5 +306,14 @@ function richIcon(file: FileEntry): string | null {
     --doc-main: #8c8fa0;
     --doc-shade: #70748c;
     --doc-highlight: #a8acc0;
+}
+/* ── macOS folder blue ── */
+[data-platform="macos"] .grid-icon {
+    --folder-main: #5ea8f5;
+    --folder-shade: #3b8de0;
+}
+[data-platform="macos"][data-theme="light"] .grid-icon {
+    --folder-main: #3994f5;
+    --folder-shade: #2578d8;
 }
 </style>

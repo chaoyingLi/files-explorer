@@ -44,9 +44,9 @@
                     class="tree-rich-icon"
                     v-html="richIcon(item.file)"
                 ></div>
-                <!-- Folder icon -->
+                <!-- Folder icon (skip for bundles) -->
                 <svg
-                    v-else-if="item.file.is_dir"
+                    v-else-if="item.file.is_dir && !isBundle(item.file)"
                     class="tree-icon"
                     viewBox="0 0 18 18"
                 >
@@ -107,7 +107,7 @@ import {
     treeColorClassForCategory,
     formatFileSize,
 } from "@/utils/fileTypes";
-import { getFileIconSvg } from "@/utils/fileIcons";
+import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 
 export interface TreeViewItem {
     file: FileEntry;
@@ -137,8 +137,13 @@ function treeColorClass(file: FileEntry): string {
 }
 
 function richIcon(file: FileEntry): string | null {
-    if (file.is_dir) return null;
+    if (file.is_dir && !isBundleDirectory(file.extension, file.is_dir))
+        return null;
     return getFileIconSvg(file.extension, false);
+}
+
+function isBundle(file: FileEntry): boolean {
+    return isBundleDirectory(file.extension, file.is_dir);
 }
 
 function onArrowClick(item: TreeViewItem) {
@@ -222,9 +227,6 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
 .tree-rich-icon {
     width: 18px;
     height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .tree-rich-icon svg {
@@ -328,5 +330,16 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
 [data-theme="light"] .tree-color-default {
     --file-icon-primary: #8c8fa0;
     --file-icon-secondary: #70748c;
+}
+/* ── macOS folder blue ── */
+[data-platform="macos"] .tree-icon-wrap {
+    --file-icon-primary: #5ea8f5;
+    --file-icon-secondary: #3b8de0;
+    --folder-back: #3b8de0;
+}
+[data-platform="macos"][data-theme="light"] .tree-icon-wrap {
+    --file-icon-primary: #3994f5;
+    --file-icon-secondary: #2578d8;
+    --folder-back: #2578d8;
 }
 </style>

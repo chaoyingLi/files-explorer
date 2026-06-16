@@ -125,14 +125,10 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
                 let size = if is_dir { 0 } else { metadata.len() };
                 let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
                 let created = ts_from_metadata(&metadata, fs::Metadata::created);
-                let extension = if is_dir {
-                    String::new()
-                } else {
-                    file_path
-                        .extension()
-                        .map(|e| e.to_string_lossy().to_string())
-                        .unwrap_or_default()
-                };
+                let extension = file_path
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_string())
+                    .unwrap_or_default();
 
                 entries.push(FileEntry {
                     name,
@@ -188,13 +184,10 @@ fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), String> {
                     size: if md.is_dir() { 0 } else { md.len() },
                     modified: ts_from_metadata(&md, fs::Metadata::modified),
                     created: ts_from_metadata(&md, fs::Metadata::created),
-                    extension: if md.is_dir() {
-                        String::new()
-                    } else {
-                        fp.extension()
-                            .map(|x| x.to_string_lossy().to_string())
-                            .unwrap_or_default()
-                    },
+                    extension: fp
+                        .extension()
+                        .map(|x| x.to_string_lossy().to_string())
+                        .unwrap_or_default(),
                 });
                 if batch.len() >= LIST_BATCH_SIZE {
                     let _ = app2.emit("list-progress", std::mem::take(&mut batch));
@@ -255,15 +248,52 @@ fn get_drives() -> Result<Vec<DiskInfo>, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+        // Root volume always present
         if let Ok(info) = get_unix_disk_info("/") {
             drives.push(info);
         }
-        if home != "/" {
-            if let Ok(info) = get_unix_disk_info(&home) {
-                drives.push(info);
+
+        #[cfg(target_os = "macos")]
+        {
+            // Enumerate external volumes mounted under /Volumes
+            if let Ok(entries) = std::fs::read_dir("/Volumes") {
+                for entry in entries.flatten() {
+                    let vol_path = entry.path();
+                    if !vol_path.is_dir() {
+                        continue;
+                    }
+                    let vol_str = vol_path.to_string_lossy().to_string();
+                    // Skip the root volume itself (already added above)
+                    if vol_str == "/" {
+                        continue;
+                    }
+                    if let Ok(mut info) = get_unix_disk_info(&vol_str) {
+                        // Use the volume name from the mount point
+                        let vol_name = vol_path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| vol_str.clone());
+                        info.label = vol_name.clone();
+                        if info.name == vol_str && vol_name != "/" {
+                            info.name = vol_name;
+                        }
+                        drives.push(info);
+                    }
+                }
             }
         }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            // Linux: add home volume if different from root
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+            if home != "/" {
+                if let Ok(info) = get_unix_disk_info(&home) {
+                    drives.push(info);
+                }
+            }
+        }
+
         if drives.is_empty() {
             drives.push(DiskInfo {
                 name: "Root".to_string(),
@@ -271,7 +301,7 @@ fn get_drives() -> Result<Vec<DiskInfo>, String> {
                 total_space: 0,
                 available_space: 0,
                 used_space: 0,
-                file_system: "ext4".to_string(),
+                file_system: "unknown".to_string(),
                 label: "System".to_string(),
             });
         }
@@ -349,7 +379,7 @@ fn get_windows_filesystem(drive: &str) -> String {
 
 #[cfg(not(target_os = "windows"))]
 fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
-    use std::ffi::CString;
+    use std::ffi::{CStr, CString};
     let cpath = CString::new(path).map_err(|e| e.to_string())?;
     unsafe {
         let mut stat: libc::statvfs = std::mem::zeroed();
@@ -358,13 +388,22 @@ fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
         }
         let total = stat.f_frsize as u64 * stat.f_blocks as u64;
         let free = stat.f_frsize as u64 * stat.f_bavail as u64;
+        // Get real filesystem type via statfs
+        let mut sfs: libc::statfs = std::mem::zeroed();
+        let file_system = if libc::statfs(cpath.as_ptr(), &mut sfs) == 0 {
+            CStr::from_ptr(sfs.f_fstypename.as_ptr())
+                .to_string_lossy()
+                .to_string()
+        } else {
+            String::from("unknown")
+        };
         Ok(DiskInfo {
             name: path.to_string(),
             mount_point: path.to_string(),
             total_space: total,
             available_space: free,
             used_space: total.saturating_sub(free),
-            file_system: "ext4".to_string(),
+            file_system,
             label: String::new(),
         })
     }
@@ -491,6 +530,74 @@ fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), Strin
     Ok(())
 }
 
+// ── macOS native pasteboard (NSPasteboard) for proper file copy/paste ──
+
+#[cfg(target_os = "macos")]
+fn write_to_macos_pasteboard(paths: &[String]) {
+    use objc2::{class, msg_send};
+    use std::ffi::CString;
+    unsafe {
+        let pb: *mut objc2::runtime::AnyObject = msg_send![class!(NSPasteboard), generalPasteboard];
+        let _: () = msg_send![pb, clearContents];
+
+        // Build an NSArray of file URLs
+        let arr: *mut objc2::runtime::AnyObject = msg_send![class!(NSMutableArray), array];
+        for p in paths {
+            let c_str = CString::new(p.as_str()).unwrap();
+            let nsstr: *mut objc2::runtime::AnyObject =
+                msg_send![class!(NSString), stringWithUTF8String: c_str.as_ptr()];
+            let url: *mut objc2::runtime::AnyObject =
+                msg_send![class!(NSURL), fileURLWithPath: nsstr];
+            let _: () = msg_send![arr, addObject: url];
+        }
+        let _: bool = msg_send![pb, writeObjects: arr];
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn read_from_macos_pasteboard() -> Option<Vec<String>> {
+    use objc2::{class, msg_send};
+    unsafe {
+        let pb: *mut objc2::runtime::AnyObject = msg_send![class!(NSPasteboard), generalPasteboard];
+
+        // Read file URLs from pasteboard
+        let url_class: *mut objc2::runtime::AnyObject = msg_send![class!(NSURL), class];
+        let classes: *mut objc2::runtime::AnyObject =
+            msg_send![class!(NSArray), arrayWithObject: url_class];
+        let options: *mut objc2::runtime::AnyObject = msg_send![class!(NSDictionary), dictionary];
+        let urls: *mut objc2::runtime::AnyObject =
+            msg_send![pb, readObjectsForClasses: classes, options: options];
+
+        if !urls.is_null() {
+            let count: usize = msg_send![urls, count];
+            if count > 0 {
+                let mut paths = Vec::with_capacity(count);
+                for i in 0..count {
+                    let url: *mut objc2::runtime::AnyObject = msg_send![urls, objectAtIndex: i];
+                    let path_obj: *mut objc2::runtime::AnyObject = msg_send![url, path];
+                    let cstr: *const std::ffi::c_char =
+                        msg_send![path_obj, fileSystemRepresentation];
+                    if !cstr.is_null() {
+                        if let Ok(s) = std::ffi::CStr::from_ptr(cstr).to_str() {
+                            paths.push(s.to_string());
+                        }
+                    }
+                }
+                if !paths.is_empty() {
+                    return Some(paths);
+                }
+            }
+        }
+    }
+    // Fallback: try reading plain text
+    if let Ok(mut c) = arboard::Clipboard::new() {
+        if let Ok(t) = c.get_text() {
+            return Some(t.lines().map(|s| s.to_string()).collect());
+        }
+    }
+    None
+}
+
 fn write_to_system_clipboard(paths: &[String]) {
     #[cfg(target_os = "windows")]
     unsafe {
@@ -533,7 +640,11 @@ fn write_to_system_clipboard(paths: &[String]) {
         }
         CloseClipboard();
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        write_to_macos_pasteboard(paths);
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         if let Ok(mut c) = arboard::Clipboard::new() {
             let _ = c.set_text(&paths.join("\n"));
@@ -575,7 +686,11 @@ fn read_from_system_clipboard() -> Option<Vec<String>> {
         CloseClipboard();
         return Some(v);
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        read_from_macos_pasteboard()
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         if let Ok(mut c) = arboard::Clipboard::new() {
             if let Ok(t) = c.get_text() {
@@ -792,10 +907,16 @@ fn open_in_terminal(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .args(["-a", "Terminal", &dir.to_string_lossy()])
-            .spawn()
-            .map_err(|e| format!("Failed to open terminal: {}", e))?;
+        // Prefer iTerm2, fall back to Terminal.app
+        let iterm = std::process::Command::new("open")
+            .args(["-a", "iTerm", &dir.to_string_lossy()])
+            .spawn();
+        if iterm.is_err() {
+            std::process::Command::new("open")
+                .args(["-a", "Terminal", &dir.to_string_lossy()])
+                .spawn()
+                .map_err(|e| format!("Failed to open terminal: {}", e))?;
+        }
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -844,13 +965,10 @@ fn get_file_info(path: String) -> Result<FileEntry, String> {
     let size = if is_dir { 0 } else { metadata.len() };
     let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
     let created = ts_from_metadata(&metadata, fs::Metadata::created);
-    let extension = if is_dir {
-        String::new()
-    } else {
-        p.extension()
-            .map(|e| e.to_string_lossy().to_string())
-            .unwrap_or_default()
-    };
+    let extension = p
+        .extension()
+        .map(|x| x.to_string_lossy().to_string())
+        .unwrap_or_default();
 
     Ok(FileEntry {
         name,
@@ -940,30 +1058,11 @@ fn show_file_properties(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: use AppleScript to select the file in Finder and open Get Info panel
-        let escaped_path = path.replace("\"", "\\\"");
-        let script = format!(
-            r#"tell application "Finder"
-                set f to POSIX file "{}" as alias
-                select f
-                activate
-            end tell
-            delay 0.3
-            tell application "System Events"
-                keystroke "i" using command down
-            end tell"#,
-            escaped_path
-        );
-        let result = std::process::Command::new("osascript")
-            .args(["-e", &script])
-            .spawn();
-        if result.is_err() {
-            // Fallback: reveal in Finder via open -R
-            std::process::Command::new("open")
-                .args(["-R", &path])
-                .spawn()
-                .map_err(|e| format!("Failed to show properties: {}", e))?;
-        }
+        // Reveal in Finder — standard macOS behaviour
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to show in Finder: {}", e))?;
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -1191,21 +1290,14 @@ fn search_files(
                 Ok(m) => m,
                 Err(_) => continue,
             };
-            let file_size = if entry.file_type().is_dir() {
-                0
-            } else {
-                metadata.len()
-            };
             let is_dir = entry.file_type().is_dir();
+            let file_size = if is_dir { 0 } else { metadata.len() };
             let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
             let created = ts_from_metadata(&metadata, fs::Metadata::created);
-            let extension = if is_dir {
-                String::new()
-            } else {
-                path.extension()
-                    .map(|e| e.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            };
+            let extension = path
+                .extension()
+                .map(|e| e.to_string_lossy().to_string())
+                .unwrap_or_default();
 
             let matched = conditions
                 .iter()
@@ -1273,38 +1365,29 @@ pub struct SpecialDirs {
 
 #[command]
 fn get_special_dirs() -> Result<SpecialDirs, String> {
-    let home = if cfg!(target_os = "windows") {
-        std::env::var("USERPROFILE")
-            .or_else(|_| {
-                std::env::var("HOMEDRIVE")
-                    .and_then(|hd| std::env::var("HOMEPATH").map(|hp| format!("{}{}", hd, hp)))
-            })
-            .unwrap_or_else(|_| String::from("C:\\"))
-    } else {
-        std::env::var("HOME").unwrap_or_else(|_| String::from("/"))
-    };
+    let home = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| {
+            if cfg!(target_os = "windows") {
+                std::env::var("USERPROFILE").unwrap_or_else(|_| String::from("C:\\"))
+            } else {
+                std::env::var("HOME").unwrap_or_else(|_| String::from("/"))
+            }
+        });
 
-    let join_path = |parent: &str, child: &str| -> String {
-        let sep = if cfg!(target_os = "windows") {
-            "\\"
-        } else {
-            "/"
-        };
-        if parent.ends_with('\\') || parent.ends_with('/') {
-            format!("{}{}", parent, child)
-        } else {
-            format!("{}{}{}", parent, sep, child)
-        }
+    let path_to_str = |p: Option<std::path::PathBuf>| -> String {
+        p.map(|x| x.to_string_lossy().to_string())
+            .unwrap_or_default()
     };
 
     Ok(SpecialDirs {
-        desktop: join_path(&home, "Desktop"),
-        documents: join_path(&home, "Documents"),
-        downloads: join_path(&home, "Downloads"),
-        pictures: join_path(&home, "Pictures"),
-        music: join_path(&home, "Music"),
-        videos: join_path(&home, "Videos"),
-        home,
+        home: home.clone(),
+        desktop: path_to_str(dirs::desktop_dir()),
+        documents: path_to_str(dirs::document_dir()),
+        downloads: path_to_str(dirs::download_dir()),
+        pictures: path_to_str(dirs::picture_dir()),
+        music: path_to_str(dirs::audio_dir()),
+        videos: path_to_str(dirs::video_dir()),
     })
 }
 
