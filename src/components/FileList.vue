@@ -70,11 +70,7 @@
                     @mousedown.stop="onResizeStart('created', $event)"
                 ></div>
             </div>
-            <div
-                class="col-type"
-                v-if="store.viewMode === 'details'"
-                :style="{ width: colWidths.type + 'px' }"
-            >
+            <div class="col-type" :style="{ width: colWidths.type + 'px' }">
                 {{ t("fileList.type") }}
                 <div
                     class="col-handle"
@@ -83,7 +79,6 @@
             </div>
             <div
                 class="col-size"
-                v-if="store.viewMode === 'details'"
                 :style="{ width: colWidths.size + 'px' }"
                 @click="sortBy('size')"
             >

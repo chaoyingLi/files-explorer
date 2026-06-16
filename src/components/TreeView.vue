@@ -38,8 +38,18 @@
                 class="tree-icon-wrap"
                 :class="item.file.is_dir ? '' : treeColorClass(item.file)"
             >
+                <!-- Per-extension rich SVG icon (same as FileItem) -->
+                <div
+                    v-if="richIcon(item.file)"
+                    class="tree-rich-icon"
+                    v-html="richIcon(item.file)"
+                ></div>
                 <!-- Folder icon -->
-                <svg v-if="item.file.is_dir" class="tree-icon" viewBox="0 0 18 18">
+                <svg
+                    v-else-if="item.file.is_dir"
+                    class="tree-icon"
+                    viewBox="0 0 18 18"
+                >
                     <path
                         d="M2 5.5c0-.83.67-1.5 1.5-1.5h2.5a1.5 1.5 0 011.1.5l.7.85a.5.5 0 00.38.18H14c.83 0 1.5.67 1.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 12V5.5z"
                         fill="var(--folder-back)"
@@ -59,8 +69,24 @@
                         d="M9.6 2v2.65c0 .47.38.85.85.85H13"
                         fill="var(--file-icon-secondary)"
                     />
-                    <rect x="6" y="10" width="6" height="1" rx="0.5" fill="var(--file-icon-lines)" opacity="0.4" />
-                    <rect x="6" y="12" width="4" height="1" rx="0.5" fill="var(--file-icon-lines)" opacity="0.4" />
+                    <rect
+                        x="6"
+                        y="10"
+                        width="6"
+                        height="1"
+                        rx="0.5"
+                        fill="var(--file-icon-lines)"
+                        opacity="0.4"
+                    />
+                    <rect
+                        x="6"
+                        y="12"
+                        width="4"
+                        height="1"
+                        rx="0.5"
+                        fill="var(--file-icon-lines)"
+                        opacity="0.4"
+                    />
                 </svg>
             </span>
             <!-- Name -->
@@ -81,6 +107,7 @@ import {
     treeColorClassForCategory,
     formatFileSize,
 } from "@/utils/fileTypes";
+import { getFileIconSvg } from "@/utils/fileIcons";
 
 export interface TreeViewItem {
     file: FileEntry;
@@ -107,6 +134,11 @@ function treeColorClass(file: FileEntry): string {
     return treeColorClassForCategory(
         getFileCategory(file.extension, file.is_dir),
     );
+}
+
+function richIcon(file: FileEntry): string | null {
+    if (file.is_dir) return null;
+    return getFileIconSvg(file.extension, false);
 }
 
 function onArrowClick(item: TreeViewItem) {
@@ -142,10 +174,10 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 1px 8px 1px 12px;
+    padding: 3px 12px;
     cursor: pointer;
-    font-size: var(--font-size-base, 13px);
-    min-height: 24px;
+    font-size: 13px;
+    min-height: 34px;
     border-radius: 4px;
     margin: 0 4px;
     transition: background 0.05s;
@@ -186,6 +218,19 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     align-items: center;
     justify-content: center;
 }
+
+.tree-rich-icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tree-rich-icon svg {
+    width: 100%;
+    height: 100%;
+}
 .tree-icon {
     width: 16px;
     height: 16px;
@@ -195,6 +240,7 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     overflow: hidden;
     text-overflow: ellipsis;
     margin-left: 4px;
+    white-space: nowrap;
 }
 .tree-size {
     flex-shrink: 0;
@@ -202,6 +248,7 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     color: var(--text-muted);
     margin-left: auto;
     padding-left: 12px;
+    white-space: nowrap;
 }
 .tree-dir .tree-name {
     font-weight: 500;

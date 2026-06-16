@@ -10,31 +10,90 @@
             @contextmenu.prevent="$emit('fileContextMenu', file, $event)"
         >
             <div class="grid-icon" :class="gridColorClass(file)">
+                <!-- Per-extension rich SVG icon (same as FileItem) -->
+                <div
+                    v-if="richIcon(file)"
+                    class="grid-rich-icon"
+                    v-html="richIcon(file)"
+                ></div>
                 <!-- Win11-style Folder (48x48) -->
-                <svg v-if="file.is_dir" viewBox="0 0 48 48" class="grid-folder">
+                <svg
+                    v-else-if="file.is_dir"
+                    viewBox="0 0 48 48"
+                    class="grid-folder"
+                >
                     <defs>
-                        <linearGradient id="gf-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--folder-main)" stop-opacity="0.9" />
-                            <stop offset="100%" stop-color="var(--folder-shade)" stop-opacity="0.95" />
+                        <linearGradient
+                            id="gf-grad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="0%"
+                                stop-color="var(--folder-main)"
+                                stop-opacity="0.9"
+                            />
+                            <stop
+                                offset="100%"
+                                stop-color="var(--folder-shade)"
+                                stop-opacity="0.95"
+                            />
                         </linearGradient>
                         <linearGradient id="gf-tab" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--folder-shade)" stop-opacity="0.6" />
-                            <stop offset="100%" stop-color="var(--folder-shade)" stop-opacity="0.4" />
+                            <stop
+                                offset="0%"
+                                stop-color="var(--folder-shade)"
+                                stop-opacity="0.6"
+                            />
+                            <stop
+                                offset="100%"
+                                stop-color="var(--folder-shade)"
+                                stop-opacity="0.4"
+                            />
                         </linearGradient>
                     </defs>
-                    <path d="M5 15a3.5 3.5 0 013.5-3.5h8.08c.97 0 1.88.47 2.44 1.26l2.34 3.24H39.5A3.5 3.5 0 0143 19.5v14a3.5 3.5 0 01-3.5 3.5H8.5A3.5 3.5 0 015 33.5V15z" fill="url(#gf-tab)" />
-                    <path d="M5 17.5A3.5 3.5 0 018.5 14h8.08c.97 0 1.88.47 2.44 1.26l2.34 3.24H39.5A3.5 3.5 0 0143 22v11.5a3.5 3.5 0 01-3.5 3.5H8.5A3.5 3.5 0 015 33.5V17.5z" fill="url(#gf-grad)" />
+                    <path
+                        d="M5 15a3.5 3.5 0 013.5-3.5h8.08c.97 0 1.88.47 2.44 1.26l2.34 3.24H39.5A3.5 3.5 0 0143 19.5v14a3.5 3.5 0 01-3.5 3.5H8.5A3.5 3.5 0 015 33.5V15z"
+                        fill="url(#gf-tab)"
+                    />
+                    <path
+                        d="M5 17.5A3.5 3.5 0 018.5 14h8.08c.97 0 1.88.47 2.44 1.26l2.34 3.24H39.5A3.5 3.5 0 0143 22v11.5a3.5 3.5 0 01-3.5 3.5H8.5A3.5 3.5 0 015 33.5V17.5z"
+                        fill="url(#gf-grad)"
+                    />
                 </svg>
-                <!-- Win11-style Document (48x48) -->
+                <!-- Win11-style Document (48x48) with category colors -->
                 <svg v-else viewBox="0 0 48 48" class="grid-doc">
                     <defs>
-                        <linearGradient id="gd-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--doc-main)" stop-opacity="0.9" />
-                            <stop offset="100%" stop-color="var(--doc-shade)" stop-opacity="0.85" />
+                        <linearGradient
+                            id="gd-grad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="0%"
+                                stop-color="var(--doc-main)"
+                                stop-opacity="0.9"
+                            />
+                            <stop
+                                offset="100%"
+                                stop-color="var(--doc-shade)"
+                                stop-opacity="0.85"
+                            />
                         </linearGradient>
                     </defs>
-                    <path d="M12 6h18.38l9.62 9.62V38a4 4 0 01-4 4H12a4 4 0 01-4-4V10a4 4 0 014-4z" fill="url(#gd-grad)" />
-                    <path d="M30.38 6v6.62c0 .55.45 1 1 1H38" fill="var(--doc-highlight)" opacity="0.5" />
+                    <path
+                        d="M12 6h18.38l9.62 9.62V38a4 4 0 01-4 4H12a4 4 0 01-4-4V10a4 4 0 014-4z"
+                        fill="url(#gd-grad)"
+                    />
+                    <path
+                        d="M30.38 6v6.62c0 .55.45 1 1 1H38"
+                        fill="var(--doc-highlight)"
+                        opacity="0.5"
+                    />
                 </svg>
             </div>
             <div class="grid-name">{{ file.name }}</div>
@@ -45,10 +104,8 @@
 <script setup lang="ts">
 import { useFileStore } from "@/stores/fileStore";
 import type { FileEntry } from "@/types";
-import {
-    getFileCategory,
-    gridColorClassForCategory,
-} from "@/utils/fileTypes";
+import { getFileCategory, gridColorClassForCategory } from "@/utils/fileTypes";
+import { getFileIconSvg } from "@/utils/fileIcons";
 
 defineProps<{
     files: FileEntry[];
@@ -70,6 +127,11 @@ function gridColorClass(file: FileEntry): string {
     return gridColorClassForCategory(
         getFileCategory(file.extension, file.is_dir),
     );
+}
+
+function richIcon(file: FileEntry): string | null {
+    if (file.is_dir) return null;
+    return getFileIconSvg(file.extension, false);
 }
 </script>
 
@@ -99,15 +161,29 @@ function gridColorClass(file: FileEntry): string {
     background: var(--bg-selected);
 }
 .grid-icon {
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     margin-bottom: 6px;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .grid-icon svg {
     width: 100%;
     height: 100%;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.15));
+}
+.grid-rich-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.grid-rich-icon svg {
+    width: 100%;
+    height: 100%;
 }
 .grid-name {
     font-size: 12px;

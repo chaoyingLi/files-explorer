@@ -89,8 +89,8 @@
         <div class="col-created" v-if="!compact">
             {{ formatDate(file.created) }}
         </div>
-        <div class="col-type" v-if="!compact">{{ fileType }}</div>
-        <div class="col-size" v-if="!compact">{{ formatSize(file.size) }}</div>
+        <div class="col-type">{{ fileType }}</div>
+        <div class="col-size">{{ formatSize(file.size) }}</div>
     </div>
 </template>
 
