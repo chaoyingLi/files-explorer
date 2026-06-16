@@ -15,8 +15,7 @@ export default {
     refresh: "Refresh",
     search: "Search",
     stopSearch: "Stop search",
-    searchWildcardHint:
-      "Wildcards: * (any), ? (one char), >10MB / <1GB (size), | (or)",
+    searchWildcardHint: "You Can Use Wildcards.",
     address: "Address",
   },
   sidebar: {

@@ -15,8 +15,7 @@ export default {
     refresh: "刷新",
     search: "搜索",
     stopSearch: "停止搜索",
-    searchWildcardHint:
-      "通配符：*（任意字符）、?（单个字符）、>10MB / <1GB（大小）、|（或）",
+    searchWildcardHint: "支持通配符",
     address: "地址",
   },
   sidebar: {
