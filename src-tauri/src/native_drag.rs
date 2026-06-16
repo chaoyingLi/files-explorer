@@ -121,9 +121,6 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
             0x80040064u32 as i32
         }
     }
-    unsafe extern "system" fn notimpl(_: *mut std::ffi::c_void) -> i32 {
-        0x80004001u32 as i32
-    }
     unsafe extern "system" fn notimpl2(_: *mut std::ffi::c_void, _: *mut std::ffi::c_void) -> i32 {
         0x80004001u32 as i32
     }
