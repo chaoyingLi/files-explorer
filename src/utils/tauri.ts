@@ -149,3 +149,9 @@ export async function getUndoInfo(): Promise<{
 } | null> {
   return invoke("get_undo_info");
 }
+
+export async function getFileBase64(
+  path: string,
+): Promise<{ mime: string; data: string }> {
+  return invoke("get_file_base64", { path });
+}

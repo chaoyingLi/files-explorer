@@ -28,6 +28,7 @@ log = "0.4"
 simplelog = "0.12"
 arboard = "3"
 dirs = "6"
+base64 = "0.22"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

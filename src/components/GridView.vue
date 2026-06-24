@@ -10,13 +10,25 @@
             @contextmenu.prevent="$emit('fileContextMenu', file, $event)"
         >
             <div class="grid-icon" :class="gridColorClass(file)">
-                <!-- Per-extension rich SVG icon (same as FileItem) -->
+                <!-- Image thumbnail (show when loaded, hide icon for failed images too) -->
+                <img
+                    v-if="
+                        isImage(file) &&
+                        thumbSrc(file) &&
+                        thumbSrc(file) !== '__error__'
+                    "
+                    :src="thumbSrc(file)"
+                    class="grid-thumb"
+                    :alt="file.name"
+                    loading="lazy"
+                />
+                <!-- Per-extension rich SVG icon (also for bundle dirs, or image while loading) -->
                 <div
-                    v-if="richIcon(file)"
+                    v-else-if="richIcon(file)"
                     class="grid-rich-icon"
                     v-html="richIcon(file)"
                 ></div>
-                <!-- Win11-style Folder (48x48) - skip for bundles -->
+                <!-- Folders -->
                 <svg
                     v-else-if="file.is_dir && !isBundle(file)"
                     viewBox="0 0 48 48"
@@ -63,7 +75,7 @@
                         fill="url(#gf-grad)"
                     />
                 </svg>
-                <!-- Win11-style Document (48x48) with category colors -->
+                <!-- Fallback document icon -->
                 <svg v-else viewBox="0 0 48 48" class="grid-doc">
                     <defs>
                         <linearGradient
@@ -102,14 +114,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from "vue";
 import { useFileStore } from "@/stores/fileStore";
 import type { FileEntry } from "@/types";
 import { getFileCategory, gridColorClassForCategory } from "@/utils/fileTypes";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
-
-defineProps<{
-    files: FileEntry[];
-}>();
+import * as tauri from "@/utils/tauri";
 
 defineEmits<{
     fileClick: [file: FileEntry, e: MouseEvent];
@@ -117,7 +127,57 @@ defineEmits<{
     fileContextMenu: [file: FileEntry, e: MouseEvent];
 }>();
 
+const props = defineProps<{
+    files: FileEntry[];
+}>();
+
 const store = useFileStore();
+
+// ── Thumbnail cache ──
+const thumbCache = ref<Record<string, string>>({});
+let pending = new Set<string>();
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+function isImage(file: FileEntry): boolean {
+    if (file.is_dir) return false;
+    return getFileCategory(file.extension, false) === "image";
+}
+
+function thumbSrc(file: FileEntry): string {
+    return thumbCache.value[file.path] || "";
+}
+
+function loadThumb(path: string) {
+    if (pending.has(path) || thumbCache.value[path]) return;
+    pending.add(path);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(async () => {
+        const batch = [...pending];
+        pending.clear();
+        for (const p of batch) {
+            try {
+                const res = await tauri.getFileBase64(p);
+                thumbCache.value = {
+                    ...thumbCache.value,
+                    [p]: `data:${res.mime};base64,${res.data}`,
+                };
+            } catch {
+                thumbCache.value = { ...thumbCache.value, [p]: "__error__" };
+            }
+        }
+    }, 50);
+}
+
+// Load thumbnails when files change
+watch(
+    () => props.files,
+    (newFiles) => {
+        for (const f of newFiles) {
+            if (isImage(f)) loadThumb(f.path);
+        }
+    },
+    { immediate: true },
+);
 
 function isSelected(path: string): boolean {
     return store.selectedFiles.has(path);
@@ -178,6 +238,12 @@ function isBundle(file: FileEntry): boolean {
     width: 100%;
     height: 100%;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.15));
+}
+.grid-thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 4px;
 }
 .grid-rich-icon {
     width: 48px;

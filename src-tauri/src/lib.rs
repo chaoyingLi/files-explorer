@@ -987,6 +987,36 @@ fn open_file(path: String) -> Result<(), String> {
 }
 
 #[command]
+fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
+    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
+    // Limit to 2MB to avoid OOM on huge files
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err("File too large for preview".to_string());
+    }
+    let ext = Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "svg" => "image/svg+xml",
+        "ico" => "image/x-icon",
+        _ => "image/png",
+    };
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(serde_json::json!({
+        "mime": mime,
+        "data": b64
+    }))
+}
+
+#[command]
 fn show_in_explorer(path: String) -> Result<(), String> {
     log::info!("show_in_explorer: {}", path);
     #[cfg(target_os = "windows")]
@@ -1495,6 +1525,7 @@ pub fn run() {
             paste_clipboard,
             get_file_info,
             open_file,
+            get_file_base64,
             show_in_explorer,
             start_native_drag_cmd,
             show_file_properties,
