@@ -131,6 +131,14 @@
                 @file-context-menu="onFileContextMenu"
             />
 
+            <!-- Column view -->
+            <ColumnContainer
+                v-else-if="store.viewMode === 'column'"
+                :stack="tabColumnStack"
+                @update-stack="onColumnStackUpdate"
+                @context-menu="(file, e) => onFileContextMenu(file, e)"
+            />
+
             <!-- Grid view -->
             <GridView
                 v-else
@@ -146,7 +154,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { useFileStore } from "@/stores/fileStore";
+import { useFileStore, type ColumnState } from "@/stores/fileStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry } from "@/types";
 import * as tauri from "@/utils/tauri";
@@ -155,6 +163,7 @@ import ThisPcView from "@/components/ThisPcView.vue";
 import DetailsListView from "@/components/DetailsListView.vue";
 import TreeView, { type TreeViewItem } from "@/components/TreeView.vue";
 import GridView from "@/components/GridView.vue";
+import ColumnContainer from "@/components/ColumnContainer.vue";
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -193,6 +202,23 @@ const currentPath = computed({
         else store.currentPath = v;
     },
 });
+
+// Column view: read/write column stack from active tab
+const tabColumnStack = computed(() => {
+    if (!activeTabData.value) return [];
+    if (!activeTabData.value.columnStack) {
+        activeTabData.value.columnStack = [];
+    }
+    return activeTabData.value.columnStack!;
+});
+function onColumnStackUpdate(newStack: ColumnState[]) {
+    if (activeTabData.value) {
+        activeTabData.value.columnStack = newStack.map((c) => ({
+            ...c,
+            files: [...c.files],
+        }));
+    }
+}
 
 // ── Sort state ──
 const sortField = ref<"name" | "modified" | "created" | "size">("name");

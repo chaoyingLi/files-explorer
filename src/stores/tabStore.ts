@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, triggerRef } from "vue";
 import type { FileEntry } from "@/types";
+import type { ColumnState } from "@/stores/fileStore";
 
 export interface Tab {
   id: string;
@@ -9,6 +10,7 @@ export interface Tab {
   files: FileEntry[];
   selectedFiles: string[];
   treeExpanded?: string[];
+  columnStack?: ColumnState[];
   isSearch?: boolean;
   searchQuery?: string;
   searchDone?: boolean;

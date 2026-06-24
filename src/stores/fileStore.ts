@@ -16,6 +16,15 @@ function sortDirFirst(files: FileEntry[]): FileEntry[] {
   });
 }
 
+// ── Column state (exported outside store for component imports) ──
+export interface ColumnState {
+  path: string;
+  name: string;
+  files: FileEntry[];
+  selectedIndex: number;
+  loading: boolean;
+}
+
 export const useFileStore = defineStore("file", () => {
   // Lazy reference to avoid circular init
   let _tabStore: ReturnType<typeof useTabStore> | null = null;
@@ -28,7 +37,7 @@ export const useFileStore = defineStore("file", () => {
     const tab = getTabStore().getFocusedTab();
     if (!tab || tab.isSearch) return;
     tab.path = currentPath.value;
-    tab.files = files.value;
+    tab.files = [...files.value];
     tab.selectedFiles =
       selectedFiles.value.size > 0 ? [...selectedFiles.value] : [];
     tab.treeExpanded =
@@ -38,9 +47,8 @@ export const useFileStore = defineStore("file", () => {
   function loadFromTab() {
     const tab = getTabStore().getFocusedTab();
     if (!tab) return;
-    // Skip if already loaded (same tab reference check)
-    if (files.value === tab.files) return;
-    files.value = tab.files || [];
+    // Deep clone to break reference sharing with stored tab data
+    files.value = [...(tab.files || [])];
     selectedFiles.value = new Set(tab.selectedFiles || []);
     currentPath.value = tab.path || "";
     if (tab.treeExpanded) treeExpanded.value = new Set(tab.treeExpanded);
@@ -50,12 +58,19 @@ export const useFileStore = defineStore("file", () => {
   const files = ref<FileEntry[]>([]);
   const drives = ref<DiskInfo[]>([]);
   const selectedFiles = ref<Set<string>>(new Set());
-  const history = ref<string[]>([]);
+  // Column snapshot stored in history for column view mode
+  interface ColumnHistoryEntry {
+    path: string;
+    stack: ColumnState[];
+  }
+  const history = ref<(string | ColumnHistoryEntry)[]>([]);
   const historyIndex = ref(-1);
   const isSearching = ref(false);
   const loading = ref(false);
   const error = ref("");
-  const viewMode = ref<"details" | "list" | "grid" | "tree">("details");
+  const viewMode = ref<"details" | "list" | "grid" | "tree" | "column">(
+    "details",
+  );
   const contextMenuTarget = ref<FileEntry | null>(null);
   const specialDirs = ref<SpecialDirs | null>(null);
 
@@ -151,12 +166,29 @@ export const useFileStore = defineStore("file", () => {
     currentPath.value = path;
     selectedFiles.value.clear();
 
+    // If in column view, prepare single-column stack for this path
+    if (viewMode.value === "column") {
+      const tab = getTabStore().getFocusedTab();
+      if (tab) {
+        tab.columnStack = [
+          {
+            path,
+            name: path.split(/[/\\]/).filter(Boolean).pop() || path,
+            files: [],
+            selectedIndex: -1,
+            loading: true,
+          },
+        ];
+      }
+    }
+
     if (addToHistory) {
       // Bug 10 fix: avoid duplicate history entries
-      const lastPath =
+      const rawLast =
         historyIndex.value >= 0 && historyIndex.value < history.value.length
           ? history.value[historyIndex.value]
           : undefined;
+      const lastPath = typeof rawLast === "string" ? rawLast : rawLast?.path;
       if (path !== lastPath) {
         if (historyIndex.value < history.value.length - 1) {
           history.value = history.value.slice(0, historyIndex.value + 1);
@@ -216,6 +248,14 @@ export const useFileStore = defineStore("file", () => {
           cleanupListenersFn();
           files.value = sortDirFirst(files.value);
           loading.value = false;
+          // Populate column view if active
+          if (viewMode.value === "column") {
+            const tab = getTabStore().getFocusedTab();
+            if (tab?.columnStack && tab.columnStack.length > 0) {
+              tab.columnStack[0].files = files.value;
+              tab.columnStack[0].loading = false;
+            }
+          }
           syncToTab();
           resolve();
         }).then((u) => {
@@ -242,6 +282,13 @@ export const useFileStore = defineStore("file", () => {
       try {
         files.value = await tauri.listDirectory(path);
         loading.value = false;
+        if (viewMode.value === "column") {
+          const tab = getTabStore().getFocusedTab();
+          if (tab?.columnStack && tab.columnStack.length > 0) {
+            tab.columnStack[0].files = files.value;
+            tab.columnStack[0].loading = false;
+          }
+        }
         syncToTab();
       } catch (e2) {
         error.value = String(e2);
@@ -257,18 +304,60 @@ export const useFileStore = defineStore("file", () => {
   async function navigateBack() {
     if (canGoBack.value) {
       historyIndex.value--;
-      await navigateTo(history.value[historyIndex.value], false);
+      historyIndex.value = Math.max(0, historyIndex.value);
+      const target = history.value[historyIndex.value];
+      if (typeof target === "string") {
+        await navigateTo(target, false);
+      } else {
+        // Column snapshot: restore column stack from state object
+        const snap = target as ColumnHistoryEntry;
+        currentPath.value = snap.path;
+        const tab = getTabStore().getFocusedTab();
+        if (tab) {
+          tab.columnStack = snap.stack.map((c) => ({
+            ...c,
+            files: [...c.files],
+          }));
+        }
+        files.value = snap.stack.length > 0 ? [...snap.stack[0].files] : [];
+        selectedFiles.value.clear();
+      }
     }
   }
 
   async function navigateForward() {
     if (canGoForward.value) {
       historyIndex.value++;
-      await navigateTo(history.value[historyIndex.value], false);
+      const target = history.value[historyIndex.value];
+      if (typeof target === "string") {
+        await navigateTo(target, false);
+      } else {
+        const snap = target as ColumnHistoryEntry;
+        currentPath.value = snap.path;
+        const tab = getTabStore().getFocusedTab();
+        if (tab) {
+          tab.columnStack = snap.stack.map((c) => ({
+            ...c,
+            files: [...c.files],
+          }));
+        }
+        files.value = snap.stack.length > 0 ? [...snap.stack[0].files] : [];
+        selectedFiles.value.clear();
+      }
     }
   }
 
   async function navigateUp() {
+    // In column view: trim the rightmost column on the active tab
+    if (viewMode.value === "column") {
+      const tab = getTabStore().getFocusedTab();
+      if (tab?.columnStack && tab.columnStack.length > 1) {
+        tab.columnStack.pop();
+        const prev = tab.columnStack[tab.columnStack.length - 1];
+        if (prev) prev.selectedIndex = -1;
+      }
+      return;
+    }
     if (currentPath.value) {
       try {
         const parent = await tauri.getParentDirectory(currentPath.value);
@@ -292,6 +381,23 @@ export const useFileStore = defineStore("file", () => {
   }
 
   async function refresh() {
+    // In column view: re-read last column files from active tab
+    if (viewMode.value === "column") {
+      const tab = getTabStore().getFocusedTab();
+      if (tab?.columnStack && tab.columnStack.length > 0) {
+        const last = tab.columnStack[tab.columnStack.length - 1];
+        if (last.path) {
+          last.loading = true;
+          try {
+            last.files = sortDirFirst(await tauri.listDirectory(last.path));
+          } catch (e) {
+            console.error("column refresh failed:", e);
+          }
+          last.loading = false;
+        }
+      }
+      return;
+    }
     if (currentPath.value) {
       await navigateTo(currentPath.value, false);
     } else {
@@ -438,8 +544,105 @@ export const useFileStore = defineStore("file", () => {
     await navigateTo(drive.name);
   }
 
-  function setViewMode(mode: "details" | "list" | "grid" | "tree") {
+  function setViewMode(mode: "details" | "list" | "grid" | "tree" | "column") {
     viewMode.value = mode;
+    if (mode === "column") {
+      const tab = getTabStore().getFocusedTab();
+      if (tab && !tab.columnStack) {
+        // Initialize column from current path
+        tab.columnStack = currentPath.value
+          ? [
+              {
+                path: currentPath.value,
+                name: currentDirectoryName.value,
+                files: [...files.value],
+                selectedIndex: -1,
+                loading: false,
+              },
+            ]
+          : [];
+      }
+    }
+  }
+
+  // ── Column view operations (accept stack param for per-tab isolation) ──
+  async function columnSelect(
+    stack: ColumnState[],
+    colIdx: number,
+    idx: number,
+  ) {
+    const col = stack[colIdx];
+    if (!col || idx < 0 || idx >= col.files.length) return;
+    col.selectedIndex = idx;
+    const file = col.files[idx];
+    if (file.is_dir) {
+      // Save current state to history
+      if (stack.length >= 1) {
+        const lastCol = stack[stack.length - 1];
+        const histEntry: ColumnHistoryEntry = {
+          path: lastCol.path || currentPath.value,
+          stack: stack.map((c) => ({ ...c, files: [...c.files] })),
+        };
+        if (historyIndex.value < history.value.length - 1) {
+          history.value = history.value.slice(0, historyIndex.value + 1);
+        }
+        history.value.push(histEntry);
+        historyIndex.value = history.value.length - 1;
+        if (history.value.length > 50) {
+          history.value = history.value.slice(-50);
+          historyIndex.value = history.value.length - 1;
+        }
+      }
+      // Append new column
+      const newCol: ColumnState = {
+        path: file.path,
+        name: file.name,
+        files: [],
+        selectedIndex: -1,
+        loading: true,
+      };
+      // Mutate in-place: trim + append
+      stack.length = colIdx + 1;
+      stack.push(newCol);
+      try {
+        const children = await tauri.listDirectory(file.path);
+        const sorted = sortDirFirst(children);
+        const updated = stack[colIdx + 1];
+        if (updated) {
+          updated.files = sorted;
+          updated.loading = false;
+        }
+      } catch (e) {
+        const updated = stack[colIdx + 1];
+        if (updated) {
+          updated.files = [];
+          updated.loading = false;
+        }
+        console.error("columnSelect failed:", e);
+      }
+    } else {
+      openSelectedFile(file);
+    }
+  }
+
+  function columnNavigateLeft(stack: ColumnState[]) {
+    if (stack.length <= 1) return;
+    const last = stack[stack.length - 1];
+    const prev = stack[stack.length - 2];
+    prev.selectedIndex = prev.files.findIndex((f) => f.path === last.path);
+    stack.pop();
+  }
+
+  function columnNavigateUp(stack: ColumnState[], colIdx: number) {
+    const col = stack[colIdx];
+    if (!col) return;
+    if (col.selectedIndex > 0) col.selectedIndex--;
+  }
+
+  function columnNavigateDown(stack: ColumnState[], colIdx: number) {
+    const col = stack[colIdx];
+    if (!col) return;
+    if (col.selectedIndex < col.files.length - 1) col.selectedIndex++;
   }
 
   // ── Tree view operations ──
@@ -623,5 +826,10 @@ export const useFileStore = defineStore("file", () => {
     checkUndoStatus,
     syncToTab,
     loadFromTab,
+    // Column view
+    columnSelect,
+    columnNavigateLeft,
+    columnNavigateUp,
+    columnNavigateDown,
   };
 });

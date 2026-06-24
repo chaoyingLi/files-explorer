@@ -57,6 +57,7 @@ export default {
     details: "Details",
     list: "List",
     grid: "Grid",
+    column: "Columns",
     tree: "Tree",
   },
   contextMenu: {

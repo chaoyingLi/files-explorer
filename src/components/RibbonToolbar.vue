@@ -429,6 +429,71 @@
                 </svg>
                 <span class="ribbon-label">{{ t("fileList.tree") }}</span>
             </button>
+            <!-- Column view -->
+            <button
+                class="ribbon-btn"
+                :class="{ active: store.viewMode === 'column' }"
+                :title="t('fileList.column')"
+                @click="store.setViewMode('column')"
+            >
+                <svg viewBox="0 0 20 20" fill="none">
+                    <rect
+                        x="2"
+                        y="3"
+                        width="5"
+                        height="14"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.15"
+                    />
+                    <rect
+                        x="2"
+                        y="3"
+                        width="5"
+                        height="3"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.4"
+                    />
+                    <rect
+                        x="8"
+                        y="3"
+                        width="5"
+                        height="14"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.15"
+                    />
+                    <rect
+                        x="8"
+                        y="3"
+                        width="5"
+                        height="3"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.35"
+                    />
+                    <rect
+                        x="14"
+                        y="3"
+                        width="4"
+                        height="14"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.12"
+                    />
+                    <rect
+                        x="14"
+                        y="3"
+                        width="4"
+                        height="3"
+                        rx="0.5"
+                        fill="currentColor"
+                        opacity="0.3"
+                    />
+                </svg>
+                <span class="ribbon-label">{{ t("fileList.column") }}</span>
+            </button>
         </div>
     </div>
 </template>

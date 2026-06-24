@@ -57,6 +57,7 @@ export default {
     details: "详细信息",
     list: "列表",
     grid: "网格",
+    column: "分栏",
     tree: "树形",
   },
   contextMenu: {
