@@ -27,13 +27,15 @@ export function useKeyboardShortcuts(handlers: {
     } else if (e.key === "Escape" && store.isCutPending) {
       e.preventDefault();
       store.cancelCut();
-      handlers.showToast("Cut cancelled");
+      handlers.showToast(t("toast.cutCancelled"));
     } else if (ctrl && e.key === "z") {
       e.preventDefault();
       store
         .performUndo()
         .then((msg) => handlers.showToast(msg))
-        .catch((e) => handlers.showToast("Undo: " + e, true));
+        .catch((e) =>
+          handlers.showToast(t("toast.undoFailed", { error: String(e) }), true),
+        );
     } else if (ctrl && e.key === "w") {
       e.preventDefault();
       const fp = tabStore.getFocusedPane();
@@ -73,7 +75,7 @@ export function useKeyboardShortcuts(handlers: {
       store
         .paste()
         .then(() => handlers.showToast(t("toast.pasted")))
-        .catch((e) => handlers.showToast(t("toast.error") + ": " + e));
+        .catch((e) => handlers.showToast(t("toast.error") + ": " + e, true));
     } else if (ctrl && e.key === "a") {
       e.preventDefault();
       store.selectAll();

@@ -1,5 +1,5 @@
 // Fluent UI System Icons (Microsoft) — file-type-specific SVGs
-// Only file-type icons; folders use existing SVG
+// Icon key derivation now handled by fileTypes.ts (single source of truth)
 
 const icons = {
   word: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#185ABD"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#4A8FE0"/><path d="M10.5 14h11v1.5h-11V14zm0 4h11v1.5h-11V18zm0 4h7v1.5h-7V22z" fill="#fff"/></svg>`,
@@ -16,132 +16,15 @@ const icons = {
   shortcut: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#6C7086"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#9CA0B0"/><path d="M19 14l-4 4V21h3l4-4v-3h-3z" fill="#89B4FA"/></svg>`,
 } as const;
 
-const extMap: Record<string, keyof typeof icons> = {
-  doc: "word",
-  docx: "word",
-  xls: "excel",
-  xlsx: "excel",
-  ppt: "ppt",
-  pptx: "ppt",
-  pdf: "pdf",
-  txt: "txt",
-  log: "txt",
-  md: "txt",
-  cfg: "txt",
-  ini: "txt",
-  png: "image",
-  jpg: "image",
-  jpeg: "image",
-  gif: "image",
-  svg: "image",
-  webp: "image",
-  bmp: "image",
-  ico: "image",
-  heic: "image",
-  heif: "image",
-  mp4: "video",
-  avi: "video",
-  mkv: "video",
-  mov: "video",
-  wmv: "video",
-  webm: "video",
-  mp3: "audio",
-  wav: "audio",
-  flac: "audio",
-  ogg: "audio",
-  aac: "audio",
-  m4a: "audio",
-  zip: "archive",
-  rar: "archive",
-  "7z": "archive",
-  tar: "archive",
-  gz: "archive",
-  xz: "archive",
-  dmg: "archive",
-  pkg: "archive",
-  iso: "archive",
-  js: "code",
-  ts: "code",
-  jsx: "code",
-  tsx: "code",
-  vue: "code",
-  svelte: "code",
-  py: "code",
-  rs: "code",
-  go: "code",
-  java: "code",
-  scala: "code",
-  kt: "code",
-  c: "code",
-  cpp: "code",
-  cc: "code",
-  cxx: "code",
-  cs: "code",
-  csx: "code",
-  h: "code",
-  hpp: "code",
-  hxx: "code",
-  rb: "code",
-  swift: "code",
-  dart: "code",
-  php: "code",
-  sh: "code",
-  bash: "code",
-  bat: "code",
-  ps1: "code",
-  sql: "code",
-  lua: "code",
-  perl: "code",
-  pl: "code",
-  erl: "code",
-  ex: "code",
-  exs: "code",
-  hs: "code",
-  nim: "code",
-  zig: "code",
-  fs: "code",
-  fsx: "code",
-  vb: "code",
-  exe: "exe",
-  dll: "exe",
-  msi: "exe",
-  lnk: "shortcut",
-  app: "exe",
-  html: "code",
-  css: "code",
-  scss: "code",
-  less: "code",
-  json: "code",
-  xml: "code",
-  yaml: "code",
-  yml: "code",
-  toml: "code",
-};
+// Re-export bundle helper from single source
+export { isBundleDirectory } from "./fileTypes";
 
-// macOS bundle extensions that are directories but should show file-type icons
-const BUNDLE_EXTS = new Set([
-  "app",
-  "bundle",
-  "framework",
-  "xcodeproj",
-  "xcworkspace",
-  "prefpane",
-  "saver",
-  "plugin",
-  "pages",
-  "numbers",
-  "key",
-]);
-
-export function isBundleDirectory(extension: string, isDir: boolean): boolean {
-  return isDir && BUNDLE_EXTS.has(extension.toLowerCase());
-}
+import { getIconKey } from "./fileTypes";
 
 export function getFileIconSvg(
   extension: string,
   _isDir: boolean,
 ): string | null {
-  const ext = extension.toLowerCase();
-  const key = extMap[ext];
-  return key ? icons[key] : null;
+  const key = getIconKey(extension);
+  return key ? icons[key as keyof typeof icons] : null;
 }

@@ -7,6 +7,15 @@ import { useTabStore } from "@/stores/tabStore";
 // Navigation token to cancel stale async operations
 let navigateSeq = 0;
 
+// Shared directory-first case-insensitive sort (used in 3 places)
+function sortDirFirst(files: FileEntry[]): FileEntry[] {
+  return [...files].sort((a, b) => {
+    if (a.is_dir && !b.is_dir) return -1;
+    if (!a.is_dir && b.is_dir) return 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
 export const useFileStore = defineStore("file", () => {
   // Lazy reference to avoid circular init
   let _tabStore: ReturnType<typeof useTabStore> | null = null;
@@ -182,14 +191,7 @@ export const useFileStore = defineStore("file", () => {
             files.value.push(f);
           }
           if (batchIndex % 3 === 0) {
-            const sorted = [...files.value].sort((a, b) => {
-              if (a.is_dir && !b.is_dir) return -1;
-              if (!a.is_dir && b.is_dir) return 1;
-              return a.name.localeCompare(b.name, undefined, {
-                sensitivity: "base",
-              });
-            });
-            files.value = sorted;
+            files.value = sortDirFirst(files.value);
           }
         },
       );
@@ -212,14 +214,7 @@ export const useFileStore = defineStore("file", () => {
           if (resolved || navId !== navigateSeq) return;
           resolved = true;
           cleanupListenersFn();
-          const sorted = [...files.value].sort((a, b) => {
-            if (a.is_dir && !b.is_dir) return -1;
-            if (!a.is_dir && b.is_dir) return 1;
-            return a.name.localeCompare(b.name, undefined, {
-              sensitivity: "base",
-            });
-          });
-          files.value = sorted;
+          files.value = sortDirFirst(files.value);
           loading.value = false;
           syncToTab();
           resolve();
@@ -279,7 +274,7 @@ export const useFileStore = defineStore("file", () => {
         const parent = await tauri.getParentDirectory(currentPath.value);
         await navigateTo(parent);
       } catch (e) {
-        // Already at root
+        console.error("navigateUp failed:", e);
       }
     }
   }
@@ -468,7 +463,7 @@ export const useFileStore = defineStore("file", () => {
       treeExpanded.value = expanded;
       treeChildrenCache.value = cache;
     } catch (e) {
-      // Ignore errors (e.g., permission denied)
+      console.error("toggleTreeExpand failed for", dirPath, e);
     }
   }
 
@@ -519,12 +514,7 @@ export const useFileStore = defineStore("file", () => {
       }
     }
     // Sort: directories first, then alphabetical
-    const sorted = [...files.value].sort((a, b) => {
-      if (a.is_dir && !b.is_dir) return -1;
-      if (!a.is_dir && b.is_dir) return 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
-    walk(sorted, 0);
+    walk(sortDirFirst(files.value), 0);
     return result;
   });
 
@@ -564,7 +554,8 @@ export const useFileStore = defineStore("file", () => {
       } else {
         undoDescription.value = "";
       }
-    } catch {
+    } catch (e) {
+      console.error("checkUndoStatus failed:", e);
       canUndo.value = false;
       undoDescription.value = "";
     }

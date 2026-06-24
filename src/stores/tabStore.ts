@@ -1,11 +1,12 @@
 import { defineStore } from "pinia";
 import { ref, triggerRef } from "vue";
+import type { FileEntry } from "@/types";
 
 export interface Tab {
   id: string;
   path: string;
   title: string;
-  files: any[];
+  files: FileEntry[];
   selectedFiles: string[];
   treeExpanded?: string[];
   isSearch?: boolean;
@@ -229,16 +230,10 @@ export const useTabStore = defineStore("tab", () => {
   let ht: ReturnType<typeof setTimeout> | null = null;
 
   // ── Drag-and-drop state (replaces window globals) ──
-  const dragPaths = ref<string[]>([]);
   const dragActive = ref(false);
 
-  function startDrag(paths: string[]) {
-    dragPaths.value = paths;
-    dragActive.value = true;
-  }
   function endDrag() {
     dragActive.value = false;
-    dragPaths.value = [];
   }
 
   function tdenter(tid: string) {
@@ -292,14 +287,8 @@ export const useTabStore = defineStore("tab", () => {
     hoveredTabId: htid,
     onTabDragEnter: tdenter,
     onTabDragLeave: tdleave,
-    getFocusedFiles: gff,
-    setFocusedFiles: sff,
-    getFocusedSelectedFiles: gfsf,
-    setFocusedSelectedFiles: sfsf,
     getFocusedPath: gfp,
     dragActive,
-    dragPaths,
-    startDrag,
     endDrag,
   };
 });

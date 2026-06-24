@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -250,14 +250,19 @@ onMounted(async () => {
             try {
                 await tauri.moveFiles(paths, dir, false);
                 await store.refresh();
-                toast.show(`Imported ${paths.length} file(s)`);
+                toast.show(t("toast.imported", { count: paths.length }));
             } catch (err: any) {
-                toast.show(`Import failed: ${err}`, true);
+                toast.show(t("toast.error") + ": " + err, true);
             }
         });
     } catch {
         /* ignore if API not available */
     }
+
+    // Cleanup on unmount
+    onUnmounted(() => {
+        _ndu?.();
+    });
 
     // Init panels
     const allPanes = tabStore.getAllPanes();

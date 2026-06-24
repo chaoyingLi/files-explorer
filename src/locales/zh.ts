@@ -113,6 +113,9 @@ export default {
     pasted: "已粘贴",
     deleted: "已删除",
     moved: "已移动",
+    imported: "已导入 {count} 个文件",
+    cutCancelled: "剪切已取消",
+    undoFailed: "撤销失败: {error}",
     error: "错误",
   },
   fileTypes: {

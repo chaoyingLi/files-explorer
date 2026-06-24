@@ -43,13 +43,6 @@ pub struct DiskInfo {
     pub label: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CopyProgress {
-    pub current: u64,
-    pub total: u64,
-    pub file: String,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchProgress {
     pub files: Vec<FileEntry>,

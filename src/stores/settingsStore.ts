@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, watch } from "vue";
+import { ref } from "vue";
 
 export type ThemeMode = "dark" | "light";
 export type FontSize = "small" | "medium" | "large";
@@ -76,9 +76,6 @@ export const useSettingsStore = defineStore("settings", () => {
       fontSize: fontSize.value,
     });
   }
-
-  // Watch for external locale changes (from toolbar)
-  watch(locale, () => persist());
 
   return {
     theme,

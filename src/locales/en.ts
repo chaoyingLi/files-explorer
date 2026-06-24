@@ -114,6 +114,9 @@ export default {
     pasted: "Pasted",
     deleted: "Deleted",
     moved: "Moved",
+    imported: "Imported {count} file(s)",
+    cutCancelled: "Cut cancelled",
+    undoFailed: "Undo failed: {error}",
     error: "Error",
   },
   fileTypes: {
