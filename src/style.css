@@ -122,6 +122,14 @@ button {
     font-family: inherit;
 }
 
+button {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
 input {
     background: var(--input-bg);
     border: 1px solid var(--border);

@@ -13,6 +13,11 @@
                 @mouseenter="subId = i"
                 @mouseleave="onSubLeave"
             >
+                <span
+                    v-if="item.icon"
+                    class="menu-icon"
+                    v-html="item.icon"
+                ></span>
                 <span>{{ item.label }}</span>
                 <span class="arrow">▶</span>
                 <div v-if="subId === i" class="submenu" @mouseenter="subId = i">
@@ -22,6 +27,11 @@
                         class="context-menu-item"
                         @click.stop="onChildClick(child.action)"
                     >
+                        <span
+                            v-if="child.icon"
+                            class="menu-icon"
+                            v-html="child.icon"
+                        ></span>
                         <span>{{ child.label }}</span>
                     </div>
                 </div>
@@ -32,6 +42,11 @@
                 :class="{ disabled: item.disabled }"
                 @click="!item.disabled && onItemClick(item.action)"
             >
+                <span
+                    v-if="item.icon"
+                    class="menu-icon"
+                    v-html="item.icon"
+                ></span>
                 <span>{{ item.label }}</span>
                 <span v-if="item.shortcut" class="shortcut">{{
                     item.shortcut
@@ -87,12 +102,26 @@ function onSubLeave() {
 .context-menu-item {
     display: flex;
     align-items: center;
+    gap: 8px;
     justify-content: space-between;
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
     position: relative;
+}
+.menu-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+.menu-icon :deep(svg) {
+    width: 14px;
+    height: 14px;
 }
 .context-menu-item:hover {
     background: var(--bg-hover);
