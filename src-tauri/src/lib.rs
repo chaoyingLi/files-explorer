@@ -1,1514 +1,173 @@
-use log;
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::SystemTime;
-use tauri::{command, AppHandle, Emitter, State};
-use walkdir::WalkDir;
+// ── Files Explorer ── Tauri backend entry point ──
 
 mod native_drag;
+mod types;
+mod state;
+mod files;
+mod drives;
+mod operations;
+mod clipboard;
+mod search;
+mod system;
+mod undo;
+mod compress;
+mod error;
 
-fn ts_from_metadata(
-    metadata: &fs::Metadata,
-    getter: fn(&fs::Metadata) -> Result<SystemTime, std::io::Error>,
-) -> i64 {
-    getter(metadata)
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
+use state::AppState;
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
+use tauri::{command, AppHandle, State};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-    pub is_dir: bool,
-    pub size: u64,
-    pub modified: i64,
-    pub created: i64,
-    pub extension: String,
-}
+use crate::error::FsError;
+use crate::types::{
+    ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs,
+};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DiskInfo {
-    pub name: String,
-    pub mount_point: String,
-    pub total_space: u64,
-    pub available_space: u64,
-    pub used_space: u64,
-    pub file_system: String,
-    pub label: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SearchProgress {
-    pub files: Vec<FileEntry>,
-    pub total: u64,
-    pub done: bool,
-    pub truncated: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ActionKind {
-    Delete,
-    Rename {
-        old_path: String,
-        new_path: String,
-    },
-    Create {
-        path: String,
-        is_dir: bool,
-    },
-    Copy {
-        src: String,
-        dest: String,
-        was_cut: bool,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FileAction {
-    pub kind: ActionKind,
-    pub timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ClipboardInfo {
-    pub paths: Vec<String>,
-    pub action: String, // "copy" or "cut"
-}
-
-struct AppState {
-    clipboard: std::sync::Mutex<Vec<PathBuf>>,
-    clipboard_action: std::sync::Mutex<String>, // "copy" or "cut"
-    undo_history: std::sync::Mutex<Vec<FileAction>>,
-    search_cancel: Arc<AtomicBool>,
-}
-
+// ── Files ──
 #[command]
 fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
-    let dir_path = Path::new(&path);
-    if !dir_path.exists() {
-        log::warn!("list_directory: path not found: {}", path);
-        return Err(format!("Path does not exist: {}", path));
-    }
-    if !dir_path.is_dir() {
-        return Err(format!("Not a directory: {}", path));
-    }
-
-    let mut entries = Vec::new();
-
-    match fs::read_dir(&path) {
-        Ok(read_dir) => {
-            for entry in read_dir.flatten() {
-                let file_path = entry.path();
-                let metadata = match entry.metadata() {
-                    Ok(m) => m,
-                    Err(_) => match fs::metadata(&file_path) {
-                        Ok(m) => m,
-                        Err(_) => continue,
-                    },
-                };
-
-                let name = entry.file_name().to_string_lossy().to_string();
-                let is_dir = metadata.is_dir();
-                let size = if is_dir { 0 } else { metadata.len() };
-                let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
-                let created = ts_from_metadata(&metadata, fs::Metadata::created);
-                let extension = file_path
-                    .extension()
-                    .map(|e| e.to_string_lossy().to_string())
-                    .unwrap_or_default();
-
-                entries.push(FileEntry {
-                    name,
-                    path: file_path.to_string_lossy().to_string(),
-                    is_dir,
-                    size,
-                    modified,
-                    created,
-                    extension,
-                });
-            }
-        }
-        Err(e) => return Err(format!("Failed to read directory: {}", e)),
-    }
-
-    // Sort: directories first, then alphabetical
-    entries.sort_by(|a, b| {
-        if a.is_dir && !b.is_dir {
-            std::cmp::Ordering::Less
-        } else if !a.is_dir && b.is_dir {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.to_lowercase().cmp(&b.name.to_lowercase())
-        }
-    });
-
-    Ok(entries)
+    files::list_directory(path)
 }
-
-const LIST_BATCH_SIZE: usize = 100;
-
 #[command]
 fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), String> {
-    let dir = Path::new(&path);
-    if !dir.exists() {
-        return Err(format!("Path does not exist: {}", path));
-    }
-    if !dir.is_dir() {
-        return Err(format!("Not a directory: {}", path));
-    }
-    let app2 = app.clone();
-    std::thread::spawn(move || {
-        let mut batch: Vec<FileEntry> = Vec::new();
-        if let Ok(rd) = fs::read_dir(&path) {
-            for e in rd.flatten() {
-                let fp = e.path();
-                let md = e.metadata().ok().or_else(|| fs::metadata(&fp).ok());
-                let Some(md) = md else { continue };
-                batch.push(FileEntry {
-                    name: e.file_name().to_string_lossy().to_string(),
-                    path: fp.to_string_lossy().to_string(),
-                    is_dir: md.is_dir(),
-                    size: if md.is_dir() { 0 } else { md.len() },
-                    modified: ts_from_metadata(&md, fs::Metadata::modified),
-                    created: ts_from_metadata(&md, fs::Metadata::created),
-                    extension: fp
-                        .extension()
-                        .map(|x| x.to_string_lossy().to_string())
-                        .unwrap_or_default(),
-                });
-                if batch.len() >= LIST_BATCH_SIZE {
-                    let _ = app2.emit("list-progress", std::mem::take(&mut batch));
-                }
-            }
-        }
-        if !batch.is_empty() {
-            let _ = app2.emit("list-progress", batch);
-        }
-        let _ = app2.emit("list-done", true);
-    });
-    Ok(())
+    files::list_directory_streamed(app, path)
 }
-
-#[command]
-fn get_drives() -> Result<Vec<DiskInfo>, String> {
-    let mut drives = Vec::new();
-
-    #[cfg(target_os = "windows")]
-    {
-        for letter in b'A'..=b'Z' {
-            let drive = format!("{}:\\", letter as char);
-            let path = Path::new(&drive);
-            if !path.exists() {
-                continue;
-            }
-
-            let mut total: u64 = 0;
-            let mut free: u64 = 0;
-            let label = get_windows_volume_label(&drive);
-
-            unsafe {
-                let path_wide: Vec<u16> = drive.encode_utf16().chain(std::iter::once(0)).collect();
-                if GetDiskFreeSpaceExW(
-                    path_wide.as_ptr(),
-                    std::ptr::null_mut(),
-                    &mut total,
-                    &mut free,
-                ) == 0
-                {
-                    total = 0;
-                    free = 0;
-                }
-            }
-
-            let fs = get_windows_filesystem(&drive);
-            drives.push(DiskInfo {
-                name: drive.clone(),
-                mount_point: drive.clone(),
-                total_space: total,
-                available_space: free,
-                used_space: total.saturating_sub(free),
-                file_system: fs,
-                label,
-            });
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Root volume always present
-        if let Ok(info) = get_unix_disk_info("/") {
-            drives.push(info);
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            // Enumerate external volumes mounted under /Volumes
-            if let Ok(entries) = std::fs::read_dir("/Volumes") {
-                for entry in entries.flatten() {
-                    let vol_path = entry.path();
-                    if !vol_path.is_dir() {
-                        continue;
-                    }
-                    let vol_str = vol_path.to_string_lossy().to_string();
-                    // Skip the root volume itself (already added above)
-                    if vol_str == "/" {
-                        continue;
-                    }
-                    if let Ok(mut info) = get_unix_disk_info(&vol_str) {
-                        // Use the volume name from the mount point
-                        let vol_name = vol_path
-                            .file_name()
-                            .map(|n| n.to_string_lossy().to_string())
-                            .unwrap_or_else(|| vol_str.clone());
-                        info.label = vol_name.clone();
-                        if info.name == vol_str && vol_name != "/" {
-                            info.name = vol_name;
-                        }
-                        drives.push(info);
-                    }
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            // Linux: add home volume if different from root
-            let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-            if home != "/" {
-                if let Ok(info) = get_unix_disk_info(&home) {
-                    drives.push(info);
-                }
-            }
-        }
-
-        if drives.is_empty() {
-            drives.push(DiskInfo {
-                name: "Root".to_string(),
-                mount_point: "/".to_string(),
-                total_space: 0,
-                available_space: 0,
-                used_space: 0,
-                file_system: "unknown".to_string(),
-                label: "System".to_string(),
-            });
-        }
-    }
-
-    Ok(drives)
-}
-
-#[cfg(target_os = "windows")]
-extern "system" {
-    fn GetDiskFreeSpaceExW(
-        lpDirectoryName: *const u16,
-        lpFreeBytesAvailableToCaller: *mut u64,
-        lpTotalNumberOfBytes: *mut u64,
-        lpTotalNumberOfFreeBytes: *mut u64,
-    ) -> i32;
-
-    fn GetVolumeInformationW(
-        lpRootPathName: *const u16,
-        lpVolumeNameBuffer: *mut u16,
-        nVolumeNameSize: u32,
-        lpVolumeSerialNumber: *mut u32,
-        lpMaximumComponentLength: *mut u32,
-        lpFileSystemFlags: *mut u32,
-        lpFileSystemNameBuffer: *mut u16,
-        nFileSystemNameSize: u32,
-    ) -> i32;
-}
-
-#[cfg(target_os = "windows")]
-fn get_windows_volume_label(drive: &str) -> String {
-    let drive_wide: Vec<u16> = drive.encode_utf16().chain(std::iter::once(0)).collect();
-    let mut buf = vec![0u16; 128];
-    unsafe {
-        if GetVolumeInformationW(
-            drive_wide.as_ptr(),
-            buf.as_mut_ptr(),
-            buf.len() as u32,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-            return String::from_utf16_lossy(&buf[..end]);
-        }
-    }
-    String::new()
-}
-
-#[cfg(target_os = "windows")]
-fn get_windows_filesystem(drive: &str) -> String {
-    let drive_wide: Vec<u16> = drive.encode_utf16().chain(std::iter::once(0)).collect();
-    let mut buf = vec![0u16; 32];
-    unsafe {
-        if GetVolumeInformationW(
-            drive_wide.as_ptr(),
-            std::ptr::null_mut(),
-            0,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            buf.as_mut_ptr(),
-            buf.len() as u32,
-        ) != 0
-        {
-            let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-            return String::from_utf16_lossy(&buf[..end]);
-        }
-    }
-    String::new()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
-    use std::ffi::{CStr, CString};
-    let cpath = CString::new(path).map_err(|e| e.to_string())?;
-    unsafe {
-        let mut stat: libc::statvfs = std::mem::zeroed();
-        if libc::statvfs(cpath.as_ptr(), &mut stat) != 0 {
-            return Err("statvfs failed".to_string());
-        }
-        let total = stat.f_frsize as u64 * stat.f_blocks as u64;
-        let free = stat.f_frsize as u64 * stat.f_bavail as u64;
-        // Get real filesystem type via statfs
-        let mut sfs: libc::statfs = std::mem::zeroed();
-        let file_system = if libc::statfs(cpath.as_ptr(), &mut sfs) == 0 {
-            CStr::from_ptr(sfs.f_fstypename.as_ptr())
-                .to_string_lossy()
-                .to_string()
-        } else {
-            String::from("unknown")
-        };
-        Ok(DiskInfo {
-            name: path.to_string(),
-            mount_point: path.to_string(),
-            total_space: total,
-            available_space: free,
-            used_space: total.saturating_sub(free),
-            file_system,
-            label: String::new(),
-        })
-    }
-}
-
-#[command]
-fn get_parent_directory(path: String) -> Result<String, String> {
-    let path = Path::new(&path);
-    match path.parent() {
-        Some(parent) => Ok(parent.to_string_lossy().to_string()),
-        None => Err("No parent directory".to_string()),
-    }
-}
-
-#[command]
-fn create_directory(state: State<AppState>, path: String) -> Result<(), String> {
-    fs::create_dir_all(&path).map_err(|e| format!("Failed to create directory: {}", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
-    history.push(FileAction {
-        kind: ActionKind::Create {
-            path: path.clone(),
-            is_dir: true,
-        },
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64,
-    });
-    trim_undo_history(&mut history);
-    Ok(())
-}
-
-#[command]
-fn create_file(state: State<AppState>, path: String) -> Result<(), String> {
-    if Path::new(&path).exists() {
-        return Err("File already exists".to_string());
-    }
-    fs::write(&path, "").map_err(|e| format!("Failed to create file: {}", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
-    history.push(FileAction {
-        kind: ActionKind::Create {
-            path: path.clone(),
-            is_dir: false,
-        },
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64,
-    });
-    trim_undo_history(&mut history);
-    Ok(())
-}
-
-#[command]
-fn delete_item(path: String, permanently: bool) -> Result<(), String> {
-    let path = Path::new(&path);
-    if !path.exists() {
-        return Err("Path does not exist".to_string());
-    }
-
-    if permanently {
-        if path.is_dir() {
-            fs::remove_dir_all(path).map_err(|e| format!("Failed to delete: {}", e))
-        } else {
-            fs::remove_file(path).map_err(|e| format!("Failed to delete: {}", e))
-        }
-    } else {
-        // Send to trash
-        trash::delete(path).map_err(|e| format!("Failed to move to trash: {}", e))
-    }
-}
-
-#[command]
-fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> Result<(), String> {
-    fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
-    history.push(FileAction {
-        kind: ActionKind::Rename {
-            old_path: old_path.clone(),
-            new_path: new_path.clone(),
-        },
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64,
-    });
-    trim_undo_history(&mut history);
-    Ok(())
-}
-
-#[command]
-fn copy_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), String> {
-    log::info!("copy_clipboard: {} items", paths.len());
-    // 1. Set internal clipboard (guaranteed to work)
-    {
-        let mut cb = state.clipboard.lock().map_err(|e| e.to_string())?;
-        let mut act = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-        cb.clear();
-        for p in &paths {
-            cb.push(PathBuf::from(p));
-        }
-        *act = "copy".to_string();
-    }
-    // 2. Best-effort write to system clipboard
-    write_to_system_clipboard(&paths);
-    Ok(())
-}
-
-#[command]
-fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), String> {
-    log::info!("cut_clipboard: {} items", paths.len());
-    // 1. Set internal clipboard
-    {
-        let mut cb = state.clipboard.lock().map_err(|e| e.to_string())?;
-        let mut act = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-        cb.clear();
-        for p in &paths {
-            cb.push(PathBuf::from(p));
-        }
-        *act = "cut".to_string();
-    }
-    // 2. Best-effort write to system clipboard
-    write_to_system_clipboard(&paths);
-    Ok(())
-}
-
-// ── macOS native pasteboard (NSPasteboard) for proper file copy/paste ──
-
-#[cfg(target_os = "macos")]
-fn write_to_macos_pasteboard(paths: &[String]) {
-    use objc2::{class, msg_send};
-    use std::ffi::CString;
-    unsafe {
-        let pb: *mut objc2::runtime::AnyObject = msg_send![class!(NSPasteboard), generalPasteboard];
-        let _: () = msg_send![pb, clearContents];
-
-        // Build an NSArray of file URLs
-        let arr: *mut objc2::runtime::AnyObject = msg_send![class!(NSMutableArray), array];
-        for p in paths {
-            let c_str = CString::new(p.as_str()).unwrap();
-            let nsstr: *mut objc2::runtime::AnyObject =
-                msg_send![class!(NSString), stringWithUTF8String: c_str.as_ptr()];
-            let url: *mut objc2::runtime::AnyObject =
-                msg_send![class!(NSURL), fileURLWithPath: nsstr];
-            let _: () = msg_send![arr, addObject: url];
-        }
-        let _: bool = msg_send![pb, writeObjects: arr];
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn read_from_macos_pasteboard() -> Option<Vec<String>> {
-    use objc2::{class, msg_send};
-    unsafe {
-        let pb: *mut objc2::runtime::AnyObject = msg_send![class!(NSPasteboard), generalPasteboard];
-
-        // Read file URLs from pasteboard
-        let url_class: *mut objc2::runtime::AnyObject = msg_send![class!(NSURL), class];
-        let classes: *mut objc2::runtime::AnyObject =
-            msg_send![class!(NSArray), arrayWithObject: url_class];
-        let options: *mut objc2::runtime::AnyObject = msg_send![class!(NSDictionary), dictionary];
-        let urls: *mut objc2::runtime::AnyObject =
-            msg_send![pb, readObjectsForClasses: classes, options: options];
-
-        if !urls.is_null() {
-            let count: usize = msg_send![urls, count];
-            if count > 0 {
-                let mut paths = Vec::with_capacity(count);
-                for i in 0..count {
-                    let url: *mut objc2::runtime::AnyObject = msg_send![urls, objectAtIndex: i];
-                    let path_obj: *mut objc2::runtime::AnyObject = msg_send![url, path];
-                    let cstr: *const std::ffi::c_char =
-                        msg_send![path_obj, fileSystemRepresentation];
-                    if !cstr.is_null() {
-                        if let Ok(s) = std::ffi::CStr::from_ptr(cstr).to_str() {
-                            paths.push(s.to_string());
-                        }
-                    }
-                }
-                if !paths.is_empty() {
-                    return Some(paths);
-                }
-            }
-        }
-    }
-    // Fallback: try reading plain text
-    if let Ok(mut c) = arboard::Clipboard::new() {
-        if let Ok(t) = c.get_text() {
-            return Some(t.lines().map(|s| s.to_string()).collect());
-        }
-    }
-    None
-}
-
-fn write_to_system_clipboard(paths: &[String]) {
-    #[cfg(target_os = "windows")]
-    unsafe {
-        extern "system" {
-            fn OpenClipboard(h: *mut std::ffi::c_void) -> i32;
-            fn EmptyClipboard() -> i32;
-            fn SetClipboardData(f: u32, m: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
-            fn CloseClipboard() -> i32;
-            fn GlobalAlloc(f: u32, b: usize) -> *mut std::ffi::c_void;
-            fn GlobalLock(m: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
-            fn GlobalUnlock(m: *mut std::ffi::c_void) -> i32;
-            fn GlobalFree(h: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
-        }
-        if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return;
-        }
-        EmptyClipboard();
-        let mut wide: Vec<u16> = Vec::new();
-        for p in paths {
-            wide.extend(p.encode_utf16());
-            wide.push(0);
-        }
-        wide.push(0);
-        let hdr = std::mem::size_of::<u32>() * 5;
-        let sz = hdr + wide.len() * 2;
-        let h = GlobalAlloc(2, sz);
-        if h.is_null() {
-            CloseClipboard();
-            return;
-        }
-        let p = GlobalLock(h) as *mut u8;
-        std::ptr::write_bytes(p, 0, sz);
-        (p as *mut u32).write(hdr as u32);
-        (p.add(16) as *mut u32).write(1); // fWide = TRUE at offset 16
-        std::ptr::copy_nonoverlapping(wide.as_ptr(), p.add(hdr) as *mut u16, wide.len());
-        GlobalUnlock(h);
-        // Bug 6 fix: on failure, free the allocated memory before closing
-        if SetClipboardData(15, h).is_null() {
-            GlobalFree(h);
-        }
-        CloseClipboard();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        write_to_macos_pasteboard(paths);
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        if let Ok(mut c) = arboard::Clipboard::new() {
-            let _ = c.set_text(&paths.join("\n"));
-        }
-    }
-}
-
-fn read_from_system_clipboard() -> Option<Vec<String>> {
-    #[cfg(target_os = "windows")]
-    unsafe {
-        extern "system" {
-            fn OpenClipboard(h: *mut std::ffi::c_void) -> i32;
-            fn GetClipboardData(f: u32) -> *mut std::ffi::c_void;
-            fn CloseClipboard() -> i32;
-            fn IsClipboardFormatAvailable(f: u32) -> i32;
-            fn DragQueryFileW(h: *mut std::ffi::c_void, i: u32, b: *mut u16, c: u32) -> u32;
-        }
-        if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return None;
-        }
-        if IsClipboardFormatAvailable(15) == 0 {
-            CloseClipboard();
-            return None;
-        }
-        let hd = GetClipboardData(15);
-        if hd.is_null() {
-            CloseClipboard();
-            return None;
-        }
-        let cnt = DragQueryFileW(hd, 0xFFFFFFFF, std::ptr::null_mut(), 0);
-        let mut v = Vec::with_capacity(cnt as usize);
-        let mut b = vec![0u16; 32768];
-        for i in 0..cnt {
-            let l = DragQueryFileW(hd, i, b.as_mut_ptr(), b.len() as u32) as usize;
-            if l > 0 {
-                v.push(String::from_utf16_lossy(&b[..l]));
-            }
-        }
-        CloseClipboard();
-        return Some(v);
-    }
-    #[cfg(target_os = "macos")]
-    {
-        read_from_macos_pasteboard()
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        if let Ok(mut c) = arboard::Clipboard::new() {
-            if let Ok(t) = c.get_text() {
-                return Some(t.lines().map(|s| s.to_string()).collect());
-            }
-        }
-        None
-    }
-}
-
-const PASTE_CONFLICT_SUFFIX: &str = " - Copy";
-
-#[command]
-fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), String> {
-    log::info!("paste_clipboard: to {}", dest_dir);
-
-    // Always try system clipboard FIRST
-    if let Some(sys_paths) = read_from_system_clipboard() {
-        if !sys_paths.is_empty() {
-            // Check if internal clipboard says "cut" (for cut-paste delete)
-            let is_cut = {
-                state
-                    .clipboard_action
-                    .lock()
-                    .map(|a| *a == "cut")
-                    .unwrap_or(false)
-            };
-            let dest = Path::new(&dest_dir);
-            for src_str in &sys_paths {
-                let src = Path::new(src_str);
-                if !src.exists() {
-                    continue;
-                }
-                if let Some(n) = src.file_name() {
-                    let dp = resolve_paste_conflict(&dest.join(n));
-                    if src.is_dir() {
-                        copy_dir_recursive(src, &dp)?;
-                        if is_cut {
-                            fs::remove_dir_all(src).map_err(|e| format!("Remove failed: {}", e))?;
-                        }
-                    } else {
-                        fs::copy(src, &dp).map_err(|e| format!("Copy failed: {}", e))?;
-                        if is_cut {
-                            fs::remove_file(src).map_err(|e| format!("Remove failed: {}", e))?;
-                        }
-                    }
-                    let mut h = state.undo_history.lock().map_err(|e| e.to_string())?;
-                    h.push(FileAction {
-                        kind: ActionKind::Copy {
-                            src: src_str.clone(),
-                            dest: dp.to_string_lossy().to_string(),
-                            was_cut: is_cut,
-                        },
-                        timestamp: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs() as i64,
-                    });
-                    trim_undo_history(&mut h);
-                }
-            }
-            if is_cut {
-                let _ = state.clipboard.lock().map(|mut c| c.clear());
-                let _ = state
-                    .clipboard_action
-                    .lock()
-                    .map(|mut a| *a = String::new());
-            }
-            return Ok(());
-        }
-    }
-
-    // Fall back to internal clipboard
-    let clipboard = state.clipboard.lock().map_err(|e| e.to_string())?;
-    let action = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-    if clipboard.is_empty() {
-        return Err("Clipboard is empty".to_string());
-    }
-
-    let dest = Path::new(&dest_dir);
-    let is_cut = *action == "cut";
-    for src_path in clipboard.iter() {
-        if let Some(file_name) = src_path.file_name() {
-            let dest_path = resolve_paste_conflict(&dest.join(file_name));
-            if src_path.is_dir() {
-                copy_dir_recursive(src_path, &dest_path)?;
-                if is_cut {
-                    fs::remove_dir_all(src_path).map_err(|e| format!("Failed to remove: {}", e))?;
-                }
-            } else {
-                fs::copy(src_path, &dest_path).map_err(|e| format!("Failed to copy: {}", e))?;
-                if is_cut {
-                    fs::remove_file(src_path).map_err(|e| format!("Failed to remove: {}", e))?;
-                }
-            }
-            if !is_cut {
-                let mut h = state.undo_history.lock().map_err(|e| e.to_string())?;
-                h.push(FileAction {
-                    kind: ActionKind::Copy {
-                        src: src_path.to_string_lossy().to_string(),
-                        dest: dest_path.to_string_lossy().to_string(),
-                        was_cut: false,
-                    },
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs() as i64,
-                });
-                trim_undo_history(&mut h);
-            }
-        }
-    }
-    if is_cut {
-        drop(clipboard);
-        drop(action);
-        state.clipboard.lock().map_err(|e| e.to_string())?.clear();
-    }
-    Ok(())
-}
-
-/// Resolve name conflict by appending " - Copy", " - Copy (2)", etc.
-fn resolve_paste_conflict(path: &Path) -> PathBuf {
-    if !path.exists() {
-        return path.to_path_buf();
-    }
-    let parent = path.parent().unwrap_or(Path::new("."));
-    let stem = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let ext = path
-        .extension()
-        .map(|e| e.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    let mut counter: u32 = 1;
-    loop {
-        let new_name = if counter == 1 {
-            if ext.is_empty() {
-                format!("{}{}", stem, PASTE_CONFLICT_SUFFIX)
-            } else {
-                format!("{}{}.{}", stem, PASTE_CONFLICT_SUFFIX, ext)
-            }
-        } else {
-            if ext.is_empty() {
-                format!("{} ({})", stem, counter)
-            } else {
-                format!("{} ({}).{}", stem, counter, ext)
-            }
-        };
-        let candidate = parent.join(&new_name);
-        if !candidate.exists() {
-            return candidate;
-        }
-        counter += 1;
-        if counter > 999 {
-            break;
-        }
-    }
-    // Fallback: use timestamp
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    parent.join(format!("{}_{}.{}", stem, ts, ext))
-}
-
-fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
-    fs::create_dir_all(dest).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory: {}", e))? {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let src_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dest_path)?;
-        } else {
-            fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
-        }
-    }
-
-    Ok(())
-}
-
-#[command]
-fn open_in_terminal(path: String) -> Result<(), String> {
-    let p = Path::new(&path);
-    let dir = if p.is_dir() {
-        p
-    } else {
-        p.parent().unwrap_or(p)
-    };
-
-    #[cfg(target_os = "windows")]
-    {
-        // Try Windows Terminal first, fall back to cmd
-        let wt = std::process::Command::new("wt")
-            .args(["-d", &dir.to_string_lossy()])
-            .spawn();
-        if wt.is_err() {
-            std::process::Command::new("cmd")
-                .args([
-                    "/C",
-                    "start",
-                    "cmd",
-                    "/K",
-                    &format!("cd /d {}", dir.to_string_lossy()),
-                ])
-                .spawn()
-                .map_err(|e| format!("Failed to open terminal: {}", e))?;
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // Prefer iTerm2, fall back to Terminal.app
-        let iterm = std::process::Command::new("open")
-            .args(["-a", "iTerm", &dir.to_string_lossy()])
-            .spawn();
-        if iterm.is_err() {
-            std::process::Command::new("open")
-                .args(["-a", "Terminal", &dir.to_string_lossy()])
-                .spawn()
-                .map_err(|e| format!("Failed to open terminal: {}", e))?;
-        }
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let terms = [
-            "x-terminal-emulator",
-            "gnome-terminal",
-            "konsole",
-            "xfce4-terminal",
-            "xterm",
-        ];
-        let mut opened = false;
-        for term in &terms {
-            if std::process::Command::new(term)
-                .arg("--working-directory")
-                .arg(&dir.to_string_lossy())
-                .spawn()
-                .is_ok()
-            {
-                opened = true;
-                break;
-            }
-        }
-        if !opened {
-            return Err("No terminal emulator found".to_string());
-        }
-    }
-
-    Ok(())
-}
-
 #[command]
 fn get_file_info(path: String) -> Result<FileEntry, String> {
-    let p = Path::new(&path);
-    if !p.exists() {
-        return Err("Path does not exist".to_string());
-    }
-
-    let metadata = fs::metadata(&p).map_err(|e| format!("Failed to get metadata: {}", e))?;
-
-    let name = p
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let is_dir = metadata.is_dir();
-    let size = if is_dir { 0 } else { metadata.len() };
-    let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
-    let created = ts_from_metadata(&metadata, fs::Metadata::created);
-    let extension = p
-        .extension()
-        .map(|x| x.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    Ok(FileEntry {
-        name,
-        path: p.to_string_lossy().to_string(),
-        is_dir,
-        size,
-        modified,
-        created,
-        extension,
-    })
+    files::get_file_info(path)
 }
-
-// (calculate_dir_size removed - use async walkdir for large dirs if needed)
-
-#[command]
-fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, String> {
-    native_drag::start_native_drag(&paths)
-}
-
-#[command]
-fn open_file(path: String) -> Result<(), String> {
-    opener::open(path).map_err(|e| format!("Failed to open: {}", e))
-}
-
-#[command]
-fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
-    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
-    // Limit to 2MB to avoid OOM on huge files
-    if bytes.len() > 2 * 1024 * 1024 {
-        return Err("File too large for preview".to_string());
-    }
-    let ext = Path::new(&path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    let mime = match ext.as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "bmp" => "image/bmp",
-        "svg" => "image/svg+xml",
-        "ico" => "image/x-icon",
-        _ => "image/png",
-    };
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    Ok(serde_json::json!({
-        "mime": mime,
-        "data": b64
-    }))
-}
-
-#[command]
-fn show_in_explorer(path: String) -> Result<(), String> {
-    log::info!("show_in_explorer: {}", path);
-    #[cfg(target_os = "windows")]
-    {
-        // Parse /select,<path> — comma must be in same arg
-        std::process::Command::new("explorer")
-            .arg(format!("/select,{}", path))
-            .spawn()
-            .map_err(|e| format!("Failed: {}", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .args(["-R", &path])
-            .spawn()
-            .map_err(|e| format!("Failed: {}", e))?;
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        if let Some(parent) = std::path::Path::new(&path).parent() {
-            std::process::Command::new("xdg-open")
-                .arg(parent)
-                .spawn()
-                .map_err(|e| format!("Failed: {}", e))?;
-        }
-    }
-    Ok(())
-}
-
-#[command]
-fn show_file_properties(path: String) -> Result<(), String> {
-    let p = Path::new(&path);
-    if !p.exists() {
-        return Err(format!("Path does not exist: {}", path));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        extern "system" {
-            fn SHObjectProperties(
-                hwnd: *mut std::ffi::c_void,
-                dwType: u32,
-                pszName: *const u16,
-                pszParameters: *const u16,
-            ) -> i32;
-        }
-        const SHOP_FILEPATH: u32 = 0x2;
-        let fp: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-        unsafe {
-            let ret = SHObjectProperties(
-                std::ptr::null_mut(),
-                SHOP_FILEPATH,
-                fp.as_ptr(),
-                std::ptr::null(),
-            );
-            // Returns TRUE (1) on success, FALSE (0) on failure
-            if ret == 0 {
-                return Err(format!("SHObjectProperties failed with code: {}", ret));
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // Reveal in Finder — standard macOS behaviour
-        std::process::Command::new("open")
-            .args(["-R", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to show in Finder: {}", e))?;
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        // Linux: try various file managers to show properties, fallback to terminal `file` command
-        #[cfg(target_os = "linux")]
-        {
-            let escaped = path.replace('"', "\\\"");
-            if std::process::Command::new("gio")
-                .args(["open", &format!("file:///{}", path.trim_start_matches('/'))])
-                .spawn()
-                .is_err()
-            {
-                // Fallback: show file info in terminal
-                let _ = std::process::Command::new("sh")
-                    .args(["-c", &format!("file \"{}\" 2>/dev/null", escaped)])
-                    .spawn();
-            }
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            if let Some(parent) = Path::new(&path).parent() {
-                let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
-            }
-        }
-    }
-
-    Ok(())
-}
-
-// ── Wildcard / size / OR search ──
-
-/// Match a filename against a glob pattern (* = any chars, ? = one char)
-fn wildcard_match(pattern: &str, filename: &str) -> bool {
-    let p: Vec<char> = pattern.chars().collect();
-    let f: Vec<char> = filename.chars().collect();
-    fn rec(p: &[char], f: &[char]) -> bool {
-        match (p.is_empty(), f.is_empty()) {
-            (true, true) => true,
-            (true, false) => false,
-            (false, true) => p.iter().all(|&c| c == '*'),
-            (false, false) => {
-                if p[0] == '*' {
-                    rec(&p[1..], f) || rec(p, &f[1..])
-                } else if p[0] == '?' || p[0].to_ascii_lowercase() == f[0].to_ascii_lowercase() {
-                    rec(&p[1..], &f[1..])
-                } else {
-                    false
-                }
-            }
-        }
-    }
-    rec(&p, &f)
-}
-
-/// Parse a size filter like ">10MB" or "<1GB" into (operator, bytes)
-fn parse_size_filter(s: &str) -> Option<(char, u64)> {
-    let s = s.trim();
-    let op = s.chars().next()?;
-    if op != '>' && op != '<' {
-        return None;
-    }
-    let rest = s[1..].trim();
-    // Extract numeric part
-    let num_end = rest
-        .find(|c: char| !c.is_ascii_digit() && c != '.')
-        .unwrap_or(rest.len());
-    if num_end == 0 {
-        return None;
-    }
-    let num: f64 = rest[..num_end].parse().ok()?;
-    let unit = rest[num_end..].trim().to_lowercase();
-    let multiplier = match unit.as_str() {
-        "b" | "" => 1.0,
-        "k" | "kb" => 1024.0,
-        "m" | "mb" => 1024.0 * 1024.0,
-        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
-        "t" | "tb" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
-        _ => return None,
-    };
-    Some((op, (num * multiplier) as u64))
-}
-
-/// Check whether a single condition matches a file
-fn condition_matches_file(condition: &str, name: &str, size: u64) -> bool {
-    let cond = condition.trim();
-    if cond.is_empty() {
-        return false;
-    }
-    // Size filter?
-    if let Some((op, threshold)) = parse_size_filter(cond) {
-        return match op {
-            '>' => size > threshold,
-            '<' => size < threshold,
-            _ => false,
-        };
-    }
-    // Wildcard pattern? (contains * or ?)
-    if cond.contains('*') || cond.contains('?') {
-        return wildcard_match(cond, name);
-    }
-    // Plain text: substring match (case-insensitive)
-    name.to_lowercase().contains(&cond.to_lowercase())
-}
-
 #[command]
 fn path_exists(path: String) -> bool {
-    Path::new(&path).exists()
+    files::path_exists(path)
 }
 
-const SEARCH_MAX_RESULTS: u64 = 2000;
-const SEARCH_BATCH_SIZE: usize = 500;
-
+// ── Drives ──
 #[command]
-fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> Result<(), String> {
-    log::info!(
-        "move_files: {} items to {} (copy={})",
-        paths.len(),
-        dest_dir,
-        copy
-    );
-    let dest = Path::new(&dest_dir);
-    for src_str in &paths {
-        let src = Path::new(src_str);
-        if !src.exists() {
-            continue;
-        }
-        let file_name = match src.file_name() {
-            Some(n) => n.to_string_lossy().to_string(),
-            None => continue,
-        };
-        let dest_path = dest.join(&file_name);
-        if dest_path.exists() {
-            return Err(format!("Target already exists: {}", file_name));
-        }
-        // Try fast rename first (same filesystem)
-        if !copy && std::fs::rename(src, &dest_path).is_ok() {
-            continue;
-        }
-        // Cross-device or copy: fall back to copy-then-delete
-        if src.is_dir() {
-            copy_dir_recursive(src, &dest_path)?;
-        } else {
-            std::fs::copy(src, &dest_path).map_err(|e| format!("Failed to copy: {}", e))?;
-        }
-        if !copy {
-            if src.is_dir() {
-                std::fs::remove_dir_all(src)
-                    .map_err(|e| format!("Failed to remove source: {}", e))?;
-            } else {
-                std::fs::remove_file(src).map_err(|e| format!("Failed to remove source: {}", e))?;
-            }
-        }
-    }
-    Ok(())
+fn get_drives() -> Result<Vec<DiskInfo>, String> {
+    drives::get_drives()
+}
+#[command]
+fn get_special_dirs() -> Result<SpecialDirs, String> {
+    drives::get_special_dirs()
 }
 
-/// Run search in a dedicated thread so it never blocks the UI
+// ── Operations ──
+#[command]
+fn get_parent_directory(path: String) -> Result<String, FsError> {
+    operations::get_parent_directory(path)
+}
+#[command]
+fn create_directory(state: State<AppState>, path: String) -> Result<(), FsError> {
+    operations::create_directory(state, path)
+}
+#[command]
+fn create_file(state: State<AppState>, path: String) -> Result<(), FsError> {
+    operations::create_file(state, path)
+}
+#[command]
+fn delete_item(path: String, permanently: bool) -> Result<(), FsError> {
+    operations::delete_item(path, permanently)
+}
+#[command]
+fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> Result<(), FsError> {
+    operations::rename_item(state, old_path, new_path)
+}
+#[command]
+fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> Result<(), FsError> {
+    operations::move_files(paths, dest_dir, copy)
+}
+
+// ── Clipboard ──
+#[command]
+fn copy_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), FsError> {
+    clipboard::copy_clipboard(state, paths)
+}
+#[command]
+fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> Result<(), FsError> {
+    clipboard::cut_clipboard(state, paths)
+}
+#[command]
+fn paste_clipboard(state: State<AppState>, dest_dir: String) -> Result<(), FsError> {
+    clipboard::paste_clipboard(state, dest_dir)
+}
+#[command]
+fn get_clipboard_info(state: State<AppState>) -> Result<ClipboardInfo, FsError> {
+    clipboard::get_clipboard_info(state)
+}
+
+// ── Search ──
 #[command]
 fn search_files(
     app: AppHandle,
     state: State<AppState>,
     directory: String,
     query: String,
+    content: String,
 ) -> Result<(), String> {
-    // Reset cancel flag
-    state.search_cancel.store(false, Ordering::SeqCst);
-    let cancel = state.search_cancel.clone();
-
-    let conditions: Vec<String> = query
-        .split('|')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    if conditions.is_empty() {
-        let _ = app.emit(
-            "search-progress",
-            SearchProgress {
-                files: vec![],
-                total: 0,
-                done: true,
-                truncated: false,
-            },
-        );
-        return Ok(());
-    }
-
-    let dir = directory.clone();
-    let app_clone = app.clone();
-
-    // Spawn on a dedicated OS thread — never blocks Tauri's IPC thread
-    std::thread::spawn(move || {
-        let mut batch: Vec<FileEntry> = Vec::new();
-        let mut total: u64 = 0;
-        let mut truncated = false;
-
-        for entry in WalkDir::new(&dir)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            // Check cancellation (thread-safe AtomicBool)
-            if cancel.load(Ordering::SeqCst) {
-                let files = std::mem::take(&mut batch);
-                let _ = app_clone.emit(
-                    "search-progress",
-                    SearchProgress {
-                        files,
-                        total,
-                        done: true,
-                        truncated: false,
-                    },
-                );
-                return;
-            }
-
-            if total >= SEARCH_MAX_RESULTS {
-                truncated = true;
-                break;
-            }
-
-            let path = entry.path().to_path_buf();
-            let file_name = entry.file_name().to_string_lossy().to_string();
-            let metadata = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let is_dir = entry.file_type().is_dir();
-            let file_size = if is_dir { 0 } else { metadata.len() };
-            let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
-            let created = ts_from_metadata(&metadata, fs::Metadata::created);
-            let extension = path
-                .extension()
-                .map(|e| e.to_string_lossy().to_string())
-                .unwrap_or_default();
-
-            let matched = conditions
-                .iter()
-                .any(|cond| condition_matches_file(cond, &file_name, file_size));
-            if !matched {
-                continue;
-            }
-
-            total += 1;
-            batch.push(FileEntry {
-                name: file_name,
-                path: path.to_string_lossy().to_string(),
-                is_dir,
-                size: file_size,
-                modified,
-                created,
-                extension,
-            });
-
-            if batch.len() >= SEARCH_BATCH_SIZE {
-                let files = std::mem::take(&mut batch);
-                let payload = SearchProgress {
-                    files,
-                    total,
-                    done: false,
-                    truncated: false,
-                };
-                if app_clone.emit("search-progress", payload).is_err() {
-                    break;
-                }
-            }
-        }
-
-        let files = std::mem::take(&mut batch);
-        let _ = app_clone.emit(
-            "search-progress",
-            SearchProgress {
-                files,
-                total,
-                done: true,
-                truncated,
-            },
-        );
-    });
-
-    Ok(())
+    search::search_files(app, state, directory, query, content)
 }
-
 #[command]
 fn cancel_search(state: State<AppState>) -> Result<(), String> {
-    state.search_cancel.store(true, Ordering::SeqCst);
-    Ok(())
+    search::cancel_search(state)
 }
 
-#[derive(Debug, Serialize)]
-pub struct SpecialDirs {
-    pub home: String,
-    pub desktop: String,
-    pub documents: String,
-    pub downloads: String,
-    pub pictures: String,
-    pub music: String,
-    pub videos: String,
-}
-
+// ── System ──
 #[command]
-fn get_special_dirs() -> Result<SpecialDirs, String> {
-    let home = dirs::home_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| {
-            if cfg!(target_os = "windows") {
-                std::env::var("USERPROFILE").unwrap_or_else(|_| String::from("C:\\"))
-            } else {
-                std::env::var("HOME").unwrap_or_else(|_| String::from("/"))
-            }
-        });
-
-    let path_to_str = |p: Option<std::path::PathBuf>| -> String {
-        p.map(|x| x.to_string_lossy().to_string())
-            .unwrap_or_default()
-    };
-
-    Ok(SpecialDirs {
-        home: home.clone(),
-        desktop: path_to_str(dirs::desktop_dir()),
-        documents: path_to_str(dirs::document_dir()),
-        downloads: path_to_str(dirs::download_dir()),
-        pictures: path_to_str(dirs::picture_dir()),
-        music: path_to_str(dirs::audio_dir()),
-        videos: path_to_str(dirs::video_dir()),
-    })
+fn open_file(path: String) -> Result<(), String> {
+    system::open_file(path)
 }
-
-const MAX_UNDO_HISTORY: usize = 50;
-
 #[command]
-fn get_clipboard_info(state: State<AppState>) -> Result<ClipboardInfo, String> {
-    if let Some(p) = read_from_system_clipboard() {
-        if !p.is_empty() {
-            return Ok(ClipboardInfo {
-                paths: p,
-                action: "copy".into(),
-            });
-        }
-    }
-    let c = state.clipboard.lock().map_err(|e| e.to_string())?;
-    let a = state.clipboard_action.lock().map_err(|e| e.to_string())?;
-    Ok(ClipboardInfo {
-        paths: c.iter().map(|x| x.to_string_lossy().to_string()).collect(),
-        action: a.clone(),
-    })
+fn open_in_terminal(path: String) -> Result<(), String> {
+    system::open_in_terminal(path)
 }
-
 #[command]
-fn undo_last_action(state: State<AppState>) -> Result<String, String> {
-    let mut history = state.undo_history.lock().map_err(|e| e.to_string())?;
-    let action = history.pop().ok_or("Nothing to undo".to_string())?;
-    match &action.kind {
-        ActionKind::Delete => Err("Cannot undo delete operation".to_string()),
-        ActionKind::Rename { old_path, new_path } => {
-            if !Path::new(new_path).exists() {
-                return Err(format!("Cannot undo: {new_path} no longer exists"));
-            }
-            fs::rename(new_path, old_path).map_err(|e| format!("Undo rename failed: {}", e))?;
-            Ok(format!("Undid rename: restored {old_path}"))
-        }
-        ActionKind::Create { path, is_dir } => {
-            if *is_dir {
-                fs::remove_dir_all(path).map_err(|e| format!("Undo create failed: {}", e))?;
-            } else {
-                fs::remove_file(path).map_err(|e| format!("Undo create failed: {}", e))?;
-            }
-            Ok(format!("Undid create: removed {path}"))
-        }
-        ActionKind::Copy { src, dest, was_cut } => {
-            let dest_path = Path::new(dest);
-            if !dest_path.exists() {
-                return Err(format!("Cannot undo: {dest} no longer exists"));
-            }
-            if *was_cut {
-                // Bug 11 fix: cut-paste undo — restore original file at src, then remove copy
-                let src_path = Path::new(src);
-                if dest_path.is_dir() {
-                    copy_dir_recursive(dest_path, src_path)?;
-                    fs::remove_dir_all(dest_path).map_err(|e| format!("Undo cut failed: {}", e))?;
-                } else {
-                    fs::copy(dest_path, src_path)
-                        .map_err(|e| format!("Undo cut restore failed: {}", e))?;
-                    fs::remove_file(dest_path).map_err(|e| format!("Undo cut failed: {}", e))?;
-                }
-                Ok(format!("Undid cut: restored {src}"))
-            } else {
-                // Regular copy: just remove the copy
-                if dest_path.is_dir() {
-                    fs::remove_dir_all(dest_path)
-                        .map_err(|e| format!("Undo copy failed: {}", e))?;
-                } else {
-                    fs::remove_file(dest_path).map_err(|e| format!("Undo copy failed: {}", e))?;
-                }
-                Ok(format!("Undid copy of {src}: removed {dest}"))
-            }
-        }
-    }
+fn show_in_explorer(path: String) -> Result<(), String> {
+    system::show_in_explorer(path)
 }
-
-/// Trim undo history to MAX_UNDO_HISTORY entries
-fn trim_undo_history(history: &mut Vec<FileAction>) {
-    if history.len() > MAX_UNDO_HISTORY {
-        let excess = history.len() - MAX_UNDO_HISTORY;
-        history.drain(0..excess);
-    }
-}
-
 #[command]
-fn get_undo_info(state: State<AppState>) -> Result<Option<FileAction>, String> {
-    let history = state.undo_history.lock().map_err(|e| e.to_string())?;
-    Ok(history.last().cloned())
+fn show_file_properties(path: String) -> Result<(), String> {
+    system::show_file_properties(path)
+}
+#[command]
+fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
+    system::get_file_base64(path)
+}
+#[command]
+fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, String> {
+    system::start_native_drag_cmd(paths)
 }
 
+// ── Compress ──
+#[command]
+fn compress_files(app: AppHandle, paths: Vec<String>, dest: String) -> Result<(), FsError> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    compress::compress_zip(app, paths, dest, cancel)
+}
+#[command]
+fn extract_archive_cmd(app: AppHandle, archive: String, dest_dir: String) -> Result<(), FsError> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    compress::extract_archive(app, archive, dest_dir, cancel)
+}
+
+// ── Undo ──
+#[command]
+fn undo_last_action(state: State<AppState>) -> Result<String, FsError> {
+    undo::undo_last_action(state)
+}
+#[command]
+fn get_undo_info(state: State<AppState>) -> Result<Option<FileAction>, FsError> {
+    undo::get_undo_info(state)
+}
+
+// ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
-            clipboard: std::sync::Mutex::new(Vec::new()),
-            clipboard_action: std::sync::Mutex::new(String::new()),
-            undo_history: std::sync::Mutex::new(Vec::new()),
+            clipboard: Mutex::new(Vec::new()),
+            clipboard_action: Mutex::new(String::new()),
+            undo_history: Mutex::new(Vec::new()),
             search_cancel: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
@@ -1538,6 +197,8 @@ pub fn run() {
             get_undo_info,
             cancel_search,
             move_files,
+            compress_files,
+            extract_archive_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

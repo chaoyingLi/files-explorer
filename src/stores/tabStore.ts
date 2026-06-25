@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, triggerRef } from "vue";
 import type { FileEntry } from "@/types";
-import type { ColumnState } from "@/stores/fileStore";
+import type { ColumnState } from "@/stores/viewStore";
 
 export interface Tab {
   id: string;

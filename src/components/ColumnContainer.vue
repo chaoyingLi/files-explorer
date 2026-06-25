@@ -21,8 +21,10 @@
 <script setup lang="ts">
 import { ref, nextTick } from "vue";
 import type { FileEntry } from "@/types";
-import type { ColumnState } from "@/stores/fileStore";
+import type { ColumnState } from "@/stores/viewStore";
 import { useFileStore } from "@/stores/fileStore";
+import { useViewStore } from "@/stores/viewStore";
+import { useSelectionStore } from "@/stores/selectionStore";
 import ColumnPane from "./ColumnPane.vue";
 
 const props = defineProps<{ stack: ColumnState[] }>();
@@ -32,10 +34,14 @@ const emit = defineEmits<{
 }>();
 
 const store = useFileStore();
+const view = useViewStore();
+const sel = useSelectionStore();
 const scrollRef = ref<HTMLElement>();
 
 async function onSelect(colIdx: number, fileIdx: number) {
-    await store.columnSelect(props.stack, colIdx, fileIdx);
+    const file = props.stack[colIdx]?.files[fileIdx];
+    if (!file) return;
+    await view.columnLoadDirectory(props.stack, colIdx, file);
     emit("updateStack", [...props.stack]);
     await nextTick();
     if (scrollRef.value)
@@ -43,12 +49,14 @@ async function onSelect(colIdx: number, fileIdx: number) {
 }
 
 function onDblClick(colIdx: number, fileIdx: number) {
-    store.columnSelect(props.stack, colIdx, fileIdx);
+    const file = props.stack[colIdx]?.files[fileIdx];
+    if (!file) return;
+    view.columnLoadDirectory(props.stack, colIdx, file);
     emit("updateStack", [...props.stack]);
 }
 
 function onContextMenu(file: FileEntry, event: MouseEvent) {
-    store.selectFile(file, event.ctrlKey || event.metaKey);
+    sel.selectFile(file, event.ctrlKey || event.metaKey);
     emit("contextMenu", file, event);
 }
 
@@ -57,22 +65,26 @@ function onKeydown(e: KeyboardEvent) {
     const lastIdx = props.stack.length - 1;
     if (e.key === "ArrowUp") {
         e.preventDefault();
-        store.columnNavigateUp(props.stack, lastIdx);
+        view.columnNavigateUp(props.stack, lastIdx);
         emit("updateStack", [...props.stack]);
     } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        store.columnNavigateDown(props.stack, lastIdx);
+        view.columnNavigateDown(props.stack, lastIdx);
         emit("updateStack", [...props.stack]);
     } else if (e.key === "ArrowRight" || e.key === "Enter") {
         e.preventDefault();
         const col = props.stack[lastIdx];
         if (col && col.selectedIndex >= 0) {
-            store.columnSelect(props.stack, lastIdx, col.selectedIndex);
+            view.columnLoadDirectory(
+                props.stack,
+                lastIdx,
+                col.files[col.selectedIndex],
+            );
             emit("updateStack", [...props.stack]);
         }
     } else if (e.key === "ArrowLeft" || e.key === "Backspace") {
         e.preventDefault();
-        store.columnNavigateLeft(props.stack);
+        view.columnNavigateLeft(props.stack);
         emit("updateStack", [...props.stack]);
     }
 }

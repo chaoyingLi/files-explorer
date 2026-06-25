@@ -249,9 +249,9 @@
             <!-- View mode buttons -->
             <button
                 class="ribbon-btn"
-                :class="{ active: store.viewMode === 'details' }"
+                :class="{ active: view.viewMode === 'details' }"
                 :title="t('fileList.details')"
-                @click="store.setViewMode('details')"
+                @click="view.setViewMode('details')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
                     <rect
@@ -286,9 +286,9 @@
             </button>
             <button
                 class="ribbon-btn"
-                :class="{ active: store.viewMode === 'list' }"
+                :class="{ active: view.viewMode === 'list' }"
                 :title="t('fileList.list')"
-                @click="store.setViewMode('list')"
+                @click="view.setViewMode('list')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
                     <rect
@@ -323,9 +323,9 @@
             </button>
             <button
                 class="ribbon-btn"
-                :class="{ active: store.viewMode === 'grid' }"
+                :class="{ active: view.viewMode === 'grid' }"
                 :title="t('fileList.grid')"
-                @click="store.setViewMode('grid')"
+                @click="view.setViewMode('grid')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
                     <rect
@@ -361,7 +361,7 @@
             <!-- Tree view -->
             <button
                 class="ribbon-btn"
-                :class="{ active: store.viewMode === 'tree' }"
+                :class="{ active: view.viewMode === 'tree' }"
                 :title="t('fileList.tree')"
                 @click="switchToTree"
             >
@@ -432,9 +432,9 @@
             <!-- Column view -->
             <button
                 class="ribbon-btn"
-                :class="{ active: store.viewMode === 'column' }"
+                :class="{ active: view.viewMode === 'column' }"
                 :title="t('fileList.column')"
-                @click="store.setViewMode('column')"
+                @click="view.setViewMode('column')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
                     <rect
@@ -494,6 +494,33 @@
                 </svg>
                 <span class="ribbon-label">{{ t("fileList.column") }}</span>
             </button>
+            <!-- Properties toggle -->
+            <div class="ribbon-sep"></div>
+            <button
+                class="ribbon-btn"
+                :title="t('contextMenu.properties')"
+                @click="$emit('action', 'toggleProperties')"
+            >
+                <svg viewBox="0 0 20 20" fill="none">
+                    <circle
+                        cx="10"
+                        cy="10"
+                        r="8"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        fill="none"
+                    />
+                    <path
+                        d="M10 7v5M10 14v.01"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                    />
+                </svg>
+                <span class="ribbon-label">{{
+                    t("contextMenu.properties")
+                }}</span>
+            </button>
         </div>
     </div>
 </template>
@@ -502,19 +529,23 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useViewStore } from "@/stores/viewStore";
 
 const { t } = useI18n();
 const store = useFileStore();
+const sel = useSelectionStore();
+const view = useViewStore();
 
 const emit = defineEmits<{ action: [action: string] }>();
 
 function switchToTree() {
-    store.setViewMode("tree");
-    store.collapseAllTree();
+    view.setViewMode("tree");
+    view.collapseAllTree();
 }
 
-const hasSelection = computed(() => store.selectedFiles.size > 0);
-const selectedCount = computed(() => store.selectedFiles.size);
+const hasSelection = computed(() => sel.selectedFiles.size > 0);
+const selectedCount = computed(() => sel.selectedFiles.size);
 </script>
 
 <style scoped>

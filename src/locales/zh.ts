@@ -29,11 +29,17 @@ export default {
     pictures: "图片",
     music: "音乐",
     videos: "视频",
+    favorites: "⭐ 收藏夹",
+    addToFavorites: "已添加到收藏夹",
+    dropToBookmark: "拖放文件夹到此处收藏",
+    removeBookmark: "从收藏夹移除 {label} ?",
   },
   search: {
     resultsTabTitle: "在 {folder} 搜索 {query} 的结果",
     resultsTab: "在 {folder} 搜索 {query} 的结果（{count}）",
     resultsTabTruncated: "在 {folder} 搜索 {query} 的结果（{count}+）",
+    resultsTruncatedHint:
+      "结果数量已达上限（{max} 条），仅显示前 {max} 条。请细化搜索条件以获取更精确的结果。",
     noDirectory: "没有可搜索的目录",
   },
   fileList: {
@@ -75,6 +81,9 @@ export default {
     properties: "属性",
     showInExplorer: "在资源管理器显示",
     showInFinder: "在访达中显示",
+    addToFavorites: "添加到收藏夹",
+    compress: "压缩到...",
+    extract: "解压到...",
   },
   tab: {
     newTab: "新建标签页",
@@ -118,6 +127,8 @@ export default {
     cutCancelled: "剪切已取消",
     undoFailed: "撤销失败: {error}",
     error: "错误",
+    compressed: "已压缩",
+    extracted: "已解压",
   },
   fileTypes: {
     folder: "文件夹",

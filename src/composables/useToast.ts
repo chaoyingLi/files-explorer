@@ -1,18 +1,26 @@
 import { ref } from "vue";
 
-export function useToast() {
-  const message = ref("");
-  const isError = ref(false);
-  let timer: ReturnType<typeof setTimeout> | null = null;
+interface ToastMsg {
+  id: number;
+  text: string;
+  isError: boolean;
+}
 
-  function show(msg: string, error = false) {
-    message.value = msg;
-    isError.value = error;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      message.value = "";
-    }, error ? 4000 : 2000);
+let nextId = 0;
+const TOAST_DURATION = 2500;
+const TOAST_ERROR_DURATION = 4500;
+
+export function useToast() {
+  const messages = ref<ToastMsg[]>([]);
+
+  function show(text: string, isError = false) {
+    const id = ++nextId;
+    messages.value.push({ id, text, isError });
+    const duration = isError ? TOAST_ERROR_DURATION : TOAST_DURATION;
+    setTimeout(() => {
+      messages.value = messages.value.filter((m) => m.id !== id);
+    }, duration);
   }
 
-  return { message, isError, show };
+  return { messages, show };
 }

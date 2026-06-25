@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import type { FileEntry } from "@/types";
-import type { ColumnState } from "@/stores/fileStore";
+import type { ColumnState } from "@/stores/viewStore";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 
 const { t } = useI18n();

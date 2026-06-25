@@ -33,7 +33,7 @@ export function usePanelNavigation(
     onSearchCleanup?: () => void,
   ) {
     const p = tabStore.findPaneById(paneId);
-    if (p?.activeTabId === tabId) return; // Already active
+    if (p?.activeTabId === tabId) return;
     const ot = tabStore.getFocusedTab();
     if (ot?.isSearch && onSearchCleanup) onSearchCleanup();
     if (ot) saveFileStateToTab(ot);
@@ -119,7 +119,6 @@ export function usePanelNavigation(
     if (!path) {
       store.currentPath = "";
       store.files = [];
-      store.selectedFiles = new Set();
       await store.loadDrives();
       store.syncToTab();
     } else {
@@ -139,7 +138,6 @@ export function usePanelNavigation(
     await navigatePane(fp.id, "");
   }
 
-  // Toolbar navigation
   async function toolbarBack() {
     await store.navigateBack();
   }

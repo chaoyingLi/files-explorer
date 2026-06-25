@@ -1,14 +1,20 @@
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useDeleteStore } from "@/stores/deleteStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useTabStore, type Tab } from "@/stores/tabStore";
 import * as tauri from "@/utils/tauri";
 
 export function useFileActions(
   toast: ReturnType<typeof import("./useToast").useToast>,
+  toggleProperties: () => void,
 ) {
   const { t } = useI18n();
   const store = useFileStore();
+  const sel = useSelectionStore();
+  const del = useDeleteStore();
   const tabStore = useTabStore();
 
   const showNewDialog = ref(false);
@@ -18,7 +24,6 @@ export function useFileActions(
 
   function saveFileStateToTab(tab: Tab) {
     store.syncToTab();
-    // Update tab title separately (not in fileStore)
     tab.title = store.currentDirectoryName || t("sidebar.thisPc");
   }
 
@@ -44,9 +49,9 @@ export function useFileActions(
   }
 
   async function handleDeleteConfirm(permanently: boolean) {
-    store.deletePermanently = permanently;
     try {
-      const result = await store.confirmDelete();
+      const result = await del.confirmDelete();
+      await store.refresh();
       if (result.failed > 0) {
         toast.show(`${result.message}`, true);
       } else {
@@ -58,8 +63,8 @@ export function useFileActions(
   }
 
   async function handleRename(newName: string) {
-    if (store.selectedFiles.size === 1) {
-      const oldPath = [...store.selectedFiles][0];
+    if (sel.selectedFiles.size === 1) {
+      const oldPath = [...sel.selectedFiles][0];
       await store.renameFile(oldPath, newName);
     }
     showRenameDialog.value = false;
@@ -76,37 +81,38 @@ export function useFileActions(
         showNewDialog.value = true;
         break;
       case "open":
-        if (store.selectedFiles.size > 0) {
-          const first = [...store.selectedFiles][0];
+        if (sel.selectedFiles.size > 0) {
+          const first = [...sel.selectedFiles][0];
           const file = store.files.find((f) => f.path === first);
           if (file) await store.openSelectedFile(file);
         }
         break;
       case "cut":
-        await store.cutSelected();
+        await sel.cutSelected();
         toast.show(t("toast.cut"));
         break;
       case "copy":
-        await store.copySelected();
+        await sel.copySelected();
         toast.show(t("toast.copied"));
         break;
       case "paste":
         try {
-          await store.paste();
+          await sel.paste(store.currentPath);
+          await store.refresh();
           toast.show(t("toast.pasted"));
         } catch (e: any) {
           toast.show(t("toast.error") + ": " + e, true);
         }
         break;
       case "delete":
-        store.requestDelete(false);
+        del.requestDelete([...sel.selectedFiles], false);
         break;
       case "deletePermanent":
-        store.requestDelete(true);
+        del.requestDelete([...sel.selectedFiles], true);
         break;
       case "rename":
-        if (store.selectedFiles.size === 1) {
-          const path = [...store.selectedFiles][0];
+        if (sel.selectedFiles.size === 1) {
+          const path = [...sel.selectedFiles][0];
           const file = store.files.find((f) => f.path === path);
           if (file) {
             renameTarget.value = file.name;
@@ -115,7 +121,7 @@ export function useFileActions(
         }
         break;
       case "selectAll":
-        store.selectAll();
+        sel.selectAll(store.files);
         break;
       case "refresh":
         await store.refresh();
@@ -123,8 +129,8 @@ export function useFileActions(
       case "openInTerminal":
         try {
           const target =
-            store.selectedFiles.size === 1
-              ? [...store.selectedFiles][0]
+            sel.selectedFiles.size === 1
+              ? [...sel.selectedFiles][0]
               : store.currentPath;
           await tauri.openInTerminal(target);
         } catch (e: any) {
@@ -132,8 +138,8 @@ export function useFileActions(
         }
         break;
       case "properties":
-        if (store.selectedFiles.size === 1) {
-          const path = [...store.selectedFiles][0];
+        if (sel.selectedFiles.size === 1) {
+          const path = [...sel.selectedFiles][0];
           console.log("properties: opening for", path);
           try {
             await tauri.showFileProperties(path);
@@ -145,8 +151,8 @@ export function useFileActions(
       case "showInExplorer":
         {
           const path =
-            store.selectedFiles.size === 1
-              ? [...store.selectedFiles][0]
+            sel.selectedFiles.size === 1
+              ? [...sel.selectedFiles][0]
               : store.currentPath;
           if (path) {
             try {
@@ -154,6 +160,69 @@ export function useFileActions(
             } catch (e: any) {
               toast.show(t("toast.error") + ": " + e, true);
             }
+          }
+        }
+        break;
+      case "compress":
+        if (sel.selectedFiles.size > 0) {
+          const paths = [...sel.selectedFiles];
+          try {
+            const { save } = await import("@tauri-apps/plugin-dialog");
+            const filePath = await save({
+              defaultPath: "archive.zip",
+              filters: [{ name: "Zip Archive", extensions: ["zip"] }],
+            });
+            if (filePath) {
+              await tauri.compressFiles(paths, filePath);
+              toast.show(t("toast.compressed"));
+              await store.refresh();
+            }
+          } catch (e: any) {
+            toast.show(t("toast.error") + ": " + e, true);
+          }
+        }
+        break;
+      case "toggleProperties":
+        toggleProperties();
+        break;
+      case "addToFavorites":
+        if (sel.selectedFiles.size === 1) {
+          const path = [...sel.selectedFiles][0];
+          const file = store.files.find((f) => f.path === path);
+          if (file?.is_dir) {
+            const settings = useSettingsStore();
+            if (settings.hasBookmark(path)) {
+              settings.removeBookmark(path);
+              toast.show(t("sidebar.removeBookmark", { label: file.name }));
+            } else {
+              settings.addBookmark(path, file.name);
+              toast.show(t("sidebar.addToFavorites"));
+            }
+          }
+        }
+        break;
+      case "extract":
+        if (sel.selectedFiles.size === 1) {
+          const archivePath = [...sel.selectedFiles][0];
+          try {
+            const base =
+              archivePath
+                .replace(/\\/g, "/")
+                .split("/")
+                .slice(0, -1)
+                .join("/") || ".";
+            const name =
+              archivePath
+                .replace(/\\/g, "/")
+                .split("/")
+                .pop()
+                ?.replace(/\.[^.]+$/, "") || "extracted";
+            const destDir = base + "/" + name;
+            await tauri.extractArchive(archivePath, destDir);
+            toast.show(t("toast.extracted"));
+            await store.refresh();
+          } catch (e: any) {
+            toast.show(t("toast.error") + ": " + e, true);
           }
         }
         break;

@@ -115,8 +115,9 @@ export async function openInTerminal(path: string): Promise<void> {
 export async function searchFiles(
   directory: string,
   query: string,
+  content: string = "",
 ): Promise<void> {
-  return invoke("search_files", { directory, query });
+  return invoke("search_files", { directory, query, content });
 }
 
 export async function cancelSearch(): Promise<void> {
@@ -154,4 +155,18 @@ export async function getFileBase64(
   path: string,
 ): Promise<{ mime: string; data: string }> {
   return invoke("get_file_base64", { path });
+}
+
+export async function compressFiles(
+  paths: string[],
+  dest: string,
+): Promise<void> {
+  return invoke("compress_files", { paths, dest });
+}
+
+export async function extractArchive(
+  archive: string,
+  destDir: string,
+): Promise<void> {
+  return invoke("extract_archive_cmd", { archive, destDir });
 }

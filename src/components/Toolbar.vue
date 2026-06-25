@@ -4,7 +4,7 @@
             <button
                 class="icon-btn"
                 :title="t('toolbar.back')"
-                :disabled="!store.canGoBack"
+                :disabled="!nav.canGoBack"
                 @click="$emit('navigateBack')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
@@ -20,7 +20,7 @@
             <button
                 class="icon-btn"
                 :title="t('toolbar.forward')"
-                :disabled="!store.canGoForward"
+                :disabled="!nav.canGoForward"
                 @click="$emit('navigateForward')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
@@ -73,7 +73,7 @@
                         class="address-input"
                         spellcheck="false"
                         @keydown.enter="onAddressEnter"
-                        @keydown.escape="showAddressDropdown = false"
+                        @keydown.escape="showDropdown = false"
                         @keydown.down.prevent="onAddressArrowDown"
                         @keydown.up.prevent="onAddressArrowUp"
                         @focus="onAddressFocus"
@@ -83,42 +83,20 @@
                 </div>
                 <!-- Address autocomplete dropdown -->
                 <div
-                    v-if="showAddressDropdown && addressSuggestions.length > 0"
+                    v-if="showDropdown && suggestions.length > 0"
                     class="address-dropdown"
                     @mousedown.prevent
                 >
                     <div
-                        v-for="(item, idx) in addressSuggestions"
+                        v-for="(item, idx) in suggestions"
                         :key="item.path"
                         class="address-suggestion"
-                        :class="{ highlighted: idx === addressSelectedIndex }"
-                        @mousedown.prevent="selectAddressSuggestion(item)"
-                        @mouseenter="addressSelectedIndex = idx"
+                        :class="{ highlighted: idx === selectedIdx }"
+                        @mousedown.prevent="selectSuggestion(item)"
+                        @mouseenter="selectedIdx = idx"
                     >
-                        <svg
-                            class="suggestion-icon"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                        >
-                            <path
-                                v-if="item.is_dir"
-                                d="M2 4.5c0-.83.67-1.5 1.5-1.5h2.5a1.5 1.5 0 011.1.5l.7.85a.5.5 0 00.38.18H12c.83 0 1.5.67 1.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11V4.5z"
-                                fill="var(--accent)"
-                                opacity="0.8"
-                            />
-                            <path
-                                v-else
-                                d="M4 2h3.8l2.7 2.7V12a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"
-                                fill="var(--text-muted)"
-                                opacity="0.6"
-                            />
-                        </svg>
-                        <span class="suggestion-name">{{ item.name }}</span>
-                        <span class="suggestion-meta">{{
-                            item.is_dir
-                                ? t("fileTypes.folder")
-                                : item.extension.toUpperCase()
-                        }}</span>
+                        <span class="suggestion-icon">📁</span>
+                        <span>{{ item.name }}</span>
                     </div>
                 </div>
             </div>
@@ -146,6 +124,19 @@
                     spellcheck="false"
                     @keydown.enter="onSearchEnter"
                 />
+                <!-- Content search toggle -->
+                <button
+                    class="toolbar-btn content-search-toggle"
+                    :class="{ active: contentSearch }"
+                    :title="
+                        contentSearch
+                            ? 'Content search ON'
+                            : 'Content search OFF'
+                    "
+                    @click="contentSearch = !contentSearch"
+                >
+                    🔍
+                </button>
                 <!-- Stop button when searching -->
                 <button
                     v-if="store.isSearching && searchQuery"
@@ -214,39 +205,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useNavigationStore } from "@/stores/navigationStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import type { FileEntry } from "@/types";
 
 const { t, locale } = useI18n();
 const store = useFileStore();
+const nav = useNavigationStore();
 const settings = useSettingsStore();
 const addressInput = ref<HTMLInputElement | null>(null);
 const addressValue = ref("");
 const searchQuery = ref("");
+const contentSearch = ref(false);
 
 // ── Address autocomplete ──
-const showAddressDropdown = ref(false);
-const addressSelectedIndex = ref(0);
+const showDropdown = ref(false);
+const suggestions = ref<{ name: string; path: string }[]>([]);
+const selectedIdx = ref(0);
 
-const addressSuggestions = computed(() => {
-    const val = addressValue.value.trim();
-    if (!val || !store.currentPath || !showAddressDropdown.value) return [];
-    const lower = val.toLowerCase();
-
-    // Filter and sort: directories first, then by name
-    const matched = store.files.filter((f: FileEntry) =>
-        f.name.toLowerCase().startsWith(lower),
-    );
-    matched.sort((a: FileEntry, b: FileEntry) => {
-        if (a.is_dir && !b.is_dir) return -1;
-        if (!a.is_dir && b.is_dir) return 1;
-        return a.name.localeCompare(b.name);
-    });
-    return matched.slice(0, 15);
-});
+watch(
+    () => store.currentPath,
+    (p) => {
+        if (p) addressValue.value = p;
+    },
+    { immediate: true },
+);
 
 const emit = defineEmits<{
     openSettings: [];
@@ -255,7 +240,7 @@ const emit = defineEmits<{
     navigateUp: [];
     refresh: [];
     navigateAddress: [path: string];
-    searchSubmit: [query: string];
+    searchSubmit: [query: string, content: string];
 }>();
 
 // Sync locale from settings store
@@ -267,71 +252,84 @@ watch(
     { immediate: true },
 );
 
-watch(
-    () => store.currentPath,
-    (val) => {
-        addressValue.value = val || t("statusBar.thisPc");
-    },
-);
-
-function navigateToAddress(path?: string) {
-    const p = path || addressValue.value.trim();
-    if (p && p !== t("statusBar.thisPc")) {
-        emit("navigateAddress", p);
-    }
-    showAddressDropdown.value = false;
-}
-
 function onAddressFocus() {
-    addressInput.value?.select();
-    showAddressDropdown.value = true;
-    addressSelectedIndex.value = 0;
+    if (addressValue.value) {
+        updateSuggestions(addressValue.value);
+        showDropdown.value = suggestions.value.length > 0;
+    }
 }
-function onAddressInput() {
-    showAddressDropdown.value = true;
-    addressSelectedIndex.value = 0;
+
+async function onAddressInput() {
+    const val = addressValue.value;
+    if (val) {
+        await updateSuggestions(val);
+        showDropdown.value = suggestions.value.length > 0;
+        selectedIdx.value = 0;
+    } else {
+        showDropdown.value = false;
+    }
 }
+
 function onAddressBlur() {
-    // Delay to allow click on suggestion
     setTimeout(() => {
-        showAddressDropdown.value = false;
+        showDropdown.value = false;
     }, 150);
 }
+
+async function updateSuggestions(input: string) {
+    const lastSep = Math.max(input.lastIndexOf("/"), input.lastIndexOf("\\"));
+    const dirPath = lastSep >= 0 ? input.substring(0, lastSep) || "/" : "";
+    const partial =
+        lastSep >= 0
+            ? input.substring(lastSep + 1).toLowerCase()
+            : input.toLowerCase();
+
+    try {
+        const { listDirectory } = await import("@/utils/tauri");
+        const entries = await listDirectory(dirPath || "/");
+        suggestions.value = entries
+            .filter((e) => e.is_dir && e.name.toLowerCase().startsWith(partial))
+            .map((e) => ({ name: e.name, path: e.path }))
+            .slice(0, 8);
+    } catch {
+        suggestions.value = [];
+    }
+}
+
+function onAddressArrowDown() {
+    if (selectedIdx.value < suggestions.value.length - 1) selectedIdx.value++;
+    else selectedIdx.value = 0;
+}
+
+function onAddressArrowUp() {
+    if (selectedIdx.value > 0) selectedIdx.value--;
+    else selectedIdx.value = suggestions.value.length - 1;
+}
+
+function selectSuggestion(item: { name: string; path: string }) {
+    addressValue.value = item.path;
+    showDropdown.value = false;
+    emit("navigateAddress", item.path);
+}
+
 function onAddressEnter() {
-    if (showAddressDropdown.value && addressSuggestions.value.length > 0) {
-        const sel = addressSuggestions.value[addressSelectedIndex.value];
+    if (showDropdown.value && suggestions.value.length > 0) {
+        const sel = suggestions.value[selectedIdx.value];
         if (sel) {
-            const parent =
-                store.currentPath.endsWith("\\") ||
-                store.currentPath.endsWith("/")
-                    ? store.currentPath
-                    : store.currentPath +
-                      (store.currentPath.includes("/") ? "/" : "\\");
-            navigateToAddress(parent + sel.name);
+            selectSuggestion(sel);
             return;
         }
     }
-    navigateToAddress();
-}
-function onAddressArrowDown() {
-    const max = addressSuggestions.value.length - 1;
-    addressSelectedIndex.value = Math.min(addressSelectedIndex.value + 1, max);
-}
-function onAddressArrowUp() {
-    addressSelectedIndex.value = Math.max(addressSelectedIndex.value - 1, 0);
-}
-function selectAddressSuggestion(item: FileEntry) {
-    const parent =
-        store.currentPath.endsWith("\\") || store.currentPath.endsWith("/")
-            ? store.currentPath
-            : store.currentPath +
-              (store.currentPath.includes("/") ? "/" : "\\");
-    navigateToAddress(parent + item.name);
+    showDropdown.value = false;
+    const path = addressValue.value.trim();
+    if (path) {
+        emit("navigateAddress", path);
+    }
 }
 function onSearchEnter() {
     const q = searchQuery.value.trim();
     if (q) {
-        emit("searchSubmit", q);
+        emit("searchSubmit", q, contentSearch.value ? q : "");
     } else {
         store.cancelCurrentSearch();
     }
@@ -478,5 +476,21 @@ function clearSearch() {
 }
 .settings-btn {
     flex-shrink: 0;
+}
+.content-search-toggle {
+    padding: 1px 4px;
+    min-width: 22px;
+    height: 20px;
+    flex-shrink: 0;
+    font-size: 11px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+.content-search-toggle.active {
+    opacity: 1;
+    color: var(--accent);
+}
+.content-search-toggle:hover {
+    opacity: 0.8;
 }
 </style>

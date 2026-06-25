@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
 import type { FileEntry } from "@/types";
 import { getFileCategory, gridColorClassForCategory } from "@/utils/fileTypes";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
@@ -132,6 +133,7 @@ const props = defineProps<{
 }>();
 
 const store = useFileStore();
+const sel = useSelectionStore();
 
 // ── Thumbnail cache ──
 const thumbCache = ref<Record<string, string>>({});
@@ -180,7 +182,7 @@ watch(
 );
 
 function isSelected(path: string): boolean {
-    return store.selectedFiles.has(path);
+    return sel.selectedFiles.has(path);
 }
 
 function gridColorClass(file: FileEntry): string {
@@ -207,6 +209,8 @@ function isBundle(file: FileEntry): boolean {
     gap: 4px;
     padding: 8px;
     align-content: start;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
 }
 .grid-card {
     display: flex;
@@ -218,6 +222,8 @@ function isBundle(file: FileEntry): boolean {
     transition: background 0.1s;
     text-align: center;
     min-height: 0;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 100px;
 }
 .grid-card:hover {
     background: var(--bg-hover);

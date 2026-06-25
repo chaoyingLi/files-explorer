@@ -19,7 +19,7 @@ export function useSearchService(
     }
   }
 
-  async function submitSearch(query: string) {
+  async function submitSearch(query: string, contentQuery: string = "") {
     await store.cancelCurrentSearch();
     cleanupSearch();
 
@@ -35,7 +35,10 @@ export function useSearchService(
       return;
     }
 
-    const searchTitle = t("search.resultsTabTitle", { query, folder: searchDir });
+    const searchTitle = t("search.resultsTabTitle", {
+      query,
+      folder: searchDir,
+    });
     tabStore.addTab(fp.id, searchDir, searchTitle);
     tabStore.focusPane(fp.id);
 
@@ -48,7 +51,6 @@ export function useSearchService(
     nt.searchTotal = 0;
 
     store.files = [];
-    store.selectedFiles = new Set();
     store.isSearching = true;
     store.currentPath = searchDir;
 
@@ -76,6 +78,13 @@ export function useSearchService(
             count: p.total,
             folder: searchDir,
           });
+          // Show toast to inform user
+          showToast(
+            t("search.resultsTruncatedHint", {
+              max: p.total,
+            }),
+            false,
+          );
         } else {
           nt.title = t("search.resultsTab", {
             query,
@@ -88,7 +97,7 @@ export function useSearchService(
     });
 
     try {
-      await tauri.searchFiles(searchDir, query);
+      await tauri.searchFiles(searchDir, query, contentQuery);
     } catch (e: any) {
       store.isSearching = false;
       showToast(e, true);

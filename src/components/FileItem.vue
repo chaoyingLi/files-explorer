@@ -98,6 +98,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry } from "@/types";
 import {
@@ -124,6 +125,7 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+const sel = useSelectionStore();
 
 const category = computed(() =>
     getFileCategory(props.file.extension, props.file.is_dir),
@@ -197,7 +199,7 @@ function startNativeFileDrag(e: MouseEvent) {
     if (e.button !== 0) return;
     console.log("drag:start", props.file.name);
     const store = useFileStore();
-    const selected = store.selectedFiles;
+    const selected = sel.selectedFiles;
     const paths = selected.has(props.file.path)
         ? [...selected]
         : [props.file.path];

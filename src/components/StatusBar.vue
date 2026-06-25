@@ -4,6 +4,13 @@
             <span>{{ statusText }}</span>
         </div>
         <div class="status-right">
+            <button
+                class="status-btn"
+                :title="$t('contextMenu.properties')"
+                @click="$emit('toggleProperties')"
+            >
+                ⓘ
+            </button>
             <span v-if="store.loading" class="loading-indicator">
                 <div
                     class="loading-spinner"
@@ -19,6 +26,8 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+
+defineEmits<{ toggleProperties: [] }>();
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -73,5 +82,26 @@ const itemCount = computed(() => {
 .loading-indicator {
     display: flex;
     align-items: center;
+}
+
+.status-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.status-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 </style>

@@ -29,11 +29,17 @@ export default {
     pictures: "Pictures",
     music: "Music",
     videos: "Videos",
+    favorites: "⭐ Favorites",
+    addToFavorites: "Added to favorites",
+    dropToBookmark: "Drop folders here to bookmark",
+    removeBookmark: 'Remove "{label}" from favorites?',
   },
   search: {
     resultsTabTitle: 'Results of "{query}" in {folder}',
     resultsTab: 'Results of "{query}" in {folder} ({count})',
     resultsTabTruncated: 'Results of "{query}" in {folder} ({count}+)',
+    resultsTruncatedHint:
+      "Result limit reached ({max} items). Only the first {max} are shown. Please refine your search for more precise results.",
     noDirectory: "No directory to search",
   },
   fileList: {
@@ -75,6 +81,9 @@ export default {
     properties: "Properties",
     showInExplorer: "Show in Explorer",
     showInFinder: "Show in Finder",
+    addToFavorites: "Add to Favorites",
+    compress: "Compress...",
+    extract: "Extract...",
   },
   tab: {
     newTab: "New Tab",
@@ -119,6 +128,8 @@ export default {
     cutCancelled: "Cut cancelled",
     undoFailed: "Undo failed: {error}",
     error: "Error",
+    compressed: "Compressed",
+    extracted: "Extracted",
   },
   fileTypes: {
     folder: "Folder",

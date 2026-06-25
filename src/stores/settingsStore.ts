@@ -4,10 +4,28 @@ import { ref } from "vue";
 export type ThemeMode = "dark" | "light";
 export type FontSize = "small" | "medium" | "large";
 
+export interface Bookmark {
+  path: string;
+  label: string;
+}
+
 export interface AppSettings {
   theme: ThemeMode;
   locale: string;
   fontSize: FontSize;
+  bookmarks: Bookmark[];
+}
+
+function loadBookmarks(): Bookmark[] {
+  try {
+    const raw = localStorage.getItem("app-bookmarks");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+function saveBookmarks(bookmarks: Bookmark[]) {
+  localStorage.setItem("app-bookmarks", JSON.stringify(bookmarks));
 }
 
 function loadSettings(): AppSettings {
@@ -19,6 +37,7 @@ function loadSettings(): AppSettings {
         theme: parsed.theme || "dark",
         locale: parsed.locale || localStorage.getItem("app-locale") || "zh",
         fontSize: parsed.fontSize || "medium",
+        bookmarks: loadBookmarks(),
       };
     }
   } catch {}
@@ -26,6 +45,7 @@ function loadSettings(): AppSettings {
     theme: "dark",
     locale: localStorage.getItem("app-locale") || "zh",
     fontSize: "medium",
+    bookmarks: loadBookmarks(),
   };
 }
 
@@ -69,11 +89,29 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  const bookmarks = ref<Bookmark[]>(loadBookmarks());
+
+  function addBookmark(path: string, label: string) {
+    if (bookmarks.value.some((b) => b.path === path)) return;
+    bookmarks.value.push({ path, label });
+    saveBookmarks(bookmarks.value);
+  }
+
+  function removeBookmark(path: string) {
+    bookmarks.value = bookmarks.value.filter((b) => b.path !== path);
+    saveBookmarks(bookmarks.value);
+  }
+
+  function hasBookmark(path: string): boolean {
+    return bookmarks.value.some((b) => b.path === path);
+  }
+
   function persist() {
     saveSettings({
       theme: theme.value,
       locale: locale.value,
       fontSize: fontSize.value,
+      bookmarks: bookmarks.value,
     });
   }
 
@@ -81,6 +119,10 @@ export const useSettingsStore = defineStore("settings", () => {
     theme,
     locale,
     fontSize,
+    bookmarks,
+    addBookmark,
+    removeBookmark,
+    hasBookmark,
     setTheme,
     setLocale,
     setFontSize,

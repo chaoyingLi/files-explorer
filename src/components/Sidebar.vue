@@ -60,6 +60,25 @@
             </div>
         </div>
 
+        <div class="sidebar-section" v-if="settings.bookmarks.length > 0">
+            <div class="sidebar-header">
+                <span class="sidebar-title">{{ t("sidebar.favorites") }}</span>
+            </div>
+            <div class="sidebar-list">
+                <div
+                    v-for="bm in settings.bookmarks"
+                    :key="bm.path"
+                    class="sidebar-item"
+                    :class="{ active: store.currentPath === bm.path }"
+                    @click="emit('navigate', bm.path)"
+                    @contextmenu.prevent.stop="onBookmarkContext(bm, $event)"
+                >
+                    <span class="sidebar-icon bookmark-icon">⭐</span>
+                    <span class="sidebar-item-name">{{ bm.label }}</span>
+                </div>
+            </div>
+        </div>
+
         <div class="sidebar-header">
             <span class="sidebar-title">{{ t("sidebar.quickAccess") }}</span>
         </div>
@@ -87,10 +106,12 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSettingsStore, type Bookmark } from "@/stores/settingsStore";
 import type { DiskInfo } from "@/types";
 
 const { t } = useI18n();
 const store = useFileStore();
+const settings = useSettingsStore();
 
 const emit = defineEmits<{
     navigate: [path: string];
@@ -175,6 +196,18 @@ function openDrive(drive: DiskInfo) {
 async function handleQuickAccess(path: string) {
     emit("navigate", path);
 }
+
+function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
+    const label = bm.label;
+    if (
+        confirm(
+            t("sidebar.removeBookmark", { label }) ||
+                `Remove "${label}" from favorites?`,
+        )
+    ) {
+        settings.removeBookmark(bm.path);
+    }
+}
 </script>
 
 <style scoped>
@@ -245,5 +278,15 @@ async function handleQuickAccess(path: string) {
 .sidebar-item-meta {
     font-size: 11px;
     color: var(--text-muted);
+}
+.bookmark-icon {
+    width: auto;
+    height: auto;
+    font-size: 16px;
+    filter: none;
+    line-height: 1;
+    text-align: center;
+    flex-shrink: 0;
+    width: 22px;
 }
 </style>

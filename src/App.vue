@@ -12,7 +12,7 @@
             @navigate-up="nav.toolbarUp"
             @refresh="nav.toolbarRefresh"
             @navigate-address="nav.toolbarAddress"
-            @search-submit="search.submitSearch"
+            @search-submit="(q, c) => search.submitSearch(q, c)"
         />
         <RibbonToolbar @action="(a: string) => actions.executeAction(a)" />
         <div class="main-content">
@@ -47,15 +47,20 @@
                     @file-drop="dnd.handleFileDrop"
                 />
             </div>
+            <PropertiesPanel
+                v-if="showProperties"
+                :visible="showProperties"
+                @close="showProperties = false"
+            />
         </div>
         <DeleteConfirmDialog
-            v-if="store.showDeleteConfirm"
-            :count="store.deleteTargetCount"
-            :permanently="store.deletePermanently"
+            v-if="del.showDeleteConfirm"
+            :count="del.deleteTargetCount"
+            :permanently="del.deletePermanently"
             @confirm="actions.handleDeleteConfirm"
-            @cancel="store.cancelDelete()"
+            @cancel="del.cancelDelete()"
         />
-        <StatusBar />
+        <StatusBar @toggle-properties="toggleProperties" />
         <ContextMenu
             v-if="ctx.showContextMenu.value"
             :x="ctx.contextMenuPos.value.x"
@@ -77,21 +82,26 @@
             @confirm="actions.handleRename"
         />
         <SettingsDialog v-if="showSettings" @close="showSettings = false" />
-        <div
-            v-if="toast.message.value"
-            class="toast"
-            :class="{ 'toast-error': toast.isError.value }"
-        >
-            <span v-if="toast.isError.value" class="toast-icon">⚠</span>
-            {{ toast.message.value }}
+        <div v-if="toast.messages.value.length > 0" class="toast-container">
+            <div
+                v-for="msg in toast.messages.value"
+                :key="msg.id"
+                class="toast"
+                :class="{ 'toast-error': msg.isError }"
+            >
+                <span v-if="msg.isError" class="toast-icon">⚠</span>
+                {{ msg.text }}
+            </div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, onErrorCaptured } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useDeleteStore } from "@/stores/deleteStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTabStore, type Tab } from "@/stores/tabStore";
 import * as tauri from "@/utils/tauri";
@@ -107,6 +117,7 @@ import ContextMenu from "@/components/ContextMenu.vue";
 import NewItemDialog from "@/components/Dialogs/NewItemDialog.vue";
 import RenameDialog from "@/components/Dialogs/RenameDialog.vue";
 import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
+import PropertiesPanel from "@/components/PropertiesPanel.vue";
 
 import { useToast } from "@/composables/useToast";
 import { useContextMenu } from "@/composables/useContextMenu";
@@ -119,13 +130,19 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const { t } = useI18n();
 const store = useFileStore();
+const sel = useSelectionStore();
+const del = useDeleteStore();
 useSettingsStore();
 const tabStore = useTabStore();
 const showSettings = ref(false);
+const showProperties = ref(false);
 
 const toast = useToast();
 const ctx = useContextMenu();
-const actions = useFileActions(toast);
+const toggleProperties = () => {
+    showProperties.value = !showProperties.value;
+};
+const actions = useFileActions(toast, toggleProperties);
 const nav = usePanelNavigation(
     actions.saveFileStateToTab,
     actions.loadFileStateFromTab,
@@ -134,9 +151,16 @@ const nav = usePanelNavigation(
 const search = useSearchService(actions.saveFileStateToTab, toast.show);
 const dnd = useDragDrop(toast.show, t);
 
-// Unwrap refs for template prop binding (vue-tsc strictness)
 const focusedPaneId = computed(() => nav.focusedPaneId.value);
 const contextMenuItems = computed(() => ctx.contextMenuItems.value);
+
+// Global error boundary
+onErrorCaptured((err, _instance, info) => {
+    console.error("[FilesExplorer Error]", info, err);
+    // Show user-friendly error toast
+    toast.show(t("toast.error") + ": " + String(err).slice(0, 120), true);
+    return false; // prevent propagation
+});
 
 useKeyboardShortcuts({
     onTabClose: (pid, tid) => nav.onTabClose(pid, tid, search.cleanupSearch),
@@ -153,6 +177,9 @@ useKeyboardShortcuts({
     openSettings: () => {
         showSettings.value = true;
     },
+    openProperties: () => {
+        showProperties.value = !showProperties.value;
+    },
 });
 
 function onGlobalContextMenu(e: MouseEvent) {
@@ -168,8 +195,8 @@ async function handleContextAction(action: string) {
     ctx.closeContextMenu();
     if (action === "showInExplorer") {
         const path =
-            store.selectedFiles.size === 1
-                ? [...store.selectedFiles][0]
+            sel.selectedFiles.size === 1
+                ? [...sel.selectedFiles][0]
                 : store.currentPath;
         if (path) {
             try {
@@ -189,11 +216,12 @@ async function handleContextAction(action: string) {
             | "down";
         let splitPath = ctx.sidebarContextPath.value;
         let splitTitle = "";
-        if (!splitPath && store.selectedFiles.size === 1) {
-            const sel = [...store.selectedFiles][0];
-            const sf = store.files.find((f) => f.path === sel);
+        if (!splitPath && sel.selectedFiles.size === 1) {
+            const sf = store.files.find(
+                (f) => f.path === [...sel.selectedFiles][0],
+            );
             if (sf?.is_dir) {
-                splitPath = sel;
+                splitPath = [...sel.selectedFiles][0];
                 splitTitle = sf.name;
             }
         }
@@ -232,19 +260,16 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
-    // Native OS file drop (Explorer / other apps drag files into window)
     let _ndu: (() => void) | null = null;
     try {
         const win = getCurrentWebviewWindow();
         _ndu = await win.onDragDropEvent(async (event: any) => {
             const e = event.payload;
             if (e.type !== "drop") return;
-            // Extract absolute file paths
             const paths: string[] = (e.paths || [])
                 .map((p: any) => (typeof p === "string" ? p : p.path || ""))
                 .filter(Boolean);
             if (paths.length === 0) return;
-            // Move files to focused pane's current directory
             const dir = store.currentPath;
             if (!dir) return;
             try {
@@ -259,12 +284,10 @@ onMounted(async () => {
         /* ignore if API not available */
     }
 
-    // Cleanup on unmount
     onUnmounted(() => {
         _ndu?.();
     });
 
-    // Init panels
     const allPanes = tabStore.getAllPanes();
     if (allPanes.length > 0) {
         const firstPane = allPanes[0];
@@ -297,11 +320,17 @@ onMounted(async () => {
     overflow: hidden;
     display: flex;
 }
-.toast {
+.toast-container {
     position: fixed;
     bottom: 36px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    z-index: 2000;
+}
+.toast {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -309,10 +338,10 @@ onMounted(async () => {
     font-size: 13px;
     color: var(--text-primary);
     box-shadow: 0 4px 16px var(--shadow);
-    z-index: 2000;
     display: flex;
     align-items: center;
     gap: 8px;
+    white-space: nowrap;
 }
 .toast-error {
     border-color: var(--danger);

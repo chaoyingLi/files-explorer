@@ -101,6 +101,8 @@
 
 <script setup lang="ts">
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useViewStore } from "@/stores/viewStore";
 import type { FileEntry } from "@/types";
 import {
     getFileCategory,
@@ -125,9 +127,11 @@ const emit = defineEmits<{
 }>();
 
 const store = useFileStore();
+const sel = useSelectionStore();
+const view = useViewStore();
 
 function isSelected(path: string): boolean {
-    return store.selectedFiles.has(path);
+    return sel.selectedFiles.has(path);
 }
 
 function treeColorClass(file: FileEntry): string {
@@ -148,25 +152,25 @@ function isBundle(file: FileEntry): boolean {
 
 function onArrowClick(item: TreeViewItem) {
     if (item.file.is_dir) {
-        store.toggleTreeExpand(item.file.path);
+        view.toggleTreeExpand(item.file.path);
     }
 }
 
 function onItemClick(item: TreeViewItem, e: MouseEvent) {
     const multi = e.ctrlKey || e.metaKey;
-    store.selectFile(item.file, multi);
+    sel.selectFile(item.file, multi);
 }
 
 async function onItemDoubleClick(item: TreeViewItem) {
     if (item.file.is_dir) {
-        await store.toggleTreeExpand(item.file.path);
+        await view.toggleTreeExpand(item.file.path);
     } else {
         await store.openSelectedFile(item.file);
     }
 }
 
 function onContextMenu(file: FileEntry, e: MouseEvent) {
-    store.selectFile(file, e.ctrlKey || e.metaKey);
+    sel.selectFile(file, e.ctrlKey || e.metaKey);
     emit("fileContextMenu", file, e);
 }
 </script>

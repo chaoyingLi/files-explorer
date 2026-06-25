@@ -8,7 +8,19 @@ fn init_logging() {
     let log_dir = dirs_next().unwrap_or_else(|| ".".into());
     fs::create_dir_all(&log_dir).ok();
 
-    let log_file = std::path::PathBuf::from(&log_dir).join("files-explorer.log");
+    // Rotate: keep up to 5 log files
+    let max_logs = 5;
+    for i in (1..max_logs).rev() {
+        let old = format!("{}/files-explorer.{}.log", log_dir, i);
+        let new = format!("{}/files-explorer.{}.log", log_dir, i + 1);
+        let _ = fs::remove_file(&new);
+        let _ = fs::rename(&old, &new);
+    }
+    let main_log = format!("{}/files-explorer.log", log_dir);
+    let rotated = format!("{}/files-explorer.1.log", log_dir);
+    let _ = fs::rename(&main_log, &rotated);
+
+    let log_file = std::path::PathBuf::from(&main_log);
     let _ = WriteLogger::init(
         LevelFilter::Debug,
         Config::default(),

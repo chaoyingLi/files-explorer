@@ -4,7 +4,7 @@
         class="file-list"
         :class="{ 'drop-active': isDragOver && !!currentPath }"
         :style="colVars"
-        @click.self="store.clearSelection()"
+        @click.self="sel.clearSelection()"
         @contextmenu.prevent="onContextMenu"
     >
         <div v-if="isDragOver && currentPath" class="drop-indicator">
@@ -25,7 +25,7 @@
         <div
             v-if="
                 currentPath &&
-                (store.viewMode === 'details' || store.viewMode === 'list')
+                (view.viewMode === 'details' || view.viewMode === 'list')
             "
             class="file-list-header"
         >
@@ -46,7 +46,7 @@
             </div>
             <div
                 class="col-date"
-                v-if="store.viewMode === 'details'"
+                v-if="view.viewMode === 'details'"
                 :style="{ width: colWidths.date + 'px' }"
                 @click="sortBy('modified')"
             >
@@ -59,7 +59,7 @@
             </div>
             <div
                 class="col-created"
-                v-if="store.viewMode === 'details'"
+                v-if="view.viewMode === 'details'"
                 :style="{ width: colWidths.created + 'px' }"
                 @click="sortBy('created')"
             >
@@ -100,7 +100,7 @@
         <div
             v-if="currentPath && !store.loading"
             class="file-items"
-            :class="'view-' + store.viewMode"
+            :class="'view-' + view.viewMode"
             :style="colVars"
             @dragover.prevent="onDragOver"
             @dragleave="onDragLeave"
@@ -115,9 +115,9 @@
 
             <!-- Details & List views -->
             <DetailsListView
-                v-if="store.viewMode === 'details' || store.viewMode === 'list'"
+                v-if="view.viewMode === 'details' || view.viewMode === 'list'"
                 :files="displayFiles"
-                :compact="store.viewMode === 'list'"
+                :compact="view.viewMode === 'list'"
                 :show-path="isSearchTab"
                 @file-click="onFileClick"
                 @file-dbl-click="onFileDblClick"
@@ -126,14 +126,14 @@
 
             <!-- Tree view -->
             <TreeView
-                v-else-if="store.viewMode === 'tree'"
+                v-else-if="view.viewMode === 'tree'"
                 :items="treeVisible"
                 @file-context-menu="onFileContextMenu"
             />
 
             <!-- Column view -->
             <ColumnContainer
-                v-else-if="store.viewMode === 'column'"
+                v-else-if="view.viewMode === 'column'"
                 :stack="tabColumnStack"
                 @update-stack="onColumnStackUpdate"
                 @context-menu="(file, e) => onFileContextMenu(file, e)"
@@ -154,7 +154,9 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { useFileStore, type ColumnState } from "@/stores/fileStore";
+import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useViewStore, type ColumnState } from "@/stores/viewStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry } from "@/types";
 import * as tauri from "@/utils/tauri";
@@ -167,6 +169,8 @@ import ColumnContainer from "@/components/ColumnContainer.vue";
 
 const { t } = useI18n();
 const store = useFileStore();
+const sel = useSelectionStore();
+const view = useViewStore();
 const tabStore = useTabStore();
 
 const props = defineProps<{ paneId?: string }>();
@@ -325,11 +329,11 @@ const treeVisible = computed<TreeViewItem[]>(() => {
     const result: TreeViewItem[] = [];
     function walk(items: FileEntry[], depth: number) {
         for (const item of items) {
-            const expanded = item.is_dir && store.isTreeExpanded(item.path);
+            const expanded = item.is_dir && view.isTreeExpanded(item.path);
             const hasChildren = item.is_dir;
             result.push({ file: item, depth, expanded, hasChildren });
             if (expanded) {
-                const children = store.getTreeChildren(item.path);
+                const children = view.getTreeChildren(item.path);
                 if (children) {
                     walk(children, depth + 1);
                 }
@@ -349,7 +353,7 @@ const treeVisible = computed<TreeViewItem[]>(() => {
 // ── File click handlers ──
 function onFileClick(file: FileEntry, e: MouseEvent) {
     const multi = e.ctrlKey || e.metaKey;
-    store.selectFile(file, multi);
+    sel.selectFile(file, multi);
 }
 
 async function onFileDblClick(file: FileEntry, _e: MouseEvent) {
@@ -361,7 +365,7 @@ function onContextMenu(e: MouseEvent) {
 }
 
 function onFileContextMenu(file: FileEntry, e: MouseEvent) {
-    store.selectFile(file, e.ctrlKey || e.metaKey);
+    sel.selectFile(file, e.ctrlKey || e.metaKey);
     emit("fileContextMenu", file, e);
 }
 

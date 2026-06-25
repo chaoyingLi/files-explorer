@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
 import type { ContextMenuOption } from "@/types";
 
 // ── Menu icons (14x14 viewBox SVG paths) ──
@@ -28,6 +29,7 @@ const I = {
 export function useContextMenu() {
   const { t } = useI18n();
   const store = useFileStore();
+  const sel = useSelectionStore();
 
   const isMac =
     typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -47,11 +49,10 @@ export function useContextMenu() {
   }
 
   const items = computed<ContextMenuOption[]>(() => {
-    const hasSelection = store.selectedFiles.size > 0;
-    const singleSelection = store.selectedFiles.size === 1;
+    const hasSelection = sel.selectedFiles.size > 0;
+    const singleSelection = sel.selectedFiles.size === 1;
     const result: ContextMenuOption[] = [];
 
-    // Platform-aware shortcut key helper: use "cmd*" keys on macOS
     const sk = (ctrlKey: string, cmdKey: string) => t(isMac ? cmdKey : ctrlKey);
 
     if (!store.currentPath) {
@@ -120,6 +121,19 @@ export function useContextMenu() {
           icon: I.rename,
           shortcut: t("shortcuts.f2"),
         });
+        // Bookmark folder
+        const firstPath = [...sel.selectedFiles][0];
+        const file = store.files.find((f) => f.path === firstPath);
+        if (file?.is_dir) {
+          result.push(
+            { label: "", action: "", separator: true },
+            {
+              label: t("contextMenu.addToFavorites"),
+              action: "addToFavorites",
+              icon: I.newFolder,
+            },
+          );
+        }
       }
     }
 
@@ -149,13 +163,39 @@ export function useContextMenu() {
       );
     }
 
+    result.push({
+      label: t("contextMenu.paste"),
+      action: "paste",
+      icon: I.paste,
+      shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
+    });
+
+    // Only show compress when files selected
+    if (hasSelection) {
+      result.push(
+        { label: "", action: "", separator: true },
+        {
+          label: t("contextMenu.compress"),
+          action: "compress",
+          icon: I.copy,
+        },
+      );
+    }
+    // Show extract for archive files (single selection, is a zip/tar/gz file)
+    if (singleSelection) {
+      const first = [...sel.selectedFiles][0];
+      const archiveExts = ["zip", "tar", "gz", "tgz", "7z", "rar"];
+      const ext = first.split(".").pop()?.toLowerCase() || "";
+      if (archiveExts.includes(ext)) {
+        result.push({
+          label: t("contextMenu.extract"),
+          action: "extract",
+          icon: I.copy,
+        });
+      }
+    }
+
     result.push(
-      {
-        label: t("contextMenu.paste"),
-        action: "paste",
-        icon: I.paste,
-        shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
-      },
       { label: "", action: "", separator: true },
       {
         label: t("contextMenu.properties"),

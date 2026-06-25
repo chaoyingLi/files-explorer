@@ -19,12 +19,76 @@ const icons = {
 // Re-export bundle helper from single source
 export { isBundleDirectory } from "./fileTypes";
 
-import { getIconKey } from "./fileTypes";
+import { getIconKey, getFileCategory } from "./fileTypes";
+import type { FileCategory } from "./fileTypes";
+
+const iconCache = new Map<string, string | null>();
 
 export function getFileIconSvg(
-  extension: string,
-  _isDir: boolean,
+  extOrFile: string | { extension: string; is_dir: boolean },
+  isDir?: boolean,
 ): string | null {
-  const key = getIconKey(extension);
-  return key ? icons[key as keyof typeof icons] : null;
+  let extension: string;
+  let isDirFlag: boolean;
+  if (typeof extOrFile === "string") {
+    extension = extOrFile;
+    isDirFlag = isDir ?? false;
+  } else {
+    extension = extOrFile.extension;
+    isDirFlag = extOrFile.is_dir;
+  }
+
+  // Cache key: "ext|isDir"
+  const cacheKey = `${extension.toLowerCase()}|${isDirFlag}`;
+  const cached = iconCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result: string | null = null;
+
+  // Directory icon
+  if (isDirFlag) {
+    const cat = getFileCategory(extension, true);
+    if (cat === "app") {
+      // Bundle directory (e.g. .app)
+      result = icons["exe"] || icons["shortcut"] || null;
+    } else {
+      // Regular folder — return null so caller uses default folder icon
+      result = null;
+    }
+  } else {
+    const key = getIconKey(extension);
+    result = key ? icons[key as keyof typeof icons] : null;
+  }
+
+  iconCache.set(cacheKey, result);
+  return result;
+}
+
+/** Return file type description string for display */
+export function getFileTypeDescription(
+  extOrFile: string | { extension: string; is_dir: boolean },
+): string {
+  let extension: string;
+  let isDir: boolean;
+  if (typeof extOrFile === "string") {
+    extension = extOrFile;
+    isDir = false;
+  } else {
+    extension = extOrFile.extension;
+    isDir = extOrFile.is_dir;
+  }
+  const cat = getFileCategory(extension, isDir);
+  const labels: Record<FileCategory, string> = {
+    folder: "Folder",
+    code: "Code",
+    image: "Image",
+    audio: "Audio",
+    video: "Video",
+    archive: "Archive",
+    pdf: "PDF",
+    app: "Application",
+    web: "Web",
+    default: extension ? extension.toUpperCase() + " File" : "File",
+  };
+  return labels[cat] || labels.default;
 }

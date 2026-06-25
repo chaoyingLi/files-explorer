@@ -1,6 +1,8 @@
 import { onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useDeleteStore } from "@/stores/deleteStore";
 import { useTabStore } from "@/stores/tabStore";
 
 export function useKeyboardShortcuts(handlers: {
@@ -10,24 +12,58 @@ export function useKeyboardShortcuts(handlers: {
   openNewDialog: (type: "file" | "folder") => void;
   openRenameDialog: (target: string) => void;
   openSettings: () => void;
+  openProperties: () => void;
 }) {
   const { t } = useI18n();
   const store = useFileStore();
+  const sel = useSelectionStore();
+  const del = useDeleteStore();
   const tabStore = useTabStore();
 
   function onKeydown(e: KeyboardEvent) {
     if (e.target instanceof HTMLInputElement) return;
     const ctrl = e.ctrlKey || e.metaKey;
 
-    if (e.key === "Enter" && store.selectedFiles.size > 0) {
+    if (e.key === "Enter" && sel.selectedFiles.size > 0) {
       e.preventDefault();
-      const first = [...store.selectedFiles][0];
+      const first = [...sel.selectedFiles][0];
       const file = store.files.find((f) => f.path === first);
       if (file) store.openSelectedFile(file);
-    } else if (e.key === "Escape" && store.isCutPending) {
+    } else if (e.key === "Escape" && sel.isCutPending) {
       e.preventDefault();
-      store.cancelCut();
+      sel.cancelCut();
       handlers.showToast(t("toast.cutCancelled"));
+    } else if (
+      e.key === " " &&
+      !ctrl &&
+      store.files.length > 0 &&
+      sel.selectedFiles.size > 0
+    ) {
+      // Space: preview / open selected file
+      e.preventDefault();
+      const first = [...sel.selectedFiles][0];
+      const file = store.files.find((f) => f.path === first);
+      if (file) store.openSelectedFile(file);
+    } else if (ctrl && (e.key === "ArrowDown" || e.key === "ArrowRight")) {
+      // Cmd+↓ / Cmd+→ : open selected item
+      e.preventDefault();
+      if (sel.selectedFiles.size > 0) {
+        const first = [...sel.selectedFiles][0];
+        const file = store.files.find((f) => f.path === first);
+        if (file) store.openSelectedFile(file);
+      }
+    } else if (ctrl && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+      // Cmd+↑ / Cmd+← : go to parent directory
+      e.preventDefault();
+      store.navigateUp();
+    } else if (ctrl && e.key === "[") {
+      // Cmd+[ : navigate back
+      e.preventDefault();
+      store.navigateBack();
+    } else if (ctrl && e.key === "]") {
+      // Cmd+] : navigate forward
+      e.preventDefault();
+      store.navigateForward();
     } else if (ctrl && e.key === "z") {
       e.preventDefault();
       store
@@ -64,35 +100,41 @@ export function useKeyboardShortcuts(handlers: {
       handlers.openNewDialog("folder");
     } else if (ctrl && e.key === "c") {
       e.preventDefault();
-      store.copySelected();
+      sel.copySelected();
       handlers.showToast(t("toast.copied"));
     } else if (ctrl && e.key === "x") {
       e.preventDefault();
-      store.cutSelected();
+      sel.cutSelected();
       handlers.showToast(t("toast.cut"));
     } else if (ctrl && e.key === "v") {
       e.preventDefault();
-      store
-        .paste()
-        .then(() => handlers.showToast(t("toast.pasted")))
+      sel
+        .paste(store.currentPath)
+        .then(async () => {
+          await store.refresh();
+          handlers.showToast(t("toast.pasted"));
+        })
         .catch((e) => handlers.showToast(t("toast.error") + ": " + e, true));
     } else if (ctrl && e.key === "a") {
       e.preventDefault();
-      store.selectAll();
+      sel.selectAll(store.files);
     } else if (e.key === "Delete" && !e.shiftKey) {
       e.preventDefault();
-      store.requestDelete(false);
+      del.requestDelete([...sel.selectedFiles], false);
     } else if (e.key === "Delete" && e.shiftKey) {
       e.preventDefault();
-      store.requestDelete(true);
-    } else if (e.key === "F2" && store.selectedFiles.size === 1) {
+      del.requestDelete([...sel.selectedFiles], true);
+    } else if (e.key === "F2" && sel.selectedFiles.size === 1) {
       e.preventDefault();
-      const path = [...store.selectedFiles][0];
+      const path = [...sel.selectedFiles][0];
       const file = store.files.find((f) => f.path === path);
       if (file) handlers.openRenameDialog(file.name);
     } else if (e.key === "F5") {
       e.preventDefault();
       store.refresh();
+    } else if (ctrl && e.key === "p") {
+      e.preventDefault();
+      handlers.openProperties();
     } else if (ctrl && e.key === ",") {
       e.preventDefault();
       handlers.openSettings();
