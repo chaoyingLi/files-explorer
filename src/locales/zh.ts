@@ -95,6 +95,16 @@ export default {
     up: "向上",
     down: "向下",
   },
+  properties: {
+    contents: "内容",
+    itemsCount: "{count} 项",
+    fullPath: "完整路径",
+    dimensions: "尺寸",
+    itemsSelected: "已选择 {count} 项",
+    totalSize: "总大小",
+    noFileSelected: "未选择文件",
+    fileType: "{ext} 文件",
+  },
   dialogs: {
     newFolder: "新建文件夹",
     newFile: "新建文件",

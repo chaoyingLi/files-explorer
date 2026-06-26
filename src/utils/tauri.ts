@@ -170,3 +170,7 @@ export async function extractArchive(
 ): Promise<void> {
   return invoke("extract_archive_cmd", { archive, destDir });
 }
+
+export async function getFileIcon(path: string): Promise<string> {
+  return invoke("get_file_icon", { path });
+}

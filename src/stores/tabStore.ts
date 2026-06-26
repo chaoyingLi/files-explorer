@@ -272,6 +272,11 @@ export const useTabStore = defineStore("tab", () => {
     return t?.path || "";
   }
 
+  function setRootLayout(node: LayoutNode) {
+    root.value = node;
+    triggerRef(root);
+  }
+
   return {
     rootLayout: root,
     getAllPanes: allPanes,
@@ -292,5 +297,6 @@ export const useTabStore = defineStore("tab", () => {
     getFocusedPath: gfp,
     dragActive,
     endDrag,
+    setRootLayout,
   };
 });

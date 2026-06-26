@@ -434,7 +434,7 @@
                 class="ribbon-btn"
                 :class="{ active: view.viewMode === 'column' }"
                 :title="t('fileList.column')"
-                @click="view.setViewMode('column')"
+                @click="switchToColumn"
             >
                 <svg viewBox="0 0 20 20" fill="none">
                     <rect
@@ -538,6 +538,14 @@ const sel = useSelectionStore();
 const view = useViewStore();
 
 const emit = defineEmits<{ action: [action: string] }>();
+
+function switchToColumn() {
+    view.setViewMode("column");
+    // Build the initial column stack from the current path
+    if (store.currentPath) {
+        store.navigateTo(store.currentPath, false);
+    }
+}
 
 function switchToTree() {
     view.setViewMode("tree");

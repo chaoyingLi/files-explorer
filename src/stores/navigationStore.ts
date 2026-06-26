@@ -72,6 +72,11 @@ export const useNavigationStore = defineStore("navigation", () => {
     return history.value[historyIndex.value];
   }
 
+  function restore(hist: string[], idx: number) {
+    history.value = hist;
+    historyIndex.value = idx;
+  }
+
   return {
     history,
     historyIndex,
@@ -83,5 +88,6 @@ export const useNavigationStore = defineStore("navigation", () => {
     peekForward,
     advanceBack,
     advanceForward,
+    restore,
   };
 });

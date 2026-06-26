@@ -1,26 +1,24 @@
 // ── Files Explorer ── Tauri backend entry point ──
 
-mod native_drag;
-mod types;
-mod state;
-mod files;
-mod drives;
-mod operations;
 mod clipboard;
-mod search;
-mod system;
-mod undo;
 mod compress;
+mod drives;
 mod error;
+mod files;
+mod native_drag;
+mod operations;
+mod search;
+mod state;
+mod system;
+mod types;
+mod undo;
 
 use state::AppState;
-use std::sync::{Arc, Mutex, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use tauri::{command, AppHandle, State};
 
 use crate::error::FsError;
-use crate::types::{
-    ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs,
-};
+use crate::types::{ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs};
 
 // ── Files ──
 #[command]
@@ -128,6 +126,10 @@ fn show_file_properties(path: String) -> Result<(), String> {
     system::show_file_properties(path)
 }
 #[command]
+fn get_file_icon(path: String) -> Result<String, String> {
+    system::get_file_icon(path)
+}
+#[command]
 fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
     system::get_file_base64(path)
 }
@@ -188,6 +190,7 @@ pub fn run() {
             show_in_explorer,
             start_native_drag_cmd,
             show_file_properties,
+            get_file_icon,
             open_in_terminal,
             search_files,
             path_exists,

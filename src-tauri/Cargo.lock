@@ -928,6 +928,7 @@ dependencies = [
  "chrono",
  "dirs",
  "flate2",
+ "image",
  "libc",
  "log",
  "objc2",

@@ -95,6 +95,16 @@ export default {
     up: "Up",
     down: "Down",
   },
+  properties: {
+    contents: "Contents",
+    itemsCount: "{count} items",
+    fullPath: "Full Path",
+    dimensions: "Dimensions",
+    itemsSelected: "{count} items selected",
+    totalSize: "Total Size",
+    noFileSelected: "No file selected",
+    fileType: "{ext} File",
+  },
   dialogs: {
     newFolder: "New Folder",
     newFile: "New File",

@@ -104,7 +104,16 @@ import { useSelectionStore } from "@/stores/selectionStore";
 import { useDeleteStore } from "@/stores/deleteStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTabStore, type Tab } from "@/stores/tabStore";
+import { useNavigationStore } from "@/stores/navigationStore";
+import { useViewStore } from "@/stores/viewStore";
 import * as tauri from "@/utils/tauri";
+import {
+    saveSession,
+    loadSession,
+    serializeLayout,
+    deserializeLayout,
+    type SessionSnapshot,
+} from "@/utils/session";
 
 import TitleBar from "@/components/TitleBar.vue";
 import Toolbar from "@/components/Toolbar.vue";
@@ -134,8 +143,10 @@ const sel = useSelectionStore();
 const del = useDeleteStore();
 useSettingsStore();
 const tabStore = useTabStore();
+const navStore = useNavigationStore();
+const view = useViewStore();
 const showSettings = ref(false);
-const showProperties = ref(false);
+const showProperties = ref(true);
 
 const toast = useToast();
 const ctx = useContextMenu();
@@ -260,6 +271,100 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
+    // ── Restore window size (from resize-time saves, fallback to session, then defaults) ──
+    let _restoredPath = "";
+    let _sessionData: SessionSnapshot | null = null;
+    try {
+        const win = getCurrentWebviewWindow();
+        let winWidth = 1200;
+        let winHeight = 800;
+        try {
+            const winSizeRaw = localStorage.getItem("app-win-size");
+            if (winSizeRaw) {
+                const parsed = JSON.parse(winSizeRaw);
+                if (parsed.width > 0 && parsed.height > 0) {
+                    winWidth = parsed.width;
+                    winHeight = parsed.height;
+                }
+            }
+        } catch {
+            /* ignore */
+        }
+        const { PhysicalSize, PhysicalPosition } =
+            await import("@tauri-apps/api/dpi");
+        await win.setSize(new PhysicalSize(winWidth, winHeight));
+        // Center on current monitor
+        try {
+            const { currentMonitor } = await import("@tauri-apps/api/window");
+            const monitor = await currentMonitor();
+            if (monitor) {
+                const { width: mw, height: mh } = monitor.size;
+                const { x: mx, y: my } = monitor.position;
+                const cx = Math.round(mx + (mw - winWidth) / 2);
+                const cy = Math.round(my + (mh - winHeight) / 2);
+                await win.setPosition(
+                    new PhysicalPosition(Math.max(0, cx), Math.max(0, cy)),
+                );
+            }
+        } catch {
+            /* ignore if position API not available */
+        }
+
+        // ── Restore session state (view mode, layout, etc.) ──
+        _sessionData = loadSession();
+        if (_sessionData) {
+            // Restore view mode
+            view.setViewMode(_sessionData.viewMode);
+            // Restore properties panel
+            showProperties.value = _sessionData.propertiesOpen;
+            // Restore layout
+            if (_sessionData.layout) {
+                const restored = deserializeLayout(_sessionData.layout);
+                tabStore.setRootLayout(restored);
+                // Focus the pane from the index path
+                const allPanes = tabStore.getAllPanes();
+                const fpIdx = _sessionData.focusPaneIndexPath?.[0] ?? 0;
+                const focusPane =
+                    allPanes[Math.min(fpIdx, allPanes.length - 1)];
+                if (focusPane) {
+                    tabStore.focusPane(focusPane.id);
+                    nav.focusedPaneId.value = focusPane.id;
+                }
+                // Restore navigation history
+                navStore.restore(
+                    _sessionData.navigationHistory || [],
+                    _sessionData.navigationIndex ?? -1,
+                );
+                // Navigate all panes
+                for (const pane of allPanes) {
+                    const activeTab = pane.tabs.find(
+                        (t: Tab) => t.id === pane.activeTabId,
+                    );
+                    if (!activeTab || !activeTab.path) continue;
+                    tabStore.focusPane(pane.id);
+                    nav.focusedPaneId.value = pane.id;
+                    await store.navigateTo(activeTab.path, false);
+                    actions.saveFileStateToTab(activeTab);
+                    if (!_restoredPath) {
+                        _restoredPath = activeTab.path;
+                    }
+                }
+                // Restore the correct focus
+                if (focusPane) {
+                    tabStore.focusPane(focusPane.id);
+                    nav.focusedPaneId.value = focusPane.id;
+                    const ft = focusPane.tabs.find(
+                        (t: Tab) => t.id === focusPane.activeTabId,
+                    );
+                    if (ft) actions.loadFileStateFromTab(ft);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Session restore failed, using defaults:", e);
+    }
+
+    // ── Listen for drag-drop (external file imports) ──
     let _ndu: (() => void) | null = null;
     try {
         const win = getCurrentWebviewWindow();
@@ -288,18 +393,113 @@ onMounted(async () => {
         _ndu?.();
     });
 
+    // ── Initialization (only if no session restored) ──
     const allPanes = tabStore.getAllPanes();
     if (allPanes.length > 0) {
         const firstPane = allPanes[0];
-        tabStore.focusPane(firstPane.id);
-        nav.focusedPaneId.value = firstPane.id;
-        const activeTab = firstPane.tabs.find(
-            (t: Tab) => t.id === firstPane.activeTabId,
-        );
-        if (activeTab) actions.loadFileStateFromTab(activeTab);
+        if (!_sessionData || !_restoredPath) {
+            tabStore.focusPane(firstPane.id);
+            nav.focusedPaneId.value = firstPane.id;
+            const activeTab = firstPane.tabs.find(
+                (t: Tab) => t.id === firstPane.activeTabId,
+            );
+            if (activeTab) actions.loadFileStateFromTab(activeTab);
+        }
     }
-    await store.loadDrives();
+    if (!_sessionData || !_restoredPath) {
+        await store.loadDrives();
+    }
     await store.checkUndoStatus();
+
+    // ── Track window resize ──
+    let _cachedWinWidth = 1200;
+    let _cachedWinHeight = 800;
+    let _resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const _onResize = async () => {
+        if (_resizeTimer) clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(async () => {
+            try {
+                const win = getCurrentWebviewWindow();
+                const maximized = await win.isMaximized();
+                const size = await win.innerSize();
+                // Always cache for exit save
+                _cachedWinWidth = size.width;
+                _cachedWinHeight = size.height;
+                // When NOT maximized, persist the real (unmaximized) size immediately
+                if (!maximized) {
+                    localStorage.setItem(
+                        "app-win-size",
+                        JSON.stringify({
+                            width: size.width,
+                            height: size.height,
+                        }),
+                    );
+                }
+                // If maximized, do NOT overwrite app-win-size —
+                // the last unmaximized size stays on disk.
+            } catch {
+                /* ignore */
+            }
+        }, 500);
+    };
+    window.addEventListener("resize", _onResize);
+
+    // ── Helper: save a session snapshot synchronously ──
+    function _saveSessionNow() {
+        try {
+            const { layout, focusPaneIndexPath } = serializeLayout(
+                tabStore.rootLayout,
+                focusedPaneId.value || "",
+            );
+            const snapshot: SessionSnapshot = {
+                version: 1,
+                savedAt: Date.now(),
+                window: {
+                    width: _cachedWinWidth,
+                    height: _cachedWinHeight,
+                },
+                viewMode: view.viewMode,
+                propertiesOpen: showProperties.value,
+                layout,
+                navigationHistory: navStore.history.filter(
+                    (h): h is string => typeof h === "string",
+                ),
+                navigationIndex: Math.max(
+                    -1,
+                    navStore.history.findIndex(
+                        (h, i) =>
+                            i <= navStore.historyIndex && typeof h === "string",
+                    ),
+                ),
+                focusPaneIndexPath,
+            };
+            saveSession(snapshot);
+        } catch (e) {
+            console.error("Failed to save session:", e);
+        }
+    }
+
+    // Save on beforeunload (standard web API)
+    window.addEventListener("beforeunload", _saveSessionNow);
+
+    // Also save on Tauri window close (more reliable in Tauri)
+    let _closeUnlisten: (() => void) | null = null;
+    try {
+        const win = getCurrentWebviewWindow();
+        win.onCloseRequested(async (_event) => {
+            _saveSessionNow();
+        }).then((u) => {
+            _closeUnlisten = u;
+        });
+    } catch {
+        /* Tauri API may not be available */
+    }
+
+    onUnmounted(() => {
+        window.removeEventListener("resize", _onResize);
+        window.removeEventListener("beforeunload", _saveSessionNow);
+        _closeUnlisten?.();
+    });
 });
 </script>
 

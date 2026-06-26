@@ -1,6 +1,9 @@
 <template>
-    <div class="column-pane">
-        <div class="column-header">{{ column.name }}</div>
+    <div
+        class="column-pane"
+        :style="{ width: width + 'px', minWidth: MIN_COL_WIDTH + 'px' }"
+    >
+        <div class="column-header" :title="column.name">{{ column.name }}</div>
         <div class="column-body" @click="selectFirstIfNone">
             <div v-if="column.loading" class="column-loading">
                 <span>{{ t("fileList.loading") }}</span>
@@ -28,8 +31,14 @@ import type { FileEntry } from "@/types";
 import type { ColumnState } from "@/stores/viewStore";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 
+const MIN_COL_WIDTH = 120;
+
 const { t } = useI18n();
-const props = defineProps<{ column: ColumnState; colIdx: number }>();
+const props = defineProps<{
+    column: ColumnState;
+    colIdx: number;
+    width: number;
+}>();
 const emit = defineEmits<{
     select: [colIdx: number, fileIdx: number];
     dblclick: [colIdx: number, fileIdx: number];
@@ -63,8 +72,6 @@ function selectFirstIfNone(e: MouseEvent) {
 
 <style scoped>
 .column-pane {
-    width: 240px;
-    min-width: 180px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;

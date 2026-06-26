@@ -546,7 +546,6 @@ function onDrop(e: DragEvent) {
 .file-items {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
 }
 
 /* ── Loading & empty states ── */

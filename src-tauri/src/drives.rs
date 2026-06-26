@@ -1,4 +1,5 @@
 use crate::types::{DiskInfo, SpecialDirs};
+use std::path::Path;
 
 pub fn get_drives() -> Result<Vec<DiskInfo>, String> {
     let mut drives = Vec::new();

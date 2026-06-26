@@ -34,6 +34,11 @@
     }
   },
   "bundle": {
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "active": true,
+    "targets": "all",
+    "windows": {
+      "wix": null
+    }
   }
 }
