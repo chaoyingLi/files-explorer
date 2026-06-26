@@ -134,7 +134,7 @@ function selectFirstIfNone(e: MouseEvent) {
     white-space: nowrap;
 }
 .column-arrow {
-    color: var(--text-muted);
+    color: var(--accent);
     font-size: 14px;
     flex-shrink: 0;
 }

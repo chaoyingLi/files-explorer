@@ -1,11 +1,16 @@
 <template>
-    <div class="properties-panel" v-if="visible">
+    <div
+        class="properties-panel"
+        v-if="visible"
+        :style="{ width: width + 'px' }"
+    >
+        <!-- Resize handle -->
+        <div class="props-resize-handle" @mousedown.stop="onResizeStart" />
         <div class="props-header">
             <span>{{ $t("contextMenu.properties") }}</span>
             <button class="props-close" @click="$emit('close')">✕</button>
         </div>
         <div class="props-body" v-if="file">
-            <!-- File icon & name -->
             <div class="props-icon-row">
                 <img
                     v-if="osIconSrc"
@@ -44,7 +49,37 @@
                 <div class="props-value props-path">{{ file.path }}</div>
             </div>
 
-            <!-- Image dimensions -->
+            <!-- File preview -->
+            <div v-if="previewType === 'image'" class="props-preview-wrap">
+                <img
+                    class="props-preview"
+                    :src="previewSrc"
+                    alt=""
+                    @click.stop
+                />
+            </div>
+            <div v-else-if="previewType === 'pdf'" class="props-preview-wrap">
+                <embed
+                    class="props-preview props-preview-pdf"
+                    :src="previewSrc"
+                    type="application/pdf"
+                />
+            </div>
+            <div v-else-if="previewType === 'text'" class="props-preview-wrap">
+                <pre
+                    class="props-text-preview"
+                ><code v-html="previewContent"></code></pre>
+            </div>
+            <div
+                v-else-if="previewType === 'markdown'"
+                class="props-preview-wrap"
+            >
+                <div
+                    class="props-markdown-preview"
+                    v-html="renderedMarkdown"
+                ></div>
+            </div>
+
             <div class="props-section" v-if="imageInfo">
                 <div class="props-label">{{ $t("properties.dimensions") }}</div>
                 <div class="props-value">
@@ -53,7 +88,6 @@
             </div>
         </div>
 
-        <!-- Multi-selection summary -->
         <div class="props-body" v-else-if="multiCount > 1">
             <div class="props-icon-row">
                 <div class="props-name">
@@ -81,6 +115,8 @@ import { useViewStore } from "@/stores/viewStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { FileEntry } from "@/types";
 import { formatFileSize } from "@/utils/fileTypes";
+import { marked } from "marked";
+import hljs from "highlight.js";
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -88,24 +124,20 @@ const sel = useSelectionStore();
 const view = useViewStore();
 const tabStore = useTabStore();
 
-defineProps<{ visible: boolean }>();
-defineEmits<{ close: [] }>();
+defineProps<{ visible: boolean; width: number }>();
+const emit = defineEmits<{ close: []; resizeStart: [e: MouseEvent] }>();
 
 const imageInfo = ref<{ width: number; height: number } | null>(null);
 const dirItemCount = ref(0);
 const osIconSrc = ref("");
+const previewType = ref<string>("");
+const previewSrc = ref<string>("");
+const previewContent = ref<string>("");
+const renderedMarkdown = ref("");
 
-/**
- * Find a FileEntry by path.
- * 1. Search store.files (works for details/list/grid/root tree nodes)
- * 2. Fall back to column stack files (works for column view)
- * 3. Fall back to tree children cache (works for tree view sub-nodes)
- */
 function findFileByPath(path: string): FileEntry | null {
-    // Primary: search store.files
     const f = store.files.find((x) => x.path === path);
     if (f) return f;
-    // Fallback: search column stack (column view)
     if (view.viewMode === "column") {
         const tab = tabStore.getFocusedTab();
         if (tab?.columnStack) {
@@ -115,7 +147,6 @@ function findFileByPath(path: string): FileEntry | null {
             }
         }
     }
-    // Fallback 2: search tree children cache (tree view)
     if (view.viewMode === "tree") {
         for (const children of view.treeChildrenCache.values()) {
             const found = children.find((x: FileEntry) => x.path === path);
@@ -148,16 +179,14 @@ watch(file, async (f) => {
     osIconSrc.value = "";
     if (!f) return;
 
-    // Load OS native file icon (Windows SHGetFileInfoW)
     try {
         const { getFileIcon } = await import("@/utils/tauri");
         const b64 = await getFileIcon(f.path);
         osIconSrc.value = "data:image/png;base64," + b64;
     } catch {
-        /* OS icon not available — will use default SVG fallback */
+        /* OS icon not available */
     }
 
-    // Try to load image dimensions via base64
     const imgExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
     if (imgExts.includes(f.extension.toLowerCase()) && !f.is_dir) {
         try {
@@ -174,13 +203,60 @@ watch(file, async (f) => {
         } catch {}
     }
 
-    // Count dir items
     if (f.is_dir) {
         try {
             const { listDirectory } = await import("@/utils/tauri");
             const items = await listDirectory(f.path);
             dirItemCount.value = items.length;
         } catch {}
+    }
+
+    // ── Load file preview ──
+    previewType.value = "";
+    previewSrc.value = "";
+    previewContent.value = "";
+
+    const ext = f.extension.toLowerCase();
+
+    // Image preview — reuse the existing imgExts from above
+    if (imgExts.includes(ext) && !f.is_dir) {
+        // Image preview — reuse existing get_file_base64
+        try {
+            const { getFileBase64 } = await import("@/utils/tauri");
+            const result = await getFileBase64(f.path);
+            const maxBytes = 500 * 1024;
+            if (result.data.length * 0.75 < maxBytes) {
+                previewType.value = "image";
+                previewSrc.value = `data:${result.mime};base64,${result.data}`;
+            }
+        } catch {}
+    } else if (!f.is_dir) {
+        // Text / PDF / docx preview via Rust
+        try {
+            const { getFilePreview } = await import("@/utils/tauri");
+            const result = await getFilePreview(f.path);
+            if (result.type === "markdown") {
+                previewType.value = "markdown";
+                previewContent.value = result.content || "";
+                renderedMarkdown.value = await marked.parse(
+                    previewContent.value,
+                );
+            } else if (result.type === "text") {
+                previewType.value = "text";
+                const code = result.content || "";
+                try {
+                    const highlighted = hljs.highlightAuto(code);
+                    previewContent.value = highlighted.value;
+                } catch {
+                    previewContent.value = code;
+                }
+            } else if (result.type === "pdf") {
+                previewType.value = "pdf";
+                previewSrc.value = `data:application/pdf;base64,${result.data}`;
+            }
+        } catch {
+            /* preview not available */
+        }
     }
 });
 
@@ -206,11 +282,15 @@ function formatDate(ts: number): string {
         d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     );
 }
+
+function onResizeStart(e: MouseEvent) {
+    emit("resizeStart", e);
+}
 </script>
 
 <style scoped>
 .properties-panel {
-    width: 260px;
+    position: relative;
     flex-shrink: 0;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
@@ -218,6 +298,22 @@ function formatDate(ts: number): string {
     flex-direction: column;
     overflow: hidden;
     font-size: var(--font-size-base);
+}
+.props-resize-handle {
+    position: absolute;
+    top: 0;
+    left: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+    background: transparent;
+    transition: background 0.1s;
+}
+.props-resize-handle:hover,
+.props-resize-handle:active {
+    background: var(--accent);
+    opacity: 0.7;
 }
 .props-header {
     display: flex;
@@ -263,6 +359,9 @@ function formatDate(ts: number): string {
     display: flex;
     align-items: center;
 }
+.props-os-icon {
+    object-fit: contain;
+}
 .props-icon :deep(svg) {
     width: 32px;
     height: 32px;
@@ -286,5 +385,114 @@ function formatDate(ts: number): string {
     font-size: var(--font-size-xs);
     word-break: break-all;
     color: var(--text-secondary);
+}
+.props-preview-wrap {
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+    margin-top: 8px;
+}
+.props-preview {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.props-preview-pdf {
+    height: 400px;
+    border: none;
+}
+.props-text-preview {
+    margin: 0;
+    padding: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-primary);
+}
+.props-markdown-preview {
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    max-height: 350px;
+    overflow: auto;
+    color: var(--text-primary);
+}
+.props-markdown-preview h1,
+.props-markdown-preview h2,
+.props-markdown-preview h3,
+.props-markdown-preview h4 {
+    margin: 8px 0 4px;
+    font-weight: 600;
+}
+.props-markdown-preview h1 {
+    font-size: 15px;
+}
+.props-markdown-preview h2 {
+    font-size: 14px;
+}
+.props-markdown-preview h3 {
+    font-size: 13px;
+}
+.props-markdown-preview p {
+    margin: 4px 0;
+}
+.props-markdown-preview ul,
+.props-markdown-preview ol {
+    padding-left: 20px;
+    margin: 4px 0;
+}
+.props-markdown-preview code {
+    background: var(--input-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+.props-markdown-preview pre {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    overflow: auto;
+}
+.props-markdown-preview pre code {
+    background: none;
+    padding: 0;
+}
+.props-markdown-preview table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+}
+.props-markdown-preview th,
+.props-markdown-preview td {
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    text-align: left;
+}
+.props-markdown-preview th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+.props-markdown-preview blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 8px;
+    margin: 4px 0;
+    color: var(--text-secondary);
+}
+.props-markdown-preview img {
+    max-width: 100%;
+    border-radius: 4px;
+}
+.props-markdown-preview hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
 }
 </style>

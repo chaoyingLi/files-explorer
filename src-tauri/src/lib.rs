@@ -126,6 +126,10 @@ fn show_file_properties(path: String) -> Result<(), String> {
     system::show_file_properties(path)
 }
 #[command]
+fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
+    system::get_file_preview(path)
+}
+#[command]
 fn get_file_icon(path: String) -> Result<String, String> {
     system::get_file_icon(path)
 }
@@ -190,6 +194,7 @@ pub fn run() {
             show_in_explorer,
             start_native_drag_cmd,
             show_file_properties,
+            get_file_preview,
             get_file_icon,
             open_in_terminal,
             search_files,

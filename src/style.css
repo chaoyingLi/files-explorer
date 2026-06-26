@@ -1,3 +1,4 @@
+@import "highlight.js/styles/github.css";
 /* ===== Base font sizes ===== */
 :root {
     --font-size-base: 13px;

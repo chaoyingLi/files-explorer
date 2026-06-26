@@ -20,6 +20,7 @@ export interface PersistedSplit {
   type: "split";
   direction: "horizontal" | "vertical";
   children: PersistedNode[];
+  sizes: number[];
 }
 
 export type PersistedNode = PersistedPane | PersistedSplit;
@@ -58,6 +59,7 @@ export interface LayoutSplit {
   id: string;
   direction: "horizontal" | "vertical";
   children: LayoutNode[];
+  sizes: number[];
 }
 
 export type LayoutNode = LayoutPane | LayoutSplit;
@@ -101,7 +103,10 @@ function findPaneIndexPath(
   }
   // split node: search children
   for (let i = 0; i < node.children.length; i++) {
-    const result = findPaneIndexPath(node.children[i], targetPaneId, [...path, i]);
+    const result = findPaneIndexPath(node.children[i], targetPaneId, [
+      ...path,
+      i,
+    ]);
     if (result) return result;
   }
   return null;
@@ -149,6 +154,7 @@ export function serializeLayout(
         type: "split",
         direction: node.direction,
         children,
+        sizes: node.sizes || [],
       } as PersistedSplit;
     }
     return null;
@@ -180,9 +186,7 @@ function _resetCounters() {
 /**
  * Deserialize a persisted layout into runtime layout nodes with fresh IDs.
  */
-export function deserializeLayout(
-  persisted: PersistedNode,
-): LayoutNode {
+export function deserializeLayout(persisted: PersistedNode): LayoutNode {
   _resetCounters();
 
   function walk(p: PersistedNode): LayoutNode {
@@ -209,6 +213,7 @@ export function deserializeLayout(
       id: _npid(),
       direction: p.direction,
       children,
+      sizes: p.sizes || [],
     } as LayoutSplit;
   }
 

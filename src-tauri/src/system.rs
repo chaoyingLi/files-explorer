@@ -395,3 +395,108 @@ pub fn get_file_icon(path: String) -> Result<String, String> {
 pub fn get_file_icon(_path: String) -> Result<String, String> {
     Err("OS icons only supported on Windows".to_string())
 }
+
+// ── File content preview (text, markdown, pdf, docx) ──
+
+pub fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let text_exts = [
+        "txt",
+        "md",
+        "js",
+        "ts",
+        "rs",
+        "py",
+        "vue",
+        "json",
+        "xml",
+        "yaml",
+        "yml",
+        "toml",
+        "css",
+        "scss",
+        "html",
+        "sh",
+        "bat",
+        "log",
+        "ini",
+        "cfg",
+        "env",
+        "gitignore",
+        "c",
+        "cpp",
+        "h",
+        "hpp",
+        "java",
+        "go",
+        "rb",
+        "php",
+        "swift",
+        "kt",
+        "dart",
+        "lua",
+        "r",
+        "pl",
+        "sql",
+        "bash",
+        "zsh",
+        "fish",
+    ];
+
+    if text_exts.contains(&ext.as_str()) {
+        let content = std::fs::read_to_string(&path).map_err(|e| format!("Read failed: {}", e))?;
+        let preview: String = content.chars().take(5000).collect();
+        return Ok(serde_json::json!({
+            "type": if ext == "md" { "markdown" } else { "text" },
+            "content": preview,
+            "ext": ext,
+        }));
+    }
+
+    if ext == "pdf" {
+        let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
+        if bytes.len() > 10 * 1024 * 1024 {
+            return Err("File too large for preview".to_string());
+        }
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        return Ok(serde_json::json!({
+            "type": "pdf",
+            "data": b64,
+        }));
+    }
+
+    if ext == "docx" {
+        use std::io::Read;
+        let file = std::fs::File::open(&path).map_err(|e| format!("Open failed: {}", e))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Zip failed: {}", e))?;
+        let mut text = String::new();
+        if let Ok(mut entry) = archive.by_name("word/document.xml") {
+            let mut xml = String::new();
+            entry.read_to_string(&mut xml).ok();
+            let mut in_tag = false;
+            for c in xml.chars() {
+                if c == '<' {
+                    in_tag = true;
+                } else if c == '>' {
+                    in_tag = false;
+                } else if !in_tag && !c.is_control() {
+                    text.push(c);
+                }
+            }
+        }
+        let preview: String = text.chars().take(3000).collect();
+        return Ok(serde_json::json!({
+            "type": "text",
+            "content": preview,
+            "ext": "docx",
+        }));
+    }
+
+    Err("Unsupported file type for preview".to_string())
+}

@@ -233,7 +233,7 @@ function onKeydown(e: KeyboardEvent) {
 .column-resize-handle:hover,
 .column-resize-handle:active {
     background: var(--accent);
-    opacity: 0.5;
+    opacity: 0.7;
 }
 
 .column-filler {

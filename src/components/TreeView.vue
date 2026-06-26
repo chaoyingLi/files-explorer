@@ -206,7 +206,7 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     align-items: center;
     justify-content: center;
     border-radius: 3px;
-    color: var(--text-muted);
+    color: var(--accent);
     transition: transform 0.12s;
 }
 .tree-arrow:hover {

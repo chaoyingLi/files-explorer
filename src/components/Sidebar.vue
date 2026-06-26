@@ -1,5 +1,5 @@
 <template>
-    <div class="sidebar">
+    <div class="sidebar" :style="{ width: width + 'px' }">
         <!-- Home / This PC -->
         <div class="sidebar-list">
             <div
@@ -99,6 +99,9 @@
                 <span class="sidebar-item-name">{{ item.name }}</span>
             </div>
         </div>
+
+        <!-- Resize handle -->
+        <div class="sidebar-resize-handle" @mousedown.stop="onResizeStart" />
     </div>
 </template>
 
@@ -113,10 +116,12 @@ const { t } = useI18n();
 const store = useFileStore();
 const settings = useSettingsStore();
 
+const props = defineProps<{ width: number }>();
 const emit = defineEmits<{
     navigate: [path: string];
     navigateHome: [];
     contextMenu: [path: string, event: MouseEvent];
+    resizeStart: [e: MouseEvent];
 }>();
 
 const quickAccess = computed(() => {
@@ -124,49 +129,42 @@ const quickAccess = computed(() => {
     const dirs = store.specialDirs;
     if (!dirs) return items;
 
-    // Home icon
     items.push({
         name: t("sidebar.home"),
         path: dirs.home,
         iconSvg:
             '<path d="M4 10.5V20a1 1 0 001 1h5v-6h4v6h5a1 1 0 001-1v-9.5L12 3l-8 7.5z" fill="#89B4FA"/><path d="M13 21v-5h-2v5" fill="#74C7EC"/>',
     });
-    // Desktop
     items.push({
         name: t("sidebar.desktop"),
         path: dirs.desktop,
         iconSvg:
             '<rect x="2" y="3" width="20" height="14" rx="2" fill="#89B4FA"/><rect x="4" y="18" width="16" height="2" rx="1" fill="#585B70"/><rect x="10" y="20" width="4" height="2" rx="1" fill="#45475A"/>',
     });
-    // Downloads
     items.push({
         name: t("sidebar.downloads"),
         path: dirs.downloads,
         iconSvg:
             '<rect x="4" y="2" width="16" height="14" rx="2" fill="#89B4FA"/><path d="M12 8v8m0 0l-3-3m3 3l3-3" stroke="#1E1E2E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/><path d="M4 18h16" stroke="#585B70" stroke-width="2.5" stroke-linecap="round"/>',
     });
-    // Documents
     items.push({
         name: t("sidebar.documents"),
         path: dirs.documents,
         iconSvg:
             '<path d="M6 2h7.5l5.5 5.5V20a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" fill="#89B4FA"/><path d="M13.5 2v5.5a.5.5 0 00.5.5H19.5" fill="#74C7EC"/><rect x="7" y="11" width="10" height="1.5" rx="0.75" fill="#1E1E2E" opacity="0.3"/><rect x="7" y="14" width="7" height="1.5" rx="0.75" fill="#1E1E2E" opacity="0.3"/>',
     });
-    // Pictures
     items.push({
         name: t("sidebar.pictures"),
         path: dirs.pictures,
         iconSvg:
             '<rect x="2" y="4" width="20" height="16" rx="2.5" fill="#A6E3A1"/><circle cx="7.5" cy="9.5" r="2" fill="#1E1E2E" opacity="0.15"/><path d="M2 16l5-5 4 4 3-3 6 6" fill="#1E1E2E" opacity="0.12"/>',
     });
-    // Music
     items.push({
         name: t("sidebar.music"),
         path: dirs.music,
         iconSvg:
             '<circle cx="7" cy="17" r="3.5" fill="#F38BA8"/><circle cx="17" cy="13" r="3.5" fill="#F9E2AF"/><path d="M10.5 17V6l6-2v9" stroke="#F38BA8" stroke-width="2.5" stroke-linecap="round"/><path d="M10.5 17V6l6-2v9" stroke="#F5C542" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 13 16 0"/>',
     });
-    // Videos
     items.push({
         name: t("sidebar.videos"),
         path: dirs.videos,
@@ -208,18 +206,38 @@ function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
         settings.removeBookmark(bm.path);
     }
 }
+
+function onResizeStart(e: MouseEvent) {
+    emit("resizeStart", e);
+}
 </script>
 
 <style scoped>
 .sidebar {
-    width: 220px;
-    min-width: 180px;
+    position: relative;
+    min-width: 160px;
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
     padding: 8px 0;
+}
+.sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+    background: transparent;
+    transition: background 0.1s;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+    background: var(--accent);
+    opacity: 0.7;
 }
 .home-item {
     margin-bottom: 6px;
@@ -280,8 +298,6 @@ function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
     color: var(--text-muted);
 }
 .bookmark-icon {
-    width: auto;
-    height: auto;
     font-size: 16px;
     filter: none;
     line-height: 1;

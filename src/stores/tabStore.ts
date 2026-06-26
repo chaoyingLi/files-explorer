@@ -27,6 +27,7 @@ export interface LayoutSplit {
   id: string;
   direction: "horizontal" | "vertical";
   children: LayoutNode[];
+  sizes: number[];
 }
 export type LayoutNode = LayoutPane | LayoutSplit;
 
@@ -164,6 +165,7 @@ export const useTabStore = defineStore("tab", () => {
           id: npid(),
           direction: sd as "horizontal" | "vertical",
           children: dir === "left" || dir === "up" ? [np, n] : [n, np],
+          sizes: [50, 50],
         };
         if (pc && idx >= 0) pc[idx] = sp;
         else root.value = sp;

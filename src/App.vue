@@ -17,9 +17,11 @@
         <RibbonToolbar @action="(a: string) => actions.executeAction(a)" />
         <div class="main-content">
             <Sidebar
+                :width="sidebarWidth"
                 @navigate="nav.sidebarNavigate"
                 @navigate-home="nav.sidebarHome"
                 @context-menu="handleSidebarContext"
+                @resize-start="onSidebarResizeStart"
             />
             <div class="panes-area">
                 <PaneNode
@@ -50,7 +52,9 @@
             <PropertiesPanel
                 v-if="showProperties"
                 :visible="showProperties"
+                :width="propsWidth"
                 @close="showProperties = false"
+                @resize-start="onPropsResizeStart"
             />
         </div>
         <DeleteConfirmDialog
@@ -147,6 +151,77 @@ const navStore = useNavigationStore();
 const view = useViewStore();
 const showSettings = ref(false);
 const showProperties = ref(true);
+
+// ── Sidebar & Properties panel resize ──
+const sidebarWidth = ref(loadPanelWidth("sidebar", 220));
+const propsWidth = ref(loadPanelWidth("props", 260));
+
+function loadPanelWidth(key: string, fallback: number): number {
+    try {
+        const raw = localStorage.getItem("app-panel-" + key);
+        if (raw) {
+            const v = JSON.parse(raw);
+            if (typeof v === "number" && v >= 100) return v;
+        }
+    } catch {}
+    return fallback;
+}
+function savePanelWidth(key: string, w: number) {
+    localStorage.setItem("app-panel-" + key, JSON.stringify(w));
+}
+
+let _resizePanelKey = "";
+let _resizeStartX = 0;
+let _resizeStartW = 0;
+
+function onSidebarResizeStart(e: MouseEvent) {
+    _resizePanelKey = "sidebar";
+    _resizeStartX = e.clientX;
+    _resizeStartW = sidebarWidth.value;
+    addEventListener("mousemove", onPanelResizeMove);
+    addEventListener("mouseup", onPanelResizeEnd);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+}
+
+function onPropsResizeStart(e: MouseEvent) {
+    _resizePanelKey = "props";
+    _resizeStartX = e.clientX;
+    _resizeStartW = propsWidth.value;
+    addEventListener("mousemove", onPanelResizeMove);
+    addEventListener("mouseup", onPanelResizeEnd);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+}
+
+function onPanelResizeMove(e: MouseEvent) {
+    if (_resizePanelKey === "sidebar") {
+        sidebarWidth.value = Math.max(
+            160,
+            _resizeStartW + e.clientX - _resizeStartX,
+        );
+    } else if (_resizePanelKey === "props") {
+        propsWidth.value = Math.max(
+            180,
+            _resizeStartW - (e.clientX - _resizeStartX),
+        );
+    }
+}
+
+function onPanelResizeEnd() {
+    removeEventListener("mousemove", onPanelResizeMove);
+    removeEventListener("mouseup", onPanelResizeEnd);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    if (_resizePanelKey === "sidebar") {
+        savePanelWidth("sidebar", sidebarWidth.value);
+    } else if (_resizePanelKey === "props") {
+        savePanelWidth("props", propsWidth.value);
+    }
+    _resizePanelKey = "";
+}
 
 const toast = useToast();
 const ctx = useContextMenu();

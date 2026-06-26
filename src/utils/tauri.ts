@@ -171,6 +171,12 @@ export async function extractArchive(
   return invoke("extract_archive_cmd", { archive, destDir });
 }
 
+export async function getFilePreview(
+  path: string,
+): Promise<{ type: string; content?: string; data?: string; ext?: string }> {
+  return invoke("get_file_preview", { path });
+}
+
 export async function getFileIcon(path: string): Promise<string> {
   return invoke("get_file_icon", { path });
 }

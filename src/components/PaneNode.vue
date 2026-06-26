@@ -57,7 +57,6 @@
                 </svg>
             </button>
         </div>
-        <!-- Search tab: show search header -->
         <div v-if="activeTab?.isSearch" class="search-header">
             <svg class="search-header-icon" viewBox="0 0 18 18" fill="none">
                 <circle
@@ -85,7 +84,6 @@
                 <span class="search-spinner"></span>
             </span>
         </div>
-        <!-- Normal tab: show breadcrumb -->
         <Breadcrumb
             v-else
             :path="activeTab?.path ?? ''"
@@ -101,35 +99,48 @@
         />
     </div>
     <div v-else class="pane-split" :class="'split-' + node.direction">
-        <PaneNode
-            v-for="child in node.children"
-            :key="child.id"
-            :node="child"
-            :focused-pane-id="focusedPaneId"
-            @focus="(id: string) => $emit('focus', id)"
-            @tabClick="
-                (pid: string, tid: string) => $emit('tabClick', pid, tid)
-            "
-            @tabClose="
-                (pid: string, tid: string) => $emit('tabClose', pid, tid)
-            "
-            @tabNew="(pid: string) => $emit('tabNew', pid)"
-            @tabDrop="
-                (pid: string, tid: string, e: DragEvent) =>
-                    $emit('tabDrop', pid, tid, e)
-            "
-            @paneClose="(pid: string) => $emit('paneClose', pid)"
-            @navigate="(pid: string, p: string) => $emit('navigate', pid, p)"
-            @fileDrop="
-                (pid: string, dir: string, paths: string[], ctrl: boolean) =>
-                    $emit('fileDrop', pid, dir, paths, ctrl)
-            "
-        />
+        <template v-for="(child, idx) in node.children" :key="child.id">
+            <PaneNode
+                :node="child"
+                :focused-pane-id="focusedPaneId"
+                :style="getChildStyle(idx)"
+                @focus="(id: string) => $emit('focus', id)"
+                @tabClick="
+                    (pid: string, tid: string) => $emit('tabClick', pid, tid)
+                "
+                @tabClose="
+                    (pid: string, tid: string) => $emit('tabClose', pid, tid)
+                "
+                @tabNew="(pid: string) => $emit('tabNew', pid)"
+                @tabDrop="
+                    (pid: string, tid: string, e: DragEvent) =>
+                        $emit('tabDrop', pid, tid, e)
+                "
+                @paneClose="(pid: string) => $emit('paneClose', pid)"
+                @navigate="
+                    (pid: string, p: string) => $emit('navigate', pid, p)
+                "
+                @fileDrop="
+                    (
+                        pid: string,
+                        dir: string,
+                        paths: string[],
+                        ctrl: boolean,
+                    ) => $emit('fileDrop', pid, dir, paths, ctrl)
+                "
+            />
+            <div
+                v-if="idx < node.children.length - 1"
+                class="split-resize-handle"
+                :class="'split-handle-' + node.direction"
+                @mousedown.stop="onSplitResizeStart(idx, $event)"
+            />
+        </template>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
     useTabStore,
@@ -155,6 +166,71 @@ defineEmits<{
 }>();
 
 const tabStore = useTabStore();
+
+function getChildStyle(idx: number): Record<string, string> {
+    const n = props.node;
+    if (n.type !== "split") return {};
+    const sizes = (n as any).sizes;
+    if (!sizes || sizes.length <= idx) return { flex: "1" };
+    if (idx < sizes.length - 1) {
+        const key = n.direction === "horizontal" ? "width" : "height";
+        return { flex: "0 0 " + sizes[idx] + "%" };
+    }
+    return { flex: "1 1 0" };
+}
+
+let _splitResizeIdx = -1;
+let _splitResizeStart = 0;
+let _splitResizeStartSize = 0;
+let _splitDirection: "horizontal" | "vertical" = "horizontal";
+
+function onSplitResizeStart(idx: number, e: MouseEvent) {
+    const n = props.node;
+    if (n.type !== "split") return;
+    _splitResizeIdx = idx;
+    const sizes = (n as any).sizes;
+    if (!sizes) return;
+    _splitResizeStartSize = sizes[idx] || 50;
+    _splitDirection = n.direction;
+    _splitResizeStart = n.direction === "horizontal" ? e.clientX : e.clientY;
+    addEventListener("mousemove", onSplitResizeMove);
+    addEventListener("mouseup", onSplitResizeEnd);
+    const cursor = n.direction === "horizontal" ? "col-resize" : "row-resize";
+    document.body.style.cursor = cursor;
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+}
+
+function onSplitResizeMove(e: MouseEvent) {
+    const n = props.node;
+    if (n.type !== "split") return;
+    const sizes = (n as any).sizes;
+    if (!sizes || _splitResizeIdx < 0 || _splitResizeIdx >= sizes.length - 1)
+        return;
+    const delta =
+        (_splitDirection === "horizontal" ? e.clientX : e.clientY) -
+        _splitResizeStart;
+    const containerSize =
+        _splitDirection === "horizontal"
+            ? window.innerWidth - 220 - 260
+            : window.innerHeight - 200;
+    const pct = (100 * delta) / Math.max(containerSize, 400);
+    const newVal = _splitResizeStartSize + pct;
+    sizes[_splitResizeIdx] = Math.max(15, Math.min(85, newVal));
+    import("vue").then(({ triggerRef }) => {
+        const s = useTabStore() as any;
+        triggerRef(s.rootLayout);
+    });
+}
+
+function onSplitResizeEnd() {
+    removeEventListener("mousemove", onSplitResizeMove);
+    removeEventListener("mouseup", onSplitResizeEnd);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    _splitResizeIdx = -1;
+}
+
 const activeTab = computed(() => {
     if (props.node.type !== "pane") return null;
     const pane = props.node as LayoutPane;
@@ -194,6 +270,25 @@ export default { name: "PaneNode" };
 }
 .pane-split.split-vertical {
     flex-direction: column;
+}
+.split-resize-handle {
+    flex-shrink: 0;
+    z-index: 1;
+    background: transparent;
+    transition: background 0.1s;
+}
+.split-handle-horizontal {
+    width: 5px;
+    cursor: col-resize;
+}
+.split-handle-vertical {
+    height: 5px;
+    cursor: row-resize;
+}
+.split-resize-handle:hover,
+.split-resize-handle:active {
+    background: var(--accent);
+    opacity: 0.7;
 }
 .pane-tabs {
     display: flex;
@@ -275,8 +370,6 @@ export default { name: "PaneNode" };
     background: var(--bg-hover);
     color: var(--danger);
 }
-
-/* ── Search tab header ── */
 .search-header {
     display: flex;
     align-items: center;
@@ -287,14 +380,12 @@ export default { name: "PaneNode" };
     min-height: 32px;
     font-size: 13px;
 }
-
 .search-header-icon {
     width: 16px;
     height: 16px;
     color: var(--accent);
     flex-shrink: 0;
 }
-
 .search-header-query {
     font-weight: 600;
     color: var(--text-primary);
@@ -302,14 +393,12 @@ export default { name: "PaneNode" };
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 .search-header-count {
     color: var(--text-muted);
     font-size: 12px;
     margin-left: auto;
     flex-shrink: 0;
 }
-
 .search-header-searching {
     color: var(--text-muted);
     font-size: 12px;
@@ -319,7 +408,6 @@ export default { name: "PaneNode" };
     gap: 6px;
     flex-shrink: 0;
 }
-
 .search-spinner {
     width: 12px;
     height: 12px;
@@ -328,7 +416,6 @@ export default { name: "PaneNode" };
     border-radius: 50%;
     animation: search-spin 0.6s linear infinite;
 }
-
 @keyframes search-spin {
     to {
         transform: rotate(360deg);
