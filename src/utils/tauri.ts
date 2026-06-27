@@ -180,3 +180,30 @@ export async function getFilePreview(
 export async function getFileIcon(path: string): Promise<string> {
   return invoke("get_file_icon", { path });
 }
+
+export async function readFileBytes(path: string): Promise<string> {
+  return invoke("read_file_bytes", { path });
+}
+
+export interface ArchiveEntry {
+  name: string;
+  path: string;
+  size: number;
+  is_dir: boolean;
+}
+
+export async function listArchiveContents(
+  path: string,
+): Promise<ArchiveEntry[]> {
+  return invoke("list_archive_contents", { path });
+}
+
+export async function extractArchiveEntry(
+  archivePath: string,
+  entryPath: string,
+): Promise<{ temp_path: string; original_name: string }> {
+  return invoke("extract_archive_entry", {
+    archivePath,
+    entryPath,
+  });
+}

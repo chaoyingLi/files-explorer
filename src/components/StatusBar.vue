@@ -6,7 +6,7 @@
         <div class="status-right">
             <button
                 class="status-btn"
-                :title="$t('contextMenu.properties')"
+                :title="$t('properties.title')"
                 @click="$emit('toggleProperties')"
             >
                 ⓘ

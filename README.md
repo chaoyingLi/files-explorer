@@ -16,7 +16,7 @@
 
 ## 📖 概述
 
-**Files Explorer** 是一款跨平台桌面文件管理器，将 **Rust** 后端的高性能文件操作能力与 **Vue 3** 丰富的交互界面相结合。采用 **模块化架构**（前端 6 Pinia Stores + 后端 11 Rust 模块），支持多标签页、分屏面板、完整文件操作、高级搜索、压缩解压、收藏夹以及中英文国际化。
+**Files Explorer** 是一款跨平台桌面文件管理器，将 **Rust** 后端的高性能文件操作能力与 **Vue 3** 丰富的交互界面相结合。采用 **模块化架构**（前端 6 Pinia Stores + 后端 12 Rust 模块），支持多标签页、分屏面板、完整文件操作、高级搜索、智能文件预览、归档浏览以及中英文国际化。
 
 ### 🖥️ 平台支持
 
@@ -37,13 +37,57 @@
 - **地址栏自动补全** — 输入路径时实时查询子目录并下拉匹配
 - **面包屑导航** — 每个面板独立显示，点击路径段跳转
 - **历史导航** — 后退 / 前进 / 向上，50 条历史记录
-- **文件属性面板** — 右侧栏：文件类型、大小、修改/创建时间、图片分辨率、多选总计（`Ctrl+P`）
+- **预览面板** — 右侧栏：智能内容预览 + 文件属性（`Ctrl+P`）
 
 ### 🖥️ 多面板与标签页
 - **多标签页** — 每个面板可打开多个标签页，`Ctrl+W` 关闭
-- **分屏面板** — 水平或垂直拆分面板（最多 4 个方向），各自独立浏览
+- **分屏面板** — 水平或垂直拆分面板（最多 4 个方向），各自独立浏览，分隔线可拖拽调整
 - **标签悬停切换** — 拖拽文件悬停标签 500ms 自动切换
 - **独立状态** — 每个标签页记忆自己的路径、文件列表、树展开和选中状态
+
+### 🔍 智能文件预览
+
+#### 文本 / 代码预览（47 种语言）
+- **VS Code 质量语法高亮** — 基于 Shiki（VS Code 同款引擎），支持 47 种编程语言
+- **行号栏** — 独立 gutter 列，右键对齐，背景区分
+- **行悬停高亮** — hover 当前行浅色背景
+- **智能文本检测** — 内容级识别（null 字节率 + UTF-8 有效性），不依赖扩展名
+- **支持 90+ 扩展名** — 覆盖 JS/TS/Python/Rust/Go/Java/C/C++/Swift/Kotlin/Dart/Ruby/PHP/Lua/R/Perl/C#/F#/VB/PowerShell/Haskell/Erlang/Elixir/Clojure/Zig/Nim/Verilog/VHDL/Solidity/OCaml 及所有 Web/Shell/Config 格式
+- **Markdown 预览** — DOMPurify 消毒 + marked 实时渲染
+
+#### Office 文档预览
+| 格式 | 实现 | 渲染质量 |
+|------|------|---------|
+| `.docx` | `@vue-office/docx` | 高保真：表格/图片/样式/页眉页脚 |
+| `.xlsx` | `@vue-office/excel` | 高保真：合并单元格/公式/样式 |
+| `.pdf` | `@vue-office/pdf` | Canvas 渲染 |
+| `.pptx` | `pptx-preview` | 逐页预览，内置翻页控制 |
+
+#### 图片预览
+- **原生协议加载** — 通过 Tauri `asset://` 协议直接加载，零 IPC 传输，无大小限制
+- **尺寸提取** — 自动显示分辨率
+
+#### 归档文件浏览
+| 格式 | 支持 | 实现 |
+|------|------|------|
+| `.zip` | ✅ 列表 + 提取预览 | `zip` crate |
+| `.tar` | ✅ | `tar` crate |
+| `.tar.gz` `.tgz` | ✅ | `tar` + `flate2` |
+| `.tar.bz2` `.tbz2` | ✅ | `tar` + `bzip2` |
+| `.tar.xz` `.txz` | ✅ | `tar` + `xz2-lzma` |
+| `.7z` | ✅ | `sevenz-rust`（纯 Rust） |
+| `.rar` | ✅ | 系统 `unrar` / `7z` |
+
+- **树形列表** — 分层展示归档内容，文件大小右对齐
+- **内文件双击预览** — 自动解压到临时目录 → 复用全部预览组件
+- **返回机制** — 顶部返回栏 + 右上角浮动图标，可返回归档列表浏览其他文件
+
+#### 独立预览窗口
+- ↗ 按钮弹出原生窗口，可拖到副屏 / 最大化
+- 左侧 **VS Code 风格文件树** — 懒加载展开、文件夹 chevron、高度递归、颜色分类图标
+- 右键菜单 — 打开 / Finder 定位 / 终端打开 / 复制路径
+- 树与预览区之间 **可拖拽调整宽度**
+- 同文件不重复创建窗口，自动聚焦已有
 
 ### 📋 文件操作
 | 操作 | 说明 | 平台适配 |
@@ -83,6 +127,11 @@
 - `Ctrl+Z` 撤销支持：重命名、新建文件/文件夹、复制粘贴、剪切粘贴
 - 删除操作出于安全考虑 **不可撤销**
 
+### 💾 会话持久化
+- 窗口尺寸 / 位置 / 视图模式 / 面板布局自动保存
+- 重启后恢复标签页路径和分屏结构
+- 侧边栏和预览面板宽度持久化
+
 ### ⌨️ 快捷键
 
 | 快捷键 | 功能 |
@@ -97,7 +146,7 @@
 | `Delete` / `Shift+Delete` | 回收站 / 永久删除（带确认） |
 | `F2` | 重命名 |
 | `F5` | 刷新 |
-| `Ctrl+P` | 切换属性面板 |
+| `Ctrl+P` | 切换预览面板 |
 | `Ctrl+W` | 关闭当前标签页 |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 切换标签页 |
 | `Ctrl+Z` | 撤销上次操作 |
@@ -128,7 +177,7 @@
 ┌────────────────────────────────────────────────────┐
 │                 Vue 3 前端层 (src/)                  │
 │  ┌──────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ 18 组件   │  │ 7 Composables │  │ 6 Pinia Stores│ │
+│  │ 22 组件   │  │ 7 Composables │  │ 6 Pinia Stores│ │
 │  └──────────┘  └──────────────┘  └──────────────┘  │
 ├────────────────────────────────────────────────────┤
 │                Tauri IPC Bridge                     │
@@ -136,7 +185,7 @@
 ├────────────────────────────────────────────────────┤
 │                Rust 后端层 (src-tauri/)              │
 │  ┌──────────────────────────────────────────────┐  │
-│  │  11 模块 / 27 个命令 / 39 集成测试             │  │
+│  │  12 模块 / 31 个命令                            │  │
 │  │  types / files / drives / operations          │  │
 │  │  clipboard / search / compress / system / undo │  │
 │  └──────────────────────────────────────────────┘  │
@@ -158,7 +207,7 @@
 
 | Composable | 职责 |
 |-----------|------|
-| `useFileActions` | 文件操作调度（open/cut/copy/paste/delete/rename/new/refresh/compress/extract/properties/showInExplorer/bookmark） |
+| `useFileActions` | 文件操作调度（open/cut/copy/paste/delete/rename/new/refresh/compress/extract/bookmark） |
 | `usePanelNavigation` | 面板/标签页导航（切换/新建/关闭/分割/侧栏跳转） |
 | `useKeyboardShortcuts` | 全局快捷键注册与分发（20+ 快捷键） |
 | `useSearchService` | 搜索生命周期管理（创建搜索标签、监听 progress 事件、内容搜索） |
@@ -166,79 +215,56 @@
 | `useContextMenu` | 右键菜单动态生成（根据选中状态/文件类型/路径上下文） |
 | `useToast` | 全局 Toast 消息队列（多消息堆叠） |
 
-### 数据流
-
-```
-用户操作（点击、按键、拖拽）
-        │
-        ▼
-  Vue 组件 ──emit──► App.vue（Composables 编排）
-        │                        │
-        │              ┌─────────┴──────────┐
-        │              ▼                    ▼
-        │        tabStore              fileStore
-        │      navigationStore         selectionStore
-        │       viewStore              deleteStore
-        │              │                    │
-        │              └─────────┬──────────┘
-        │                        ▼
-        ▼                  Tauri IPC invoke()
-  FileList 读取         ───────────────────►
-  活动标签页数据             Rust 后端命令
-                                    │
-                          ┌─────────┴──────────┐
-                          ▼                    ▼
-                     文件系统操作         AppState 管理
-                  (walkdir/trash/zip)  (剪贴板/撤销/搜索取消)
-```
-
-### Rust 后端命令（共 27 个）
+### Rust 后端命令（共 31 个）
 
 | 分类 | 命令 | 说明 |
 |------|------|------|
 | **目录浏览** | `list_directory` | 列出目录内容并排序（目录优先） |
 | | `list_directory_streamed` | 流式目录加载，100条/批发射事件 |
-| | `get_drives` | 获取磁盘驱动器信息（Win32 API / Unix statvfs） |
+| | `get_drives` | 获取磁盘驱动器信息 |
 | **导航** | `get_parent_directory` | 获取父目录路径 |
 | | `path_exists` | 检查路径是否存在 |
-| | `get_special_dirs` | 获取用户特殊目录（桌面/文档/下载等） |
-| **文件操作** | `create_directory` | 递归创建目录 + 撤销记录 |
-| | `create_file` | 创建空文件 + 撤销记录 |
+| | `get_special_dirs` | 获取用户特殊目录 |
+| **文件操作** | `create_directory` / `create_file` | 递归创建 + 撤销记录 |
 | | `delete_item` | 移入回收站 / 永久删除 |
 | | `rename_item` | 重命名 + 撤销记录 |
-| | `move_files` | 移动/复制文件（同设备 rename / 跨设备 copy+delete） |
-| | `compress_files` | 压缩选中文件/文件夹为 zip |
-| | `extract_archive_cmd` | 解压 zip/tar/tar.gz 归档 |
-| **剪贴板** | `copy_clipboard` | 复制：内部剪贴板 + 系统剪贴板 |
-| | `cut_clipboard` | 剪切：内部剪贴板 + 系统剪贴板 |
-| | `paste_clipboard` | 粘贴（优先系统 → 回退内部），名冲突自动解决 |
+| | `move_files` | 移动/复制文件 |
+| | `compress_files` | 压缩为 zip（流式进度） |
+| | `extract_archive_cmd` | 解压 zip/tar/tar.gz |
+| **剪贴板** | `copy_clipboard` / `cut_clipboard` | 内部 + 系统剪贴板双向 |
+| | `paste_clipboard` | 粘贴（优先系统 → 回退内部） |
 | | `get_clipboard_info` | 查询剪贴板状态 |
 | **文件打开** | `open_file` | 系统默认程序打开 |
 | | `show_in_explorer` | 在文件管理器中定位 |
 | | `show_file_properties` | 显示系统属性面板 |
 | | `open_in_terminal` | 在当前目录打开终端 |
-| | `get_file_base64` | 读取文件为 base64（图片预览，≤2MB） |
-| **搜索** | `search_files` | 递归搜索（子串/通配符/大小过滤/内容搜索，自动跳过无关目录） |
-| | `cancel_search` | 通过 AtomicBool 取消搜索线程 |
-| **拖放** | `start_native_drag_cmd` | 原生拖出到其他应用（Windows COM DoDragDrop） |
-| **撤销** | `undo_last_action` | 撤销最近操作（重命名/新建/复制/剪切） |
+| **预览** | `get_file_preview` | 智能文本检测 + 内容预览 |
+| | `get_file_icon` | Windows 原生文件图标 |
+| | `read_file_bytes` | 读取原始字节（Office/PDF 预览） |
+| **归档** | `list_archive_contents` | 列出 zip/tar/7z/rar 内容 |
+| | `extract_archive_entry` | 提取归档内单个文件 |
+| **搜索** | `search_files` | 递归搜索（子串/通配符/大小过滤/内容搜索） |
+| | `cancel_search` | AtomicBool 取消搜索线程 |
+| **拖放** | `start_native_drag_cmd` | Windows COM 原生拖拽 |
+| **撤销** | `undo_last_action` | 撤销最近操作 |
 | | `get_undo_info` | 查询撤销栈顶信息 |
 
 ### Rust 模块拆分
 
 ```
 src-tauri/src/
-├── main.rs          # 入口 + 日志轮转（保留最近 5 个日志文件）
-├── lib.rs           # 模块声明 + #[command] 薄包装 + run()
-├── types.rs         # 数据结构（FileEntry, DiskInfo, FsError, 常量...）
-├── state.rs         # AppState（剪贴板、撤销历史、搜索取消标志）
+├── main.rs          # 入口 + 日志轮转
+├── lib.rs           # 模块声明 + #[command] 包装 + run()
+├── types.rs         # 数据结构（FileEntry, DiskInfo, ArchiveEntry, FsError...）
+├── state.rs         # AppState（剪贴板、撤销历史、搜索取消）
+├── error.rs         # 结构化错误类型
 ├── files.rs         # 目录列表 / 文件信息
 ├── drives.rs        # 磁盘枚举 / 特殊目录
-├── operations.rs    # 文件增删改移 + 粘贴冲突解决
+├── operations.rs    # 文件增删改移 + 冲突解决
 ├── clipboard.rs     # 剪贴板（macOS NSPasteboard / Windows CF_HDROP）
-├── search.rs        # 搜索（通配符/大小过滤/内容匹配，跳过无关目录）
-├── compress.rs      # 压缩/解压（zip/tar/tar.gz，进度事件推送）
-├── system.rs        # 系统命令（打开/终端/预览/属性/拖拽）
+├── search.rs        # 搜索（通配符/过滤下/内容匹配）
+├── compress.rs      # 压缩/解压（流式进度事件）
+├── system.rs        # 系统命令 + 文件预览 + 归档操作
 ├── undo.rs          # 撤销系统
 └── native_drag.rs   # Windows COM 原生拖拽
 ```
@@ -250,23 +276,26 @@ src-tauri/src/
 ```
 files-explorer/
 ├── src/                              # 前端 (Vue 3 + TypeScript)
-│   ├── components/                   # Vue 组件 (18个)
+│   ├── components/                   # Vue 组件 (22个)
 │   │   ├── Breadcrumb.vue            # 面包屑导航
+│   │   ├── CodePreview.vue           # VS Code 风格代码预览（Shiki + 行号栏）
 │   │   ├── ColumnContainer.vue       # 分栏视图容器
 │   │   ├── ColumnPane.vue            # 分栏视图单列
 │   │   ├── ContextMenu.vue           # 右键上下文菜单
 │   │   ├── DetailsListView.vue       # 详细信息视图（虚拟滚动）
 │   │   ├── FileItem.vue              # 文件/文件夹项
-│   │   ├── FileList.vue              # 文件列表容器（排序/列宽/拖放）
+│   │   ├── FileList.vue              # 文件列表容器
 │   │   ├── GridView.vue              # 网格视图
 │   │   ├── PaneNode.vue              # 递归分屏面板容器
-│   │   ├── PropertiesPanel.vue       # 文件属性侧边栏
+│   │   ├── PptxPreview.vue           # PPTX 预览组件
+│   │   ├── PreviewWindow.vue         # 独立预览窗口（文件树 + 树脂）
+│   │   ├── PropertiesPanel.vue       # 预览面板（预览置顶 + 属性置底）
 │   │   ├── RibbonToolbar.vue         # Ribbon 风格操作栏
 │   │   ├── Sidebar.vue               # 侧栏（驱动器/收藏夹/快速访问）
 │   │   ├── StatusBar.vue             # 底栏状态栏
 │   │   ├── ThisPcView.vue            # "此电脑" 驱动器卡片视图
 │   │   ├── TitleBar.vue              # 自定义窗口标题栏
-│   │   ├── Toolbar.vue               # 工具栏（导航/地址栏自动补全/搜索）
+│   │   ├── Toolbar.vue               # 工具栏（导航/地址栏/搜索）
 │   │   ├── TreeView.vue              # 树形视图（递归展开）
 │   │   └── Dialogs/                  # 模态对话框
 │   │       ├── DeleteConfirmDialog.vue
@@ -274,52 +303,51 @@ files-explorer/
 │   │       ├── RenameDialog.vue
 │   │       └── SettingsDialog.vue
 │   ├── composables/                  # 组合式函数 (7个)
-│   │   ├── useContextMenu.ts         # 右键菜单逻辑
-│   │   ├── useDragDrop.ts            # 内部拖放
-│   │   ├── useFileActions.ts         # 文件操作调度
-│   │   ├── useKeyboardShortcuts.ts   # 全局快捷键（20+）
-│   │   ├── usePanelNavigation.ts     # 面板/标签导航
-│   │   ├── useSearchService.ts       # 搜索服务
-│   │   └── useToast.ts              # Toast 消息队列
+│   │   ├── useContextMenu.ts
+│   │   ├── useDragDrop.ts
+│   │   ├── useFileActions.ts
+│   │   ├── useKeyboardShortcuts.ts
+│   │   ├── usePanelNavigation.ts
+│   │   ├── useSearchService.ts
+│   │   └── useToast.ts
 │   ├── stores/                       # Pinia 状态仓库 (6个)
-│   │   ├── fileStore.ts              # 文件浏览核心
-│   │   ├── tabStore.ts               # 分屏布局树/标签页
-│   │   ├── selectionStore.ts         # 选择/剪贴板
-│   │   ├── viewStore.ts              # 视图模式/树形/分栏
-│   │   ├── navigationStore.ts        # 导航历史
-│   │   └── settingsStore.ts          # 主题/语言/字体/收藏夹
+│   │   ├── fileStore.ts
+│   │   ├── tabStore.ts
+│   │   ├── selectionStore.ts
+│   │   ├── viewStore.ts
+│   │   ├── navigationStore.ts
+│   │   └── settingsStore.ts
 │   ├── locales/                      # 国际化
 │   │   ├── en.ts                     # English
 │   │   └── zh.ts                     # 简体中文
 │   ├── types/
-│   │   └── index.ts                  # TypeScript 类型定义
+│   │   └── index.ts
 │   ├── utils/
-│   │   ├── fileIcons.ts              # Fluent 文件图标（50+ 类型 + 缓存）
-│   │   ├── fileTypes.ts              # 文件类型颜色编码
-│   │   └── tauri.ts                  # Tauri IPC 封装（24+ 函数）
-│   ├── App.vue                       # 根组件（事件编排中心 + 全局错误边界）
-│   ├── i18n.ts                       # vue-i18n 配置
-│   ├── main.ts                       # 应用入口
-│   └── style.css                     # 全局样式 + Catppuccin 主题变量
+│   │   ├── fileIcons.ts
+│   │   ├── fileTypes.ts
+│   │   ├── session.ts               # 会话持久化
+│   │   └── tauri.ts                  # Tauri IPC 封装
+│   ├── App.vue                       # 根组件（事件编排 + 预览窗口路由）
+│   ├── i18n.ts
+│   ├── main.ts
+│   └── style.css
 │
 ├── src-tauri/                        # 后端 (Rust)
-│   ├── src/                          # 11 个模块
-│   │   ├── main.rs                   # 入口 + 日志轮转
-│   │   └── lib.rs                    # 命令注册 + 入口
+│   ├── src/                          # 12 个模块
+│   │   ├── main.rs
+│   │   └── lib.rs
 │   ├── capabilities/
-│   │   └── default.json              # 权限配置
-│   ├── icons/                        # 应用图标
-│   ├── tests/                        # Rust 集成测试 (39个)
-│   │   └── functional_tests.rs
-│   ├── Cargo.toml                    # Rust 依赖
-│   ├── build.rs                      # Tauri 构建脚本
-│   └── tauri.conf.json               # Tauri 配置
+│   │   └── default.json
+│   ├── icons/
+│   ├── tests/
+│   ├── Cargo.toml
+│   ├── build.rs
+│   └── tauri.conf.json
 │
-├── screenshots/                      # 截图
-├── index.html                        # HTML 入口
-├── vite.config.ts                    # Vite 配置
-├── tsconfig.json                     # TypeScript 配置
-└── package.json                      # Node.js 依赖
+├── index.html
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
 ---
@@ -334,45 +362,28 @@ files-explorer/
 
 **macOS 额外依赖：**
 ```bash
-xcode-select --install  # Xcode Command Line Tools
+xcode-select --install
 ```
 
 **Linux 额外依赖：**
 ```bash
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev  # Debian/Ubuntu
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
 ```
 
 ### 开发模式
 
 ```bash
-npm install         # 安装前端依赖
-npm run tauri dev   # 启动开发模式（热重载）
-```
-
-### 测试
-
-```bash
-# Rust 后端测试（39 个集成测试）
-cd src-tauri && cargo test
-
-# 前端类型检查
-npx vue-tsc --noEmit
+npm install
+npm run tauri dev
 ```
 
 ### 构建
 
 ```bash
-# 标准构建
 npm run tauri build
-
-# macOS 通用二进制（Intel + Apple Silicon）
-npm run tauri build -- --target universal-apple-darwin
-
-# 构建 DMG 安装镜像
-npm run tauri build -- --bundles dmg
 ```
 
-### 构建产物位置
+### 构建产物
 
 ```
 src-tauri/target/release/bundle/dmg/Files Explorer_0.1.4_x64.dmg   # macOS DMG
@@ -380,57 +391,50 @@ src-tauri/target/release/bundle/macos/Files Explorer.app           # macOS .app
 src-tauri/target/release/files-explorer.exe                        # Windows
 ```
 
-### 首次运行（macOS 未签名）
-
-```bash
-xattr -cr "Files Explorer.app"
-open "Files Explorer.app"
-```
-
 ---
 
 ## 🧩 技术栈
 
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| **桌面框架** | [Tauri 2.0](https://v2.tauri.app) | Rust 后端 + WebView 前端 |
-| **前端框架** | [Vue 3.4](https://vuejs.org) | Composition API + `<script setup>` |
-| **状态管理** | [Pinia 2](https://pinia.vuejs.org) | 六仓库模式 |
-| **虚拟滚动** | [@tanstack/vue-virtual](https://tanstack.com/virtual) | 大列表高性能渲染 |
-| **国际化** | [vue-i18n 9](https://vue-i18n.intlify.dev) | 中英双语 |
-| **构建工具** | [Vite 5](https://vitejs.dev) | 前端构建 + HMR |
-| **后端语言** | [Rust](https://www.rust-lang.org) | 内存安全 + 零成本抽象 |
+### 前端
 
-### 关键 Rust 依赖
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Vue | 3.4 | UI 框架 |
+| Pinia | 2 | 状态管理 |
+| @tanstack/vue-virtual | 3 | 虚拟滚动 |
+| vue-i18n | 9 | 国际化 |
+| Shiki | 4 | 代码语法高亮（VS Code 引擎） |
+| @vue-office/docx | — | DOCX 文档预览 |
+| @vue-office/excel | — | XLSX 表格预览 |
+| @vue-office/pdf | — | PDF 预览 |
+| pptx-preview | — | PPTX 幻灯片预览 |
+| marked | 18 | Markdown 渲染 |
+| DOMPurify | 3 | XSS 防护 |
+| Vite | 5 | 构建工具 |
+
+### Rust 后端关键依赖
 
 | Crate | 版本 | 用途 |
 |-------|------|------|
-| `tauri` | 2.x | 桌面框架核心 |
-| `walkdir` | 2 | 递归目录遍历（搜索） |
-| `serde` / `serde_json` | 1 | JSON 序列化 |
-| `zip` | 2 | ZIP 压缩/解压 |
-| `tar` | 0.4 | TAR 归档处理 |
+| `tauri` | 2 | 桌面框架 |
+| `walkdir` | 2 | 递归目录遍历 |
+| `zip` | 2 | ZIP 压缩/解压/浏览 |
+| `tar` | 0.4 | TAR 归档 |
 | `flate2` | 1 | Gzip 压缩/解压 |
-| `trash` | 3 | 跨平台回收站操作 |
-| `opener` | 0.7 | 跨平台文件打开 |
+| `bzip2` | 0.4 | Bzip2 解压 |
+| `xz2` | 0.1 | XZ/LZMA 解压 |
+| `sevenz-rust` | 0.6 | 7z 归档（纯 Rust） |
+| `trash` | 3 | 回收站操作 |
+| `opener` | 0.7 | 文件打开 |
 | `arboard` | 3 | 系统剪贴板 |
-| `dirs` | 6 | 用户目录路径 |
-| `base64` | 0.22 | Base64 编码（图片预览） |
-| `log` / `simplelog` | 0.4 / 0.12 | 应用日志 + 轮转 |
-
----
-
-## 🖼️ 截图
-
-| 深色主题 | 浅色主题 |
-|----------|----------|
-| ![深色主题](screenshots/dark.png) | ![浅色主题](screenshots/light.png) |
+| `image` | 0.25 | 图标编码 |
+| `log` / `simplelog` | 0.4 / 0.12 | 日志系统 |
 
 ---
 
 ## 📄 许可证
 
-本项目基于 MIT 许可证开源。详见 [LICENSE](LICENSE) 文件。
+MIT License. 详见 [LICENSE](LICENSE) 文件。
 
 ---
 

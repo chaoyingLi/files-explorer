@@ -130,6 +130,21 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
     system::get_file_preview(path)
 }
 #[command]
+fn read_file_bytes(path: String) -> Result<String, String> {
+    system::read_file_bytes(path)
+}
+#[command]
+fn list_archive_contents(path: String) -> Result<Vec<system::ArchiveEntry>, String> {
+    system::list_archive_contents(path)
+}
+#[command]
+fn extract_archive_entry(
+    archive_path: String,
+    entry_path: String,
+) -> Result<system::ExtractResult, String> {
+    system::extract_archive_entry(archive_path, entry_path)
+}
+#[command]
 fn get_file_icon(path: String) -> Result<String, String> {
     system::get_file_icon(path)
 }
@@ -196,6 +211,9 @@ pub fn run() {
             show_file_properties,
             get_file_preview,
             get_file_icon,
+            read_file_bytes,
+            list_archive_contents,
+            extract_archive_entry,
             open_in_terminal,
             search_files,
             path_exists,

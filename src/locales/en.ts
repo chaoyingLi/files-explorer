@@ -83,6 +83,7 @@ export default {
     showInFinder: "Show in Finder",
     addToFavorites: "Add to Favorites",
     compress: "Compress...",
+    copyPath: "Copy Path",
     extract: "Extract...",
   },
   tab: {
@@ -96,6 +97,7 @@ export default {
     down: "Down",
   },
   properties: {
+    title: "Preview",
     contents: "Contents",
     itemsCount: "{count} items",
     fullPath: "Full Path",
@@ -104,6 +106,11 @@ export default {
     totalSize: "Total Size",
     noFileSelected: "No file selected",
     fileType: "{ext} File",
+    previewLoading: "Loading preview...",
+    previewError: "Preview error",
+    openExternally: "Open with external program",
+    popOut: "Open in preview window",
+    backToArchive: "Back to {name}",
   },
   dialogs: {
     newFolder: "New Folder",

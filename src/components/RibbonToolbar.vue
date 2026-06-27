@@ -494,11 +494,11 @@
                 </svg>
                 <span class="ribbon-label">{{ t("fileList.column") }}</span>
             </button>
-            <!-- Properties toggle -->
+            <!-- Preview toggle -->
             <div class="ribbon-sep"></div>
             <button
                 class="ribbon-btn"
-                :title="t('contextMenu.properties')"
+                :title="t('properties.title')"
                 @click="$emit('action', 'toggleProperties')"
             >
                 <svg viewBox="0 0 20 20" fill="none">
@@ -517,9 +517,7 @@
                         stroke-linecap="round"
                     />
                 </svg>
-                <span class="ribbon-label">{{
-                    t("contextMenu.properties")
-                }}</span>
+                <span class="ribbon-label">{{ t("properties.title") }}</span>
             </button>
         </div>
     </div>

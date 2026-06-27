@@ -114,13 +114,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
 import type { FileEntry } from "@/types";
 import { getFileCategory, gridColorClassForCategory } from "@/utils/fileTypes";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
-import * as tauri from "@/utils/tauri";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 defineEmits<{
     fileClick: [file: FileEntry, e: MouseEvent];
@@ -135,51 +135,14 @@ const props = defineProps<{
 const store = useFileStore();
 const sel = useSelectionStore();
 
-// ── Thumbnail cache ──
-const thumbCache = ref<Record<string, string>>({});
-let pending = new Set<string>();
-let timer: ReturnType<typeof setTimeout> | null = null;
-
 function isImage(file: FileEntry): boolean {
     if (file.is_dir) return false;
     return getFileCategory(file.extension, false) === "image";
 }
 
 function thumbSrc(file: FileEntry): string {
-    return thumbCache.value[file.path] || "";
+    return convertFileSrc(file.path);
 }
-
-function loadThumb(path: string) {
-    if (pending.has(path) || thumbCache.value[path]) return;
-    pending.add(path);
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(async () => {
-        const batch = [...pending];
-        pending.clear();
-        for (const p of batch) {
-            try {
-                const res = await tauri.getFileBase64(p);
-                thumbCache.value = {
-                    ...thumbCache.value,
-                    [p]: `data:${res.mime};base64,${res.data}`,
-                };
-            } catch {
-                thumbCache.value = { ...thumbCache.value, [p]: "__error__" };
-            }
-        }
-    }, 50);
-}
-
-// Load thumbnails when files change
-watch(
-    () => props.files,
-    (newFiles) => {
-        for (const f of newFiles) {
-            if (isImage(f)) loadThumb(f.path);
-        }
-    },
-    { immediate: true },
-);
 
 function isSelected(path: string): boolean {
     return sel.selectedFiles.has(path);

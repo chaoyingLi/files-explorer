@@ -1,4 +1,5 @@
 use crate::types::{DiskInfo, SpecialDirs};
+#[cfg(target_os = "windows")]
 use std::path::Path;
 
 pub fn get_drives() -> Result<Vec<DiskInfo>, String> {

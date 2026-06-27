@@ -1,5 +1,13 @@
 use crate::native_drag;
+use base64::Engine;
+#[cfg(target_os = "windows")]
+use image::codecs::png::PngEncoder;
+#[cfg(target_os = "windows")]
+use image::ColorType;
+#[cfg(target_os = "windows")]
+use image::ImageEncoder;
 use log;
+use std::io::Read;
 use std::path::Path;
 
 pub fn open_in_terminal(path: String) -> Result<(), String> {
@@ -81,7 +89,8 @@ pub fn open_file(path: String) -> Result<(), String> {
 
 pub fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
     let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
-    if bytes.len() > 2 * 1024 * 1024 {
+    const IMAGE_PREVIEW_MAX_SIZE: usize = 2 * 1024 * 1024;
+    if bytes.len() > IMAGE_PREVIEW_MAX_SIZE {
         return Err("File too large for preview".to_string());
     }
     let ext = Path::new(&path)
@@ -99,12 +108,22 @@ pub fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
         "ico" => "image/x-icon",
         _ => "image/png",
     };
-    use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(serde_json::json!({
         "mime": mime,
         "data": b64
     }))
+}
+
+/// Read raw file bytes as base64 for Office document preview (docx/xlsx/pptx)
+pub fn read_file_bytes(path: String) -> Result<String, String> {
+    const OFFICE_PREVIEW_MAX_SIZE: usize = 20 * 1024 * 1024; // 20MB
+    let metadata = std::fs::metadata(&path).map_err(|e| format!("Failed to stat file: {}", e))?;
+    if metadata.len() > OFFICE_PREVIEW_MAX_SIZE as u64 {
+        return Err("File too large for preview".to_string());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
 pub fn show_in_explorer(path: String) -> Result<(), String> {
@@ -369,9 +388,6 @@ pub fn get_file_icon(path: String) -> Result<String, String> {
             }
         }
 
-        use image::codecs::png::PngEncoder;
-        use image::ColorType;
-        use image::ImageEncoder;
         let mut png_bytes: Vec<u8> = Vec::new();
         {
             let encoder = PngEncoder::new(&mut png_bytes);
@@ -396,7 +412,119 @@ pub fn get_file_icon(_path: String) -> Result<String, String> {
     Err("OS icons only supported on Windows".to_string())
 }
 
-// ── File content preview (text, markdown, pdf, docx) ──
+// ── File content preview (text, markdown, pdf) ──
+
+const PREVIEW_TEXT_MAX_BYTES: usize = 512 * 1024;
+const PREVIEW_TEXT_CHARS: usize = 10000;
+
+/// Safely truncate a string to at most `max_chars` chars at a valid UTF-8 boundary
+fn truncate_to_chars(s: &str, max_chars: usize) -> &str {
+    let mut char_count = 0;
+    for (i, _) in s.char_indices() {
+        if char_count >= max_chars {
+            return &s[..i];
+        }
+        char_count += 1;
+    }
+    s
+}
+
+/// Check if the first N bytes of a file look like valid UTF-8 text
+fn is_probably_text(data: &[u8]) -> bool {
+    if data.is_empty() {
+        return true; // empty file is text
+    }
+    let check_len = data.len().min(8192);
+    let slice = &data[..check_len];
+    // Count null bytes and non-printable control chars
+    let mut nulls = 0usize;
+    let mut controls = 0usize;
+    for &b in slice.iter() {
+        if b == 0 {
+            nulls += 1;
+        } else if b < 0x08 || (b > 0x0D && b < 0x20) {
+            controls += 1;
+        }
+    }
+    // If more than 0.5% null bytes, it's binary
+    if nulls as f64 > check_len as f64 * 0.005 {
+        return false;
+    }
+    // If more than 10% control chars, it's likely binary
+    if controls as f64 > check_len as f64 * 0.1 {
+        return false;
+    }
+    // Try UTF-8 validation on the slice
+    if std::str::from_utf8(slice).is_err() {
+        // One more chance: check if it's mostly ASCII
+        let printable = slice
+            .iter()
+            .filter(|&&b| b >= 0x20 && b < 0x7F || b == b'\n' || b == b'\r' || b == b'\t')
+            .count();
+        if (printable as f64) < check_len as f64 * 0.85 {
+            return false;
+        }
+    }
+    true
+}
+
+/// Known binary extensions that should skip text detection
+fn is_known_binary_ext(ext: &str) -> bool {
+    matches!(
+        ext,
+        "pdf"
+            | "zip"
+            | "7z"
+            | "rar"
+            | "tar"
+            | "gz"
+            | "tgz"
+            | "bz2"
+            | "tbz2"
+            | "xz"
+            | "txz"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "bmp"
+            | "svg"
+            | "ico"
+            | "mp3"
+            | "mp4"
+            | "avi"
+            | "mov"
+            | "mkv"
+            | "wav"
+            | "flac"
+            | "ttf"
+            | "otf"
+            | "woff"
+            | "woff2"
+            | "eot"
+            | "exe"
+            | "dll"
+            | "so"
+            | "dylib"
+            | "wasm"
+            | "class"
+            | "jar"
+            | "war"
+            | "pyc"
+            | "pyo"
+            | "docx"
+            | "xlsx"
+            | "pptx"
+            | "doc"
+            | "xls"
+            | "ppt"
+            | "iso"
+            | "dmg"
+            | "deb"
+            | "rpm"
+    )
+}
 
 pub fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
     let ext = std::path::Path::new(&path)
@@ -405,98 +533,412 @@ pub fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
         .unwrap_or("")
         .to_lowercase();
 
-    let text_exts = [
-        "txt",
-        "md",
-        "js",
-        "ts",
-        "rs",
-        "py",
-        "vue",
-        "json",
-        "xml",
-        "yaml",
-        "yml",
-        "toml",
-        "css",
-        "scss",
-        "html",
-        "sh",
-        "bat",
-        "log",
-        "ini",
-        "cfg",
-        "env",
-        "gitignore",
-        "c",
-        "cpp",
-        "h",
-        "hpp",
-        "java",
-        "go",
-        "rb",
-        "php",
-        "swift",
-        "kt",
-        "dart",
-        "lua",
-        "r",
-        "pl",
-        "sql",
-        "bash",
-        "zsh",
-        "fish",
-    ];
-
-    if text_exts.contains(&ext.as_str()) {
-        let content = std::fs::read_to_string(&path).map_err(|e| format!("Read failed: {}", e))?;
-        let preview: String = content.chars().take(5000).collect();
-        return Ok(serde_json::json!({
-            "type": if ext == "md" { "markdown" } else { "text" },
-            "content": preview,
-            "ext": ext,
-        }));
+    // Known binary types: skip text detection (handled by frontend)
+    if is_known_binary_ext(&ext) {
+        return Err("Binary file".to_string());
     }
 
-    if ext == "pdf" {
-        let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
-        if bytes.len() > 10 * 1024 * 1024 {
-            return Err("File too large for preview".to_string());
+    // Check file size before reading
+    let metadata = std::fs::metadata(&path).map_err(|e| format!("Failed to stat: {}", e))?;
+    if metadata.len() > PREVIEW_TEXT_MAX_BYTES as u64 {
+        return Err("File too large for preview".to_string());
+    }
+
+    // Smart detection: read first bytes and check if text
+    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
+    if !is_probably_text(&bytes) {
+        return Err("Binary file".to_string());
+    }
+
+    let content = String::from_utf8_lossy(&bytes);
+    let preview = truncate_to_chars(&content, PREVIEW_TEXT_CHARS).to_string();
+
+    // Markdown: detect by extension OR common markdown patterns
+    let is_md = if ext == "md" || ext == "mdx" {
+        true
+    } else {
+        // Heuristic: starts with '#' or contains markdown links
+        preview.starts_with('#') && preview.contains('[') && preview.contains("](")
+    };
+
+    Ok(serde_json::json!({
+        "type": if is_md { "markdown" } else { "text" },
+        "content": preview,
+        "ext": ext,
+    }))
+}
+
+// ── Archive content listing ──
+
+#[derive(serde::Serialize)]
+pub struct ArchiveEntry {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub is_dir: bool,
+}
+
+const ARCHIVE_MAX_ENTRIES: u64 = 10000;
+
+pub fn list_archive_contents(path: String) -> Result<Vec<ArchiveEntry>, String> {
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let full_lower = path.to_lowercase();
+
+    match ext.as_str() {
+        "zip" => list_zip(&path),
+        "7z" => list_7z(&path),
+        "rar" => list_rar(&path),
+        "tar" => list_tar_archive(&path),
+        "gz" | "tgz" if full_lower.ends_with(".tar.gz") || full_lower.ends_with(".tgz") => {
+            list_tar_gz(&path)
         }
-        use base64::Engine;
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        return Ok(serde_json::json!({
-            "type": "pdf",
-            "data": b64,
-        }));
+        "bz2" | "tbz2" if full_lower.ends_with(".tar.bz2") || full_lower.ends_with(".tbz2") => {
+            list_tar_bz2(&path)
+        }
+        "xz" | "txz" if full_lower.ends_with(".tar.xz") || full_lower.ends_with(".txz") => {
+            list_tar_xz(&path)
+        }
+        _ => Err("Unsupported archive format".to_string()),
     }
+}
 
-    if ext == "docx" {
-        use std::io::Read;
-        let file = std::fs::File::open(&path).map_err(|e| format!("Open failed: {}", e))?;
-        let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Zip failed: {}", e))?;
-        let mut text = String::new();
-        if let Ok(mut entry) = archive.by_name("word/document.xml") {
-            let mut xml = String::new();
-            entry.read_to_string(&mut xml).ok();
-            let mut in_tag = false;
-            for c in xml.chars() {
-                if c == '<' {
-                    in_tag = true;
-                } else if c == '>' {
-                    in_tag = false;
-                } else if !in_tag && !c.is_control() {
-                    text.push(c);
+fn list_zip(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Zip: {}", e))?;
+    let mut result = Vec::new();
+    for i in 0..archive.len() {
+        if result.len() as u64 >= ARCHIVE_MAX_ENTRIES {
+            break;
+        }
+        let entry = archive.by_index(i).map_err(|e| format!("Entry: {}", e))?;
+        let name = entry.name().to_string();
+        let is_dir = entry.is_dir();
+        result.push(ArchiveEntry {
+            name: name.clone(),
+            path: name.trim_end_matches('/').to_string(),
+            size: if is_dir { 0 } else { entry.size() },
+            is_dir,
+        });
+    }
+    Ok(result)
+}
+
+fn list_tar_entries<R: std::io::Read>(
+    archive: &mut tar::Archive<R>,
+) -> Result<Vec<ArchiveEntry>, String> {
+    let mut result = Vec::new();
+    for entry in archive.entries().map_err(|e| format!("Tar: {}", e))? {
+        if result.len() as u64 >= ARCHIVE_MAX_ENTRIES {
+            break;
+        }
+        let entry = entry.map_err(|e| format!("Entry: {}", e))?;
+        let p = entry.path().map_err(|e| format!("Path: {}", e))?;
+        let path_str = p.to_string_lossy().to_string();
+        let name = p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path_str.clone());
+        result.push(ArchiveEntry {
+            name,
+            path: path_str,
+            size: entry.size(),
+            is_dir: entry.header().entry_type().is_dir(),
+        });
+    }
+    Ok(result)
+}
+
+fn list_tar_archive(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let mut archive = tar::Archive::new(file);
+    list_tar_entries(&mut archive)
+}
+
+fn list_tar_gz(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let gz = flate2::read::GzDecoder::new(file);
+    let mut archive = tar::Archive::new(gz);
+    list_tar_entries(&mut archive)
+}
+
+fn list_tar_bz2(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let bz2 = bzip2::read::BzDecoder::new(file);
+    let mut archive = tar::Archive::new(bz2);
+    list_tar_entries(&mut archive)
+}
+
+fn list_tar_xz(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let xz = xz2::read::XzDecoder::new(file);
+    let mut archive = tar::Archive::new(xz);
+    list_tar_entries(&mut archive)
+}
+
+fn list_7z(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let sz = sevenz_rust::SevenZReader::open(path, "".into()).map_err(|e| format!("7z: {}", e))?;
+    let mut result = Vec::new();
+    for entry in sz.archive().files.iter() {
+        if result.len() as u64 >= ARCHIVE_MAX_ENTRIES {
+            break;
+        }
+        let is_dir = entry.is_directory();
+        result.push(ArchiveEntry {
+            name: entry.name.clone(),
+            path: entry.name.clone(),
+            size: if is_dir { 0 } else { entry.size },
+            is_dir,
+        });
+    }
+    Ok(result)
+}
+
+fn list_rar(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    // Try system `unrar` command first, then `7z`
+    for cmd in &["unrar", "7z"] {
+        let output = std::process::Command::new(cmd)
+            .args(if *cmd == "7z" {
+                vec!["l", "-slt", path]
+            } else {
+                vec!["l", path]
+            })
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                return parse_rar_output(cmd, &String::from_utf8_lossy(&out.stdout));
+            }
+        }
+    }
+    Err("RAR listing requires 'unrar' or '7z' installed".to_string())
+}
+
+fn parse_rar_output(cmd: &str, output: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let mut result = Vec::new();
+    for line in output.lines() {
+        if result.len() as u64 >= ARCHIVE_MAX_ENTRIES {
+            break;
+        }
+        if cmd == "7z" {
+            // 7z -slt output: Path = xxx, Size = xxx, Attributes = D...
+            if let Some(p) = line.strip_prefix("Path = ") {
+                let p = p.trim();
+                if p.is_empty() {
+                    continue;
+                }
+                result.push(ArchiveEntry {
+                    name: p.to_string(),
+                    path: p.to_string(),
+                    size: 0, // will be filled by next Size line
+                    is_dir: false,
+                });
+            }
+            if let Some(s) = line.strip_prefix("Size = ") {
+                if let Some(last) = result.last_mut() {
+                    last.size = s.trim().parse().unwrap_or(0);
+                }
+            }
+            if line.starts_with("Attributes = ") && line.contains('D') {
+                if let Some(last) = result.last_mut() {
+                    last.is_dir = true;
+                    last.size = 0;
+                }
+            }
+        } else {
+            // unrar output: skip header lines, parse file entries
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3
+                && !line.starts_with("UNRAR")
+                && !line.starts_with("----")
+                && !line.starts_with("  ")
+                && !line.is_empty()
+            {
+                // unrar format has attributes, size, date, time, name
+                let is_dir = parts[0].contains('d') || parts[0].contains('D');
+                let name_start = line
+                    .find(|c: char| {
+                        c.is_ascii_alphabetic() && !c.is_ascii_uppercase() || c == '.' || c == '/'
+                    })
+                    .unwrap_or(0);
+                let name = line[name_start..].trim().to_string();
+                let size: u64 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+                if !name.is_empty() {
+                    result.push(ArchiveEntry {
+                        name: name.clone(),
+                        path: name,
+                        size,
+                        is_dir,
+                    });
                 }
             }
         }
-        let preview: String = text.chars().take(3000).collect();
-        return Ok(serde_json::json!({
-            "type": "text",
-            "content": preview,
-            "ext": "docx",
-        }));
     }
+    Ok(result)
+}
 
-    Err("Unsupported file type for preview".to_string())
+// ── Extract single entry from archive for preview ──
+
+const EXTRACT_MAX_SIZE: u64 = 20 * 1024 * 1024;
+
+#[derive(serde::Serialize)]
+pub struct ExtractResult {
+    pub temp_path: String,
+    pub original_name: String,
+}
+
+fn preview_temp_dir() -> std::path::PathBuf {
+    let dir = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("files-explorer-preview");
+    std::fs::create_dir_all(&dir).ok();
+    dir
+}
+
+fn safe_entry_path(entry: &str) -> Result<String, String> {
+    let cleaned = entry.replace('\\', "/").trim_start_matches('/').to_string();
+    if cleaned.contains("..") {
+        return Err("Invalid path".to_string());
+    }
+    Ok(cleaned)
+}
+
+pub fn extract_archive_entry(
+    archive_path: String,
+    entry_path: String,
+) -> Result<ExtractResult, String> {
+    let safe_entry = safe_entry_path(&entry_path)?;
+    let ext = std::path::Path::new(&archive_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let full_lower = archive_path.to_lowercase();
+    let temp_dir = preview_temp_dir();
+    let out_path = temp_dir.join(&safe_entry);
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Create dir: {}", e))?;
+    }
+    match ext.as_str() {
+        "zip" => extract_zip_entry(&archive_path, &entry_path, &out_path),
+        "7z" => extract_7z_entry(&archive_path, &entry_path, &out_path),
+        "rar" => extract_rar_entry(&archive_path, &entry_path, &out_path),
+        "tar" => extract_tar_entry(&archive_path, &entry_path, &out_path, None),
+        "gz" | "tgz" if full_lower.ends_with(".tar.gz") || full_lower.ends_with(".tgz") => {
+            extract_tar_entry(&archive_path, &entry_path, &out_path, Some("gz"))
+        }
+        "bz2" | "tbz2" if full_lower.ends_with(".tar.bz2") || full_lower.ends_with(".tbz2") => {
+            extract_tar_entry(&archive_path, &entry_path, &out_path, Some("bz2"))
+        }
+        "xz" | "txz" if full_lower.ends_with(".tar.xz") || full_lower.ends_with(".txz") => {
+            extract_tar_entry(&archive_path, &entry_path, &out_path, Some("xz"))
+        }
+        _ => Err("Unsupported archive format".to_string()),
+    }?;
+    let name = std::path::Path::new(&entry_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| entry_path.clone());
+    Ok(ExtractResult {
+        temp_path: out_path.to_string_lossy().to_string(),
+        original_name: name,
+    })
+}
+
+fn extract_zip_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result<(), String> {
+    let file = std::fs::File::open(archive).map_err(|e| format!("Open: {}", e))?;
+    let mut za = zip::ZipArchive::new(file).map_err(|e| format!("Zip: {}", e))?;
+    let idx = (0..za.len())
+        .find(|i| {
+            if let Ok(e) = za.by_index(*i) {
+                let n = e.name().trim_end_matches('/');
+                n == entry || n == entry.trim_start_matches('/')
+            } else {
+                false
+            }
+        })
+        .ok_or_else(|| format!("Entry not found: {}", entry))?;
+    let mut ze = za.by_index(idx).map_err(|e| format!("Entry: {}", e))?;
+    if ze.size() > EXTRACT_MAX_SIZE {
+        return Err("File too large".to_string());
+    }
+    let mut out_file = std::fs::File::create(out).map_err(|e| format!("Create: {}", e))?;
+    std::io::copy(&mut ze, &mut out_file).map_err(|e| format!("Copy: {}", e))?;
+    Ok(())
+}
+
+fn extract_tar_entry(
+    archive: &str,
+    entry: &str,
+    out: &std::path::Path,
+    comp: Option<&str>,
+) -> Result<(), String> {
+    let file = std::fs::File::open(archive).map_err(|e| format!("Open: {}", e))?;
+    let mut tar: tar::Archive<Box<dyn Read>> = match comp {
+        Some("gz") => tar::Archive::new(Box::new(flate2::read::GzDecoder::new(file))),
+        Some("bz2") => tar::Archive::new(Box::new(bzip2::read::BzDecoder::new(file))),
+        Some("xz") => tar::Archive::new(Box::new(xz2::read::XzDecoder::new(file))),
+        _ => tar::Archive::new(Box::new(file)),
+    };
+    for e in tar.entries().map_err(|e| format!("Tar: {}", e))? {
+        let mut e = e.map_err(|e| format!("Entry: {}", e))?;
+        let p = e.path().map_err(|e| format!("Path: {}", e))?;
+        let ps = p.to_string_lossy().to_string();
+        if ps == entry || ps == format!("/{}", entry) || ps == entry.trim_start_matches('/') {
+            if e.size() > EXTRACT_MAX_SIZE {
+                return Err("File too large".to_string());
+            }
+            let mut of = std::fs::File::create(out).map_err(|e| format!("Create: {}", e))?;
+            std::io::copy(&mut e, &mut of).map_err(|e| format!("Copy: {}", e))?;
+            return Ok(());
+        }
+    }
+    Err(format!("Not found: {}", entry))
+}
+
+fn extract_7z_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result<(), String> {
+    let mut sz =
+        sevenz_rust::SevenZReader::open(archive, "".into()).map_err(|e| format!("7z: {}", e))?;
+    sz.for_each_entries(|e, reader| {
+        if e.name == entry || e.name == format!("/{}", entry) {
+            if e.size > EXTRACT_MAX_SIZE {
+                return Err(sevenz_rust::Error::Other(std::borrow::Cow::Borrowed(
+                    "too large",
+                )));
+            }
+            let mut of = std::fs::File::create(out)
+                .map_err(|_| sevenz_rust::Error::Other(std::borrow::Cow::Borrowed("io")))?;
+            std::io::copy(reader, &mut of).ok();
+        }
+        Ok(true)
+    })
+    .map_err(|e| format!("7z: {}", e))?;
+    Ok(())
+}
+
+fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result<(), String> {
+    for cmd in &["7z", "unrar"] {
+        let out_dir = out.parent().unwrap_or(out).to_string_lossy().to_string();
+        let args: Vec<String> = if *cmd == "7z" {
+            vec![
+                "e".into(),
+                archive.into(),
+                format!("-o{}", out_dir),
+                entry.into(),
+                "-y".into(),
+            ]
+        } else {
+            vec!["x".into(), "-o+".into(), archive.into(), entry.into()]
+        };
+        let str_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        if let Ok(o) = std::process::Command::new(cmd).args(&str_args).output() {
+            if o.status.success() {
+                return Ok(());
+            }
+        }
+    }
+    Err("RAR extraction requires 'unrar' or '7z'".to_string())
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicepkg/vscode-tauri/main/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for all windows",
+  "windows": ["main", "preview-*"],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -22,6 +22,10 @@
     "core:window:allow-inner-position",
     "core:window:allow-destroy",
     "core:window:allow-current-monitor",
+    "core:window:allow-create",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-set-webview-focus",
     "shell:allow-open",
     "dialog:default",
     "dialog:allow-open",

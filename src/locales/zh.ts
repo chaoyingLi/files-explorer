@@ -83,6 +83,7 @@ export default {
     showInFinder: "在访达中显示",
     addToFavorites: "添加到收藏夹",
     compress: "压缩到...",
+    copyPath: "复制路径",
     extract: "解压到...",
   },
   tab: {
@@ -96,6 +97,7 @@ export default {
     down: "向下",
   },
   properties: {
+    title: "预览",
     contents: "内容",
     itemsCount: "{count} 项",
     fullPath: "完整路径",
@@ -104,6 +106,11 @@ export default {
     totalSize: "总大小",
     noFileSelected: "未选择文件",
     fileType: "{ext} 文件",
+    previewLoading: "加载预览中...",
+    previewError: "预览错误",
+    openExternally: "用外部程序打开",
+    popOut: "在独立窗口中预览",
+    backToArchive: "返回 {name}",
   },
   dialogs: {
     newFolder: "新建文件夹",

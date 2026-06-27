@@ -1,5 +1,7 @@
 <template>
+    <PreviewWindow v-if="isPreviewWindow" />
     <div
+        v-else
         class="app-container"
         @click="ctx.closeContextMenu()"
         @contextmenu.prevent="onGlobalContextMenu"
@@ -131,6 +133,7 @@ import NewItemDialog from "@/components/Dialogs/NewItemDialog.vue";
 import RenameDialog from "@/components/Dialogs/RenameDialog.vue";
 import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
 import PropertiesPanel from "@/components/PropertiesPanel.vue";
+import PreviewWindow from "@/components/PreviewWindow.vue";
 
 import { useToast } from "@/composables/useToast";
 import { useContextMenu } from "@/composables/useContextMenu";
@@ -151,6 +154,11 @@ const navStore = useNavigationStore();
 const view = useViewStore();
 const showSettings = ref(false);
 const showProperties = ref(true);
+
+// ── Detect preview window mode ──
+const isPreviewWindow = computed(() =>
+    new URLSearchParams(window.location.search).has("preview"),
+);
 
 // ── Sidebar & Properties panel resize ──
 const sidebarWidth = ref(loadPanelWidth("sidebar", 220));
