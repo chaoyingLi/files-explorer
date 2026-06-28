@@ -1,70 +1,79 @@
 <template>
     <div class="pw-root">
-        <TitleBar />
-        <div class="pw-header">
-            <span class="pw-title">{{ fileName || "Preview" }}</span>
-        </div>
-        <!-- Toolbar -->
-        <div class="pw-toolbar" v-if="activePath && !viewingExtracted">
-            <button
-                class="pw-tb-btn"
-                :title="$t('previewToolbar.open')"
-                @click="tbOpen"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.open"></span>
-                {{ $t("previewToolbar.open") }}
-            </button>
-            <button
-                class="pw-tb-btn"
-                :title="$t('previewToolbar.print')"
-                @click="tbPrint"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.print"></span>
-                {{ $t("previewToolbar.print") }}
-            </button>
-            <button
-                class="pw-tb-btn"
-                :title="$t('previewToolbar.saveAs')"
-                @click="tbSaveAs"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.saveAs"></span>
-                {{ $t("previewToolbar.saveAs") }}
-            </button>
-            <button
-                class="pw-tb-btn pw-tb-btn--danger"
-                :title="$t('previewToolbar.delete')"
-                @click="tbDelete"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.delete"></span>
-                {{ $t("previewToolbar.delete") }}
-            </button>
-            <div class="pw-tb-sep"></div>
-            <button
-                class="pw-tb-btn"
-                :title="$t('previewToolbar.copyPath')"
-                @click="tbCopyPath"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.copy"></span>
-                {{
-                    tbcopied
-                        ? $t("previewToolbar.copied")
-                        : $t("previewToolbar.copyPath")
-                }}
-            </button>
-            <button
-                class="pw-tb-btn"
-                :title="$t('previewToolbar.showInExplorer')"
-                @click="tbShowInExplorer"
-            >
-                <span class="pw-tb-icon" v-html="ICONS.showInExplorer"></span>
-                {{ $t("previewToolbar.showInExplorer") }}
-            </button>
-        </div>
-        <!-- Back to archive -->
-        <div v-if="viewingExtracted" class="pw-back-bar">
-            <button class="pw-back-btn" @click="backToArchive">
-                ← {{ archiveFileName }}
-            </button>
+        <div
+            class="pw-top-bar"
+            data-tauri-drag-region
+            @mousedown="onTopBarDrag"
+        >
+            <TitleBar />
+            <div class="pw-header">
+                <span class="pw-title">{{ fileName || "Preview" }}</span>
+            </div>
+            <!-- Toolbar -->
+            <div class="pw-toolbar" v-if="activePath && !viewingExtracted">
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.open')"
+                    @click="tbOpen"
+                >
+                    <span class="pw-tb-icon" v-html="ICONS.open"></span>
+                    {{ $t("previewToolbar.open") }}
+                </button>
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.print')"
+                    @click="tbPrint"
+                >
+                    <span class="pw-tb-icon" v-html="ICONS.print"></span>
+                    {{ $t("previewToolbar.print") }}
+                </button>
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.saveAs')"
+                    @click="tbSaveAs"
+                >
+                    <span class="pw-tb-icon" v-html="ICONS.saveAs"></span>
+                    {{ $t("previewToolbar.saveAs") }}
+                </button>
+                <button
+                    class="pw-tb-btn pw-tb-btn--danger"
+                    :title="$t('previewToolbar.delete')"
+                    @click="tbDelete"
+                >
+                    <span class="pw-tb-icon" v-html="ICONS.delete"></span>
+                    {{ $t("previewToolbar.delete") }}
+                </button>
+                <div class="pw-tb-sep"></div>
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.copyPath')"
+                    @click="tbCopyPath"
+                >
+                    <span class="pw-tb-icon" v-html="ICONS.copy"></span>
+                    {{
+                        tbcopied
+                            ? $t("previewToolbar.copied")
+                            : $t("previewToolbar.copyPath")
+                    }}
+                </button>
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.showInExplorer')"
+                    @click="tbShowInExplorer"
+                >
+                    <span
+                        class="pw-tb-icon"
+                        v-html="ICONS.showInExplorer"
+                    ></span>
+                    {{ $t("previewToolbar.showInExplorer") }}
+                </button>
+            </div>
+            <!-- Back to archive -->
+            <div v-if="viewingExtracted" class="pw-back-bar">
+                <button class="pw-back-btn" @click="backToArchive">
+                    ← {{ archiveFileName }}
+                </button>
+            </div>
         </div>
         <div class="pw-body">
             <!-- Left: tree -->
@@ -301,6 +310,13 @@ import {
     openInTerminal,
 } from "@/utils/tauri";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+
+function onTopBarDrag(e: MouseEvent) {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, select, a, .traffic-btn")) return;
+    getCurrentWebviewWindow().startDragging();
+}
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -859,14 +875,18 @@ onMounted(async () => {
     background: var(--bg-primary);
     color: var(--text-primary);
 }
+/* ── Top bar: unified drag region ── */
+.pw-top-bar {
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+}
 .pw-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    padding: 4px 12px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
 }
 .pw-title {
     font-size: 13px;
@@ -893,7 +913,6 @@ onMounted(async () => {
     padding: 4px 8px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
 }
 .pw-back-btn {
     background: none;
@@ -904,6 +923,7 @@ onMounted(async () => {
     cursor: pointer;
     font-size: 12px;
     transition: background 0.15s;
+    -webkit-app-region: no-drag;
 }
 .pw-back-btn:hover {
     background: var(--bg-hover);
@@ -916,7 +936,6 @@ onMounted(async () => {
     padding: 4px 8px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
     flex-wrap: wrap;
 }
 .pw-tb-btn {
@@ -932,6 +951,7 @@ onMounted(async () => {
     font-size: 11px;
     white-space: nowrap;
     transition: all 0.1s;
+    -webkit-app-region: no-drag;
 }
 .pw-tb-btn:hover {
     background: var(--bg-hover);
@@ -987,6 +1007,7 @@ onMounted(async () => {
     border-radius: 4px;
     cursor: pointer;
     font-size: 11px;
+    -webkit-app-region: no-drag;
 }
 .pw-nav-btn:disabled {
     opacity: 0.3;

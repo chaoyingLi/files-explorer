@@ -1,5 +1,10 @@
 <template>
-    <div class="titlebar" data-tauri-drag-region @dblclick="toggleMaximize">
+    <div
+        class="titlebar"
+        data-tauri-drag-region
+        @dblclick="toggleMaximize"
+        @mousedown="onDragStart"
+    >
         <!-- macOS traffic lights (left) -->
         <div v-if="isMac" class="titlebar-left mac-traffic-lights">
             <button
@@ -222,6 +227,14 @@ async function manualToggle() {
 
 function close() {
     appWindow.close();
+}
+
+function onDragStart(e: MouseEvent) {
+    if (e.button !== 0) return; // only left click
+    // Skip if clicking on a button or interactive element
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, select, a")) return;
+    appWindow.startDragging();
 }
 
 onMounted(async () => {
