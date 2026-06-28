@@ -207,3 +207,11 @@ export async function extractArchiveEntry(
     entryPath,
   });
 }
+
+export async function printFile(path: string): Promise<void> {
+  return invoke("print_file", { path });
+}
+
+export async function copyFileAs(src: string, dest: string): Promise<void> {
+  return invoke("copy_file_as", { src, dest });
+}

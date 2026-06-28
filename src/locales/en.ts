@@ -84,6 +84,7 @@ export default {
     addToFavorites: "Add to Favorites",
     compress: "Compress...",
     copyPath: "Copy Path",
+    openInPreviewWindow: "Open in Preview Window",
     extract: "Extract...",
   },
   tab: {
@@ -111,6 +112,17 @@ export default {
     openExternally: "Open with external program",
     popOut: "Open in preview window",
     backToArchive: "Back to {name}",
+  },
+  previewToolbar: {
+    open: "Open",
+    showInExplorer: "Show in Finder",
+    copyPath: "Copy Path",
+    copied: "Copied",
+    print: "Print",
+    saveAs: "Save As",
+    delete: "Delete",
+    confirmDelete: 'Delete "{name}"?',
+    deleteWarning: "This file will be moved to Trash.",
   },
   dialogs: {
     newFolder: "New Folder",

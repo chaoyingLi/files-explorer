@@ -198,6 +198,11 @@ export function useContextMenu() {
     result.push(
       { label: "", action: "", separator: true },
       {
+        label: t("contextMenu.openInPreviewWindow"),
+        action: "openInPreviewWindow",
+        icon: I.showInExplorer,
+      },
+      {
         label: t("contextMenu.properties"),
         action: "properties",
         icon: I.properties,

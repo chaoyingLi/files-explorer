@@ -942,3 +942,35 @@ fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Resul
     }
     Err("RAR extraction requires 'unrar' or '7z'".to_string())
 }
+
+// ── Print file ──
+pub fn print_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Preview", &path])
+            .spawn()
+            .map_err(|e| format!("Print: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("print")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Print: {}", e))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("lp")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Print: {}", e))?;
+    }
+    Ok(())
+}
+
+// ── Copy file to new location ──
+pub fn copy_file_as(src: String, dest: String) -> Result<(), String> {
+    std::fs::copy(&src, &dest).map_err(|e| format!("Copy: {}", e))?;
+    Ok(())
+}

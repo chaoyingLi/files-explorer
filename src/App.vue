@@ -287,6 +287,34 @@ function handleSidebarContext(path: string, event: MouseEvent) {
 
 async function handleContextAction(action: string) {
     ctx.closeContextMenu();
+    if (action === "openInPreviewWindow") {
+        const path =
+            sel.selectedFiles.size === 1 ? [...sel.selectedFiles][0] : null;
+        if (path) {
+            const { WebviewWindow } =
+                await import("@tauri-apps/api/webviewWindow");
+            const label = `preview-${path.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            try {
+                const existing = await WebviewWindow.getByLabel(label);
+                if (existing) {
+                    await existing.setFocus();
+                    return;
+                }
+            } catch {}
+            new WebviewWindow(label, {
+                url: `/?preview=${encodeURIComponent(path)}`,
+                title: path.split("/").pop() || path,
+                width: 960,
+                height: 680,
+                minWidth: 640,
+                minHeight: 400,
+                decorations: false,
+                resizable: true,
+                center: true,
+            });
+        }
+        return;
+    }
     if (action === "showInExplorer") {
         const path =
             sel.selectedFiles.size === 1
@@ -489,9 +517,8 @@ onMounted(async () => {
             if (activeTab) actions.loadFileStateFromTab(activeTab);
         }
     }
-    if (!_sessionData || !_restoredPath) {
-        await store.loadDrives();
-    }
+    // Load drives for sidebar
+    await store.loadDrives();
     await store.checkUndoStatus();
 
     // ── Track window resize ──

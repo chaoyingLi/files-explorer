@@ -353,6 +353,7 @@ onMounted(() => highlight());
     line-height: 1.65;
     min-height: 100%;
     overflow: auto;
+    user-select: text;
 }
 .code-editor code {
     display: block;

@@ -145,6 +145,14 @@ fn extract_archive_entry(
     system::extract_archive_entry(archive_path, entry_path)
 }
 #[command]
+fn print_file(path: String) -> Result<(), String> {
+    system::print_file(path)
+}
+#[command]
+fn copy_file_as(src: String, dest: String) -> Result<(), String> {
+    system::copy_file_as(src, dest)
+}
+#[command]
 fn get_file_icon(path: String) -> Result<String, String> {
     system::get_file_icon(path)
 }
@@ -214,6 +222,8 @@ pub fn run() {
             read_file_bytes,
             list_archive_contents,
             extract_archive_entry,
+            print_file,
+            copy_file_as,
             open_in_terminal,
             search_files,
             path_exists,

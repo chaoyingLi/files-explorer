@@ -546,7 +546,7 @@ async function openPreviewWindow() {
             height: 680,
             minWidth: 640,
             minHeight: 400,
-            decorations: true,
+            decorations: false,
             resizable: true,
             center: true,
         });

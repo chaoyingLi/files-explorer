@@ -73,7 +73,16 @@
                     @click="emit('navigate', bm.path)"
                     @contextmenu.prevent.stop="onBookmarkContext(bm, $event)"
                 >
-                    <span class="sidebar-icon bookmark-icon">⭐</span>
+                    <svg class="sidebar-icon bookmark-icon" viewBox="0 0 18 18">
+                        <path
+                            d="M2 5.5c0-.83.67-1.5 1.5-1.5h2.5a1.5 1.5 0 011.1.5l.7.85a.5.5 0 00.38.18H14c.83 0 1.5.67 1.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 12V5.5z"
+                            fill="var(--folder-back)"
+                        />
+                        <path
+                            d="M2 6.5c0-.83.67-1.5 1.5-1.5h2.5a1.5 1.5 0 011.1.5l.7.85a.5.5 0 00.38.18H14c.83 0 1.5.67 1.5 1.5v4a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 12V6.5z"
+                            fill="var(--file-icon-primary)"
+                        />
+                    </svg>
                     <span class="sidebar-item-name">{{ bm.label }}</span>
                 </div>
             </div>
@@ -298,11 +307,8 @@ function onResizeStart(e: MouseEvent) {
     color: var(--text-muted);
 }
 .bookmark-icon {
-    font-size: 16px;
-    filter: none;
-    line-height: 1;
-    text-align: center;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
-    width: 22px;
 }
 </style>

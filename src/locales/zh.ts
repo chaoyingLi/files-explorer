@@ -84,6 +84,7 @@ export default {
     addToFavorites: "添加到收藏夹",
     compress: "压缩到...",
     copyPath: "复制路径",
+    openInPreviewWindow: "新窗口预览",
     extract: "解压到...",
   },
   tab: {
@@ -111,6 +112,17 @@ export default {
     openExternally: "用外部程序打开",
     popOut: "在独立窗口中预览",
     backToArchive: "返回 {name}",
+  },
+  previewToolbar: {
+    open: "打开",
+    showInExplorer: "在访达中显示",
+    copyPath: "复制路径",
+    copied: "已复制",
+    print: "打印",
+    saveAs: "另存为",
+    delete: "删除",
+    confirmDelete: '确定删除 "{name}" ？',
+    deleteWarning: "此文件将被移至回收站。",
   },
   dialogs: {
     newFolder: "新建文件夹",

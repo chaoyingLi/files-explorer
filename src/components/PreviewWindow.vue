@@ -1,8 +1,64 @@
 <template>
     <div class="pw-root">
+        <TitleBar />
         <div class="pw-header">
             <span class="pw-title">{{ fileName || "Preview" }}</span>
-            <button class="pw-close" @click="closeWindow">✕</button>
+        </div>
+        <!-- Toolbar -->
+        <div class="pw-toolbar" v-if="activePath && !viewingExtracted">
+            <button
+                class="pw-tb-btn"
+                :title="$t('previewToolbar.open')"
+                @click="tbOpen"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.open"></span>
+                {{ $t("previewToolbar.open") }}
+            </button>
+            <button
+                class="pw-tb-btn"
+                :title="$t('previewToolbar.print')"
+                @click="tbPrint"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.print"></span>
+                {{ $t("previewToolbar.print") }}
+            </button>
+            <button
+                class="pw-tb-btn"
+                :title="$t('previewToolbar.saveAs')"
+                @click="tbSaveAs"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.saveAs"></span>
+                {{ $t("previewToolbar.saveAs") }}
+            </button>
+            <button
+                class="pw-tb-btn pw-tb-btn--danger"
+                :title="$t('previewToolbar.delete')"
+                @click="tbDelete"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.delete"></span>
+                {{ $t("previewToolbar.delete") }}
+            </button>
+            <div class="pw-tb-sep"></div>
+            <button
+                class="pw-tb-btn"
+                :title="$t('previewToolbar.copyPath')"
+                @click="tbCopyPath"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.copy"></span>
+                {{
+                    tbcopied
+                        ? $t("previewToolbar.copied")
+                        : $t("previewToolbar.copyPath")
+                }}
+            </button>
+            <button
+                class="pw-tb-btn"
+                :title="$t('previewToolbar.showInExplorer')"
+                @click="tbShowInExplorer"
+            >
+                <span class="pw-tb-icon" v-html="ICONS.showInExplorer"></span>
+                {{ $t("previewToolbar.showInExplorer") }}
+            </button>
         </div>
         <!-- Back to archive -->
         <div v-if="viewingExtracted" class="pw-back-bar">
@@ -237,11 +293,17 @@ import {
     readFileBytes,
     listArchiveContents,
     extractArchiveEntry,
+    printFile,
+    copyFileAs,
+    deleteItem,
     openFile,
     showInExplorer,
     openInTerminal,
 } from "@/utils/tauri";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import VueOfficeDocx from "@vue-office/docx";
@@ -249,7 +311,7 @@ import VueOfficeExcel from "@vue-office/excel";
 import VueOfficePdf from "@vue-office/pdf";
 import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import TitleBar from "@/components/TitleBar.vue";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 import {
     getFileCategory,
@@ -258,6 +320,16 @@ import {
 } from "@/utils/fileTypes";
 import type { FileEntry } from "@/types";
 import type { ArchiveEntry } from "@/utils/tauri";
+
+// ── SVG icons (matching app icon system) ──
+const ICONS = {
+    open: `<svg viewBox="0 0 14 14"><path d="M2 4.5a1 1 0 011-1h2.5l1.2 1.5H11a1 1 0 011 1V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5z" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+    showInExplorer: `<svg viewBox="0 0 14 14"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    copy: `<svg viewBox="0 0 14 14"><rect x="3.5" y="1.5" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3.5" width="7" height="9" rx="1" fill="var(--bg-secondary)" stroke="currentColor" stroke-width="1"/></svg>`,
+    print: `<svg viewBox="0 0 14 14"><rect x="2.5" y="5" width="9" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4.5 2h5v3h-5z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4.5 8h5M4.5 10h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
+    saveAs: `<svg viewBox="0 0 14 14"><path d="M2.5 10v1.5a1 1 0 001 1h7a1 1 0 001-1V10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><path d="M7 2v7M4.5 5.5L7 8l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    delete: `<svg viewBox="0 0 14 14"><path d="M3 3.5h8M5.5 3V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5V3" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 3.5v8a1 1 0 001 1h4a1 1 0 001-1v-8" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+};
 
 const { t } = useI18n();
 
@@ -483,6 +555,58 @@ function onArchiveCtxMenu(_entry: ArchiveEntry, e: MouseEvent) {
     e.preventDefault();
 }
 
+// ── Toolbar actions ──
+function tbOpen() {
+    const p = activePath.value || archivePath.value;
+    if (p) openFile(p).catch(() => {});
+}
+function tbShowInExplorer() {
+    const p = activePath.value || archivePath.value;
+    if (p) showInExplorer(p).catch(() => {});
+}
+async function tbCopyPath() {
+    const p = activePath.value || archivePath.value;
+    if (!p) return;
+    try {
+        await navigator.clipboard.writeText(p);
+        tbcopied.value = true;
+        setTimeout(() => (tbcopied.value = false), 1500);
+    } catch {
+        /* ignore */
+    }
+}
+function tbPrint() {
+    const p = activePath.value || archivePath.value;
+    if (p) printFile(p).catch(() => {});
+}
+async function tbSaveAs() {
+    const src = activePath.value || archivePath.value;
+    if (!src) return;
+    try {
+        const dest = await save({ defaultPath: fileName.value || "file" });
+        if (dest) await copyFileAs(src, dest);
+    } catch {
+        /* ignore */
+    }
+}
+async function tbDelete() {
+    const p = activePath.value || archivePath.value;
+    if (!p) return;
+    const confirmed = await ask(
+        t("previewToolbar.confirmDelete", { name: fileName.value }) +
+            "\n" +
+            t("previewToolbar.deleteWarning"),
+        { title: t("previewToolbar.delete"), kind: "warning" },
+    );
+    if (!confirmed) return;
+    try {
+        await deleteItem(p, false);
+        getCurrentWebviewWindow().close();
+    } catch {
+        /* ignore */
+    }
+}
+
 // ── Navigation ──
 const canGoUp = computed(() => {
     const p = parentDir.value;
@@ -596,6 +720,7 @@ const selectedArchivePath = ref("");
 const lastArchivePath = ref("");
 const lastArchiveEntries = ref<ArchiveEntry[]>([]);
 const viewingExtracted = ref(false);
+const tbcopied = ref(false);
 const renderedMarkdown = ref("");
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
@@ -698,10 +823,6 @@ async function loadAsArrayBuffer(path: string): Promise<ArrayBuffer> {
     return buf;
 }
 
-function closeWindow() {
-    getCurrentWebviewWindow().close();
-}
-
 watch(activePath, (p) => {
     if (p) loadPreview(p);
 });
@@ -786,6 +907,58 @@ onMounted(async () => {
 }
 .pw-back-btn:hover {
     background: var(--bg-hover);
+}
+/* ── Toolbar ── */
+.pw-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.pw-tb-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    white-space: nowrap;
+    transition: all 0.1s;
+}
+.pw-tb-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+.pw-tb-btn--danger:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+.pw-tb-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.pw-tb-icon :deep(svg) {
+    width: 14px;
+    height: 14px;
+}
+.pw-tb-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 4px;
 }
 .pw-body {
     flex: 1;
