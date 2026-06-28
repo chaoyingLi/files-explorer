@@ -34,6 +34,16 @@ export const useFileStore = defineStore("file", () => {
   const canUndo = ref(false);
   const undoDescription = ref("");
 
+  // ── Recent items ──
+  interface RecentItem {
+    path: string;
+    name: string;
+    isDir: boolean;
+    ext: string;
+    time: number;
+  }
+  const recentItems = ref<RecentItem[]>(loadRecentItems());
+
   // ── Lazy store refs (avoid circular init at module level) ──
   let _tabStore: ReturnType<typeof useTabStore> | null = null;
   function getTabStore() {
@@ -209,6 +219,10 @@ export const useFileStore = defineStore("file", () => {
             }
           }
           syncToTab();
+          // Record recent
+          const parts = path.replace(/\\/g, "/").split("/");
+          const name = parts[parts.length - 1] || path;
+          addRecentItem(path, name, true, "");
           resolve();
         }).then((u) => {
           unlistenDone = u;
@@ -439,6 +453,69 @@ export const useFileStore = defineStore("file", () => {
     }
   }
 
+  // ── Drive polling (detect mount/unmount) ──
+  let _driveTimer: ReturnType<typeof setInterval> | null = null;
+
+  async function pollDrives() {
+    try {
+      const prev = drives.value
+        .map((d) => d.mount_point)
+        .sort()
+        .join(",");
+      const newDrives = await tauri.getDrives();
+      const curr = newDrives
+        .map((d) => d.mount_point)
+        .sort()
+        .join(",");
+      if (prev !== curr) {
+        drives.value = newDrives;
+        specialDirs.value = await tauri.getSpecialDirs();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function startDrivePolling(intervalMs = 3000) {
+    stopDrivePolling();
+    _driveTimer = setInterval(pollDrives, intervalMs);
+  }
+
+  function stopDrivePolling() {
+    if (_driveTimer) {
+      clearInterval(_driveTimer);
+      _driveTimer = null;
+    }
+  }
+
+  // ── Recent files/folders ──
+  const MAX_RECENT = 50;
+
+  function loadRecentItems(): RecentItem[] {
+    try {
+      const raw = localStorage.getItem("app-recent-items");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  }
+
+  function saveRecentItems() {
+    localStorage.setItem("app-recent-items", JSON.stringify(recentItems.value));
+  }
+
+  function addRecentItem(
+    path: string,
+    name: string,
+    isDir: boolean,
+    ext: string,
+  ) {
+    const items = recentItems.value.filter((i) => i.path !== path);
+    items.unshift({ path, name, isDir, ext, time: Date.now() });
+    if (items.length > MAX_RECENT) items.length = MAX_RECENT;
+    recentItems.value = items;
+    saveRecentItems();
+  }
+
   return {
     // State
     currentPath,
@@ -469,6 +546,10 @@ export const useFileStore = defineStore("file", () => {
     cancelCurrentSearch,
     performUndo,
     checkUndoStatus,
+    startDrivePolling,
+    stopDrivePolling,
+    recentItems,
+    addRecentItem,
     syncToTab,
     loadFromTab,
   };

@@ -146,6 +146,13 @@ export default {
     drives: "个驱动器",
     items: "{count} 个项目",
   },
+  thisPc: {
+    recentFiles: "最近访问",
+    justNow: "刚刚",
+    minutesAgo: "分钟前",
+    hoursAgo: "小时前",
+    daysAgo: "天前",
+  },
   toast: {
     copied: "已复制到剪贴板",
     cut: "已剪切到剪贴板",

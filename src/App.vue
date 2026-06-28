@@ -332,10 +332,7 @@ async function handleContextAction(action: string) {
     }
     if (action.startsWith("split")) {
         const dir = action.replace("split", "").toLowerCase() as
-            | "left"
-            | "right"
-            | "up"
-            | "down";
+            "left" | "right" | "up" | "down";
         let splitPath = ctx.sidebarContextPath.value;
         let splitTitle = "";
         if (!splitPath && sel.selectedFiles.size === 1) {
@@ -519,6 +516,7 @@ onMounted(async () => {
     }
     // Load drives for sidebar
     await store.loadDrives();
+    store.startDrivePolling();
     await store.checkUndoStatus();
 
     // ── Track window resize ──
@@ -609,6 +607,7 @@ onMounted(async () => {
         window.removeEventListener("resize", _onResize);
         window.removeEventListener("beforeunload", _saveSessionNow);
         _closeUnlisten?.();
+        store.stopDrivePolling();
     });
 });
 </script>

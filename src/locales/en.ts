@@ -145,7 +145,14 @@ export default {
   statusBar: {
     thisPc: "This PC",
     drives: "drives",
-    items: "{count} item | {count} items",
+    items: "{count} items",
+  },
+  thisPc: {
+    recentFiles: "Recent",
+    justNow: "just now",
+    minutesAgo: "min ago",
+    hoursAgo: "hr ago",
+    daysAgo: "days ago",
   },
   toast: {
     copied: "Copied to clipboard",
