@@ -99,10 +99,17 @@ export function useKeyboardShortcuts(handlers: {
       e.preventDefault();
       handlers.openNewDialog("folder");
     } else if (ctrl && e.key === "c") {
+      // If user has selected text (e.g. in Markdown preview), let browser handle copy
+      if (window.getSelection()?.toString().trim()) {
+        return;
+      }
       e.preventDefault();
       sel.copySelected();
       handlers.showToast(t("toast.copied"));
     } else if (ctrl && e.key === "x") {
+      if (window.getSelection()?.toString().trim()) {
+        return;
+      }
       e.preventDefault();
       sel.cutSelected();
       handlers.showToast(t("toast.cut"));
