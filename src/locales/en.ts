@@ -112,6 +112,11 @@ export default {
     openExternally: "Open with external program",
     popOut: "Open in preview window",
     backToArchive: "Back to {name}",
+    noPreview: "No Preview",
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    zoomReset: "Reset",
+    rename: "Rename",
   },
   previewToolbar: {
     open: "Open",
@@ -123,6 +128,10 @@ export default {
     delete: "Delete",
     confirmDelete: 'Delete "{name}"?',
     deleteWarning: "This file will be moved to Trash.",
+    rename: "Rename",
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    zoomReset: "Reset",
   },
   dialogs: {
     newFolder: "New Folder",
@@ -166,6 +175,7 @@ export default {
     error: "Error",
     compressed: "Compressed",
     extracted: "Extracted",
+    renamed: "Renamed",
   },
   fileTypes: {
     folder: "Folder",

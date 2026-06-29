@@ -112,6 +112,11 @@ export default {
     openExternally: "用外部程序打开",
     popOut: "在独立窗口中预览",
     backToArchive: "返回 {name}",
+    noPreview: "没有预览",
+    zoomIn: "放大",
+    zoomOut: "缩小",
+    zoomReset: "重置",
+    rename: "重命名",
   },
   previewToolbar: {
     open: "打开",
@@ -123,6 +128,10 @@ export default {
     delete: "删除",
     confirmDelete: '确定删除 "{name}" ？',
     deleteWarning: "此文件将被移至回收站。",
+    rename: "重命名",
+    zoomIn: "放大",
+    zoomOut: "缩小",
+    zoomReset: "重置",
   },
   dialogs: {
     newFolder: "新建文件夹",
@@ -165,6 +174,7 @@ export default {
     error: "错误",
     compressed: "已压缩",
     extracted: "已解压",
+    renamed: "已重命名",
   },
   fileTypes: {
     folder: "文件夹",

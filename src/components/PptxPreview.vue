@@ -29,9 +29,14 @@ async function renderPptx() {
             height: 480,
             mode: "slide",
         });
-        await previewer.preview(props.data);
-    } catch {
-        /* render failed */
+        const uint8 = new Uint8Array(props.data);
+        await previewer.preview(uint8);
+    } catch (e) {
+        console.error("PPTX preview failed:", e);
+        if (container.value) {
+            container.value.innerHTML =
+                '<div class="pptx-fallback">Preview failed</div>';
+        }
     }
 }
 

@@ -67,6 +67,15 @@
                     ></span>
                     {{ $t("previewToolbar.showInExplorer") }}
                 </button>
+                <div class="pw-tb-sep"></div>
+                <button
+                    class="pw-tb-btn"
+                    :title="$t('previewToolbar.rename')"
+                    @click="tbRename"
+                >
+                    <span class="pw-tb-icon">✏️</span>
+                    {{ $t("previewToolbar.rename") }}
+                </button>
             </div>
             <!-- Back to archive -->
             <div v-if="viewingExtracted" class="pw-back-bar">
@@ -196,8 +205,51 @@
                 >
                     <span>{{ previewError }}</span>
                 </div>
-                <div v-else-if="previewType === 'image'" class="pw-image-wrap">
-                    <img class="pw-image" :src="previewSrc" alt="" />
+                <div v-else-if="previewType === 'image'" class="pw-zoom-wrap">
+                    <div class="pw-zoom-bar">
+                        <button
+                            class="pw-zoom-btn"
+                            :disabled="imageZoom <= 0.25"
+                            @click.stop="
+                                imageZoom = Math.max(0.25, imageZoom - 0.1)
+                            "
+                        >
+                            −
+                        </button>
+                        <span class="pw-zoom-pct"
+                            >{{ Math.round(imageZoom * 100) }}%</span
+                        >
+                        <button
+                            class="pw-zoom-btn"
+                            :disabled="imageZoom >= 5"
+                            @click.stop="
+                                imageZoom = Math.min(5, imageZoom + 0.1)
+                            "
+                        >
+                            +
+                        </button>
+                        <button class="pw-zoom-btn" @click.stop="imageZoom = 1">
+                            ⊡
+                        </button>
+                    </div>
+                    <div class="pw-zoom-scroll">
+                        <img
+                            class="pw-image"
+                            :src="previewSrc"
+                            alt=""
+                            :style="{ transform: 'scale(' + imageZoom + ')' }"
+                            @wheel.prevent="
+                                imageZoom = Math.max(
+                                    0.25,
+                                    Math.min(
+                                        5,
+                                        imageZoom - $event.deltaY * 0.001,
+                                    ),
+                                )
+                            "
+                            draggable="false"
+                        />
+                    </div>
                 </div>
                 <div v-else-if="previewType === 'docx'" class="pw-office">
                     <VueOfficeDocx
@@ -213,12 +265,42 @@
                         style="height: 100%"
                     />
                 </div>
-                <div v-else-if="previewType === 'pdf'" class="pw-office">
-                    <VueOfficePdf
-                        v-if="officeData"
-                        :src="officeData"
-                        style="height: 100%"
-                    />
+                <div v-else-if="previewType === 'pdf'" class="pw-zoom-wrap">
+                    <div class="pw-zoom-bar">
+                        <button
+                            class="pw-zoom-btn"
+                            :disabled="pdfZoom <= 0.5"
+                            @click.stop="pdfZoom = Math.max(0.5, pdfZoom - 0.2)"
+                        >
+                            −
+                        </button>
+                        <span class="pw-zoom-pct"
+                            >{{ Math.round(pdfZoom * 100) }}%</span
+                        >
+                        <button
+                            class="pw-zoom-btn"
+                            :disabled="pdfZoom >= 3"
+                            @click.stop="pdfZoom = Math.min(3, pdfZoom + 0.2)"
+                        >
+                            +
+                        </button>
+                        <button class="pw-zoom-btn" @click.stop="pdfZoom = 1">
+                            ⊡
+                        </button>
+                    </div>
+                    <div
+                        class="pw-office"
+                        :style="{
+                            transform: 'scale(' + pdfZoom + ')',
+                            transformOrigin: 'top left',
+                        }"
+                    >
+                        <VueOfficePdf
+                            v-if="officeData"
+                            :src="officeData"
+                            style="height: 100%; width: 100%"
+                        />
+                    </div>
                 </div>
                 <div v-else-if="previewType === 'pptx'" class="pw-office">
                     <PptxPreview v-if="officeData" :data="officeData" />
@@ -231,6 +313,12 @@
                     class="pw-markdown"
                     v-html="renderedMarkdown"
                 />
+                <div
+                    v-else-if="previewType === 'externalOnly'"
+                    class="pw-status"
+                >
+                    <span>{{ $t("properties.noPreview") }}</span>
+                </div>
                 <div v-else-if="previewType === 'archive'" class="pw-archive">
                     <div class="pw-archive-hdr">
                         {{ archiveEntries.length }} entries
@@ -308,6 +396,7 @@ import {
     openFile,
     showInExplorer,
     openInTerminal,
+    renameItem,
 } from "@/utils/tauri";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
@@ -605,6 +694,24 @@ async function tbSaveAs() {
         /* ignore */
     }
 }
+async function tbRename() {
+    const p = activePath.value;
+    if (!p) return;
+    const oldName = fileName.value;
+    const newName = prompt(t("previewToolbar.rename"), oldName) || "";
+    if (!newName || newName === oldName) return;
+    const sep = p.includes("/") ? "/" : "\\";
+    const newPath = p.substring(0, p.lastIndexOf(sep)) + sep + newName;
+    try {
+        await renameItem(p, newPath);
+        activePath.value = newPath;
+        await loadDirTree(parentDir.value);
+        await loadPreview(newPath);
+    } catch (e: any) {
+        previewError.value = String(e);
+    }
+}
+
 async function tbDelete() {
     const p = activePath.value || archivePath.value;
     if (!p) return;
@@ -738,6 +845,8 @@ const lastArchiveEntries = ref<ArchiveEntry[]>([]);
 const viewingExtracted = ref(false);
 const tbcopied = ref(false);
 const renderedMarkdown = ref("");
+const imageZoom = ref(1);
+const pdfZoom = ref(1);
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
 const ARCHIVE_EXTS = [
@@ -756,6 +865,16 @@ const OFFICE_EXTS: Record<string, string> = {
     docx: "docx",
     xlsx: "xlsx",
     pptx: "pptx",
+    // WPS formats (OOXML-compatible)
+    wps: "docx",
+    et: "xlsx",
+    dps: "pptx",
+    // Legacy formats (external only)
+    doc: "externalOnly",
+    xls: "externalOnly",
+    ppt: "externalOnly",
+    // National standard e-invoice
+    ofd: "externalOnly",
 };
 
 async function loadPreview(path: string) {
@@ -768,7 +887,7 @@ async function loadPreview(path: string) {
         previewType.value = "image";
         previewSrc.value = convertFileSrc(path);
         previewLoading.value = false;
-    } else if (OFFICE_EXTS[ext]) {
+    } else if (OFFICE_EXTS[ext] && OFFICE_EXTS[ext] !== "externalOnly") {
         previewLoading.value = true;
         try {
             const buf = await loadAsArrayBuffer(path);
@@ -778,6 +897,8 @@ async function loadPreview(path: string) {
             previewError.value = String(e);
         }
         previewLoading.value = false;
+    } else if (OFFICE_EXTS[ext] === "externalOnly") {
+        previewType.value = "externalOnly";
     } else if (ext === "pdf") {
         previewLoading.value = true;
         try {
@@ -1174,10 +1295,56 @@ onMounted(async () => {
         transform: rotate(360deg);
     }
 }
-.pw-image-wrap {
+.pw-zoom-wrap {
     flex: 1;
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    overflow: hidden;
+}
+.pw-zoom-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+}
+.pw-zoom-btn {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 3px;
+    width: 24px;
+    height: 22px;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.pw-zoom-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+}
+.pw-zoom-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.pw-zoom-pct {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 36px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.pw-zoom-scroll {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
     justify-content: center;
     padding: 12px;
 }
@@ -1186,6 +1353,8 @@ onMounted(async () => {
     max-height: 100%;
     object-fit: contain;
     border-radius: 4px;
+    transition: transform 0.1s;
+    transform-origin: center center;
 }
 .pw-office {
     flex: 1;

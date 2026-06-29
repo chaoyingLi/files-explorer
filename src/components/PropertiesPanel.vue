@@ -48,17 +48,59 @@
                         {{ $t("properties.openExternally") }}
                     </button>
                 </div>
-                <!-- Image -->
+                <!-- Image with zoom -->
                 <div
                     v-else-if="previewType === 'image'"
-                    class="preview-image-wrap"
+                    class="preview-zoom-wrap"
                 >
-                    <img
-                        class="preview-image"
-                        :src="previewSrc"
-                        alt=""
-                        @click.stop
-                    />
+                    <div class="preview-zoom-bar">
+                        <button
+                            class="preview-zoom-btn"
+                            :disabled="imageZoom <= 0.25"
+                            @click.stop="
+                                imageZoom = Math.max(0.25, imageZoom - 0.1)
+                            "
+                        >
+                            −
+                        </button>
+                        <span class="preview-zoom-pct"
+                            >{{ Math.round(imageZoom * 100) }}%</span
+                        >
+                        <button
+                            class="preview-zoom-btn"
+                            :disabled="imageZoom >= 5"
+                            @click.stop="
+                                imageZoom = Math.min(5, imageZoom + 0.1)
+                            "
+                        >
+                            +
+                        </button>
+                        <button
+                            class="preview-zoom-btn"
+                            @click.stop="imageZoom = 1"
+                        >
+                            ⊡
+                        </button>
+                    </div>
+                    <div class="preview-zoom-scroll">
+                        <img
+                            class="preview-image"
+                            :src="previewSrc"
+                            alt=""
+                            :style="{ transform: 'scale(' + imageZoom + ')' }"
+                            @click.stop
+                            @wheel.prevent="
+                                imageZoom = Math.max(
+                                    0.25,
+                                    Math.min(
+                                        5,
+                                        imageZoom - $event.deltaY * 0.001,
+                                    ),
+                                )
+                            "
+                            draggable="false"
+                        />
+                    </div>
                 </div>
                 <!-- DOCX -->
                 <div v-else-if="previewType === 'docx'" class="preview-office">
@@ -76,13 +118,49 @@
                         style="height: 100%"
                     />
                 </div>
-                <!-- PDF -->
-                <div v-else-if="previewType === 'pdf'" class="preview-office">
-                    <VueOfficePdf
-                        v-if="officeData"
-                        :src="officeData"
-                        style="height: 100%"
-                    />
+                <!-- PDF with zoom -->
+                <div
+                    v-else-if="previewType === 'pdf'"
+                    class="preview-zoom-wrap"
+                >
+                    <div class="preview-zoom-bar">
+                        <button
+                            class="preview-zoom-btn"
+                            :disabled="pdfZoom <= 0.5"
+                            @click.stop="pdfZoom = Math.max(0.5, pdfZoom - 0.2)"
+                        >
+                            −
+                        </button>
+                        <span class="preview-zoom-pct"
+                            >{{ Math.round(pdfZoom * 100) }}%</span
+                        >
+                        <button
+                            class="preview-zoom-btn"
+                            :disabled="pdfZoom >= 3"
+                            @click.stop="pdfZoom = Math.min(3, pdfZoom + 0.2)"
+                        >
+                            +
+                        </button>
+                        <button
+                            class="preview-zoom-btn"
+                            @click.stop="pdfZoom = 1"
+                        >
+                            ⊡
+                        </button>
+                    </div>
+                    <div
+                        class="preview-office"
+                        :style="{
+                            transform: 'scale(' + pdfZoom + ')',
+                            transformOrigin: 'top left',
+                        }"
+                    >
+                        <VueOfficePdf
+                            v-if="officeData"
+                            :src="officeData"
+                            style="height: 100%; width: 100%"
+                        />
+                    </div>
                 </div>
                 <!-- PPTX -->
                 <div v-else-if="previewType === 'pptx'" class="preview-office">
@@ -136,6 +214,19 @@
                     class="preview-markdown"
                     v-html="renderedMarkdown"
                 ></div>
+                <!-- External only (no preview available) -->
+                <div
+                    v-else-if="previewType === 'externalOnly'"
+                    class="preview-unsupported"
+                >
+                    <div class="preview-unsupported-icon">📄</div>
+                    <span class="preview-unsupported-text">{{
+                        $t("properties.noPreview")
+                    }}</span>
+                    <button class="preview-btn" @click="openFileExternally">
+                        {{ $t("properties.openExternally") }}
+                    </button>
+                </div>
             </div>
 
             <!-- ════ File info (bottom, compact) ════ -->
@@ -282,6 +373,8 @@ defineProps<{ visible: boolean; width: number }>();
 const emit = defineEmits<{ close: []; resizeStart: [e: MouseEvent] }>();
 
 const imageInfo = ref<{ width: number; height: number } | null>(null);
+const imageZoom = ref(1);
+const pdfZoom = ref(1);
 const dirItemCount = ref(0);
 const osIconSrc = ref("");
 const previewType = ref<string>("");
@@ -299,6 +392,16 @@ const OFFICE_EXTS: Record<string, string> = {
     docx: "docx",
     xlsx: "xlsx",
     pptx: "pptx",
+    // WPS formats (OOXML-compatible)
+    wps: "docx",
+    et: "xlsx",
+    dps: "pptx",
+    // Legacy formats (external only)
+    doc: "externalOnly",
+    xls: "externalOnly",
+    ppt: "externalOnly",
+    // National standard e-invoice
+    ofd: "externalOnly",
 };
 
 function findFileByPath(path: string): FileEntry | null {
@@ -433,6 +536,10 @@ watch(file, async (f) => {
         } finally {
             previewLoading.value = false;
         }
+    } else if (OFFICE_EXTS[ext] === "externalOnly" && !f.is_dir) {
+        // Legacy / unsupported Office formats — show external-only placeholder
+        previewType.value = "externalOnly";
+        previewError.value = "";
     } else if (!f.is_dir) {
         // Text / Markdown preview via Rust
         previewLoading.value = true;
@@ -700,10 +807,56 @@ async function openPreviewWindow() {
 }
 
 /* ── Preview types ── */
-.preview-image-wrap {
+.preview-zoom-wrap {
     height: 100%;
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    overflow: hidden;
+}
+.preview-zoom-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+}
+.preview-zoom-btn {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 3px;
+    width: 24px;
+    height: 22px;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.preview-zoom-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+}
+.preview-zoom-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.preview-zoom-pct {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 36px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.preview-zoom-scroll {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
     justify-content: center;
     padding: 8px;
 }
@@ -712,7 +865,8 @@ async function openPreviewWindow() {
     max-height: 100%;
     object-fit: contain;
     border-radius: 4px;
-    cursor: pointer;
+    transition: transform 0.1s;
+    transform-origin: center center;
 }
 .preview-office {
     height: 100%;
@@ -932,5 +1086,25 @@ async function openPreviewWindow() {
     font-size: 10px;
     color: var(--text-muted);
     flex-shrink: 0;
+}
+
+/* ── Unsupported format placeholder ── */
+.preview-unsupported {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    color: var(--text-muted);
+}
+.preview-unsupported-icon {
+    font-size: 32px;
+    opacity: 0.5;
+}
+.preview-unsupported-text {
+    font-size: 13px;
+    color: var(--text-muted);
 }
 </style>
