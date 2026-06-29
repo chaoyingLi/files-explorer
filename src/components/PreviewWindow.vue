@@ -108,7 +108,7 @@
                             :style="{ paddingLeft: 8 + node.depth * 18 + 'px' }"
                             @click="onTreeClick(node)"
                             @dblclick="onTreeDblClick(node)"
-                            @contextmenu.stop="onItemCtxMenu(node, $event)"
+                            @contextmenu.prevent.stop="onItemCtxMenu(node, $event)"
                         >
                             <!-- Chevron -->
                             <span
@@ -197,10 +197,12 @@
                     ↰
                 </button>
                 <div v-if="previewLoading" class="pw-status">
-                    <span class="pw-spinner"></span>
-                    <span class="pw-status-text">{{
-                        $t("properties.previewLoading")
-                    }}</span>
+                    <div class="pw-skeleton">
+                        <div class="pw-skeleton-line"></div>
+                        <div class="pw-skeleton-line"></div>
+                        <div class="pw-skeleton-line"></div>
+                        <div class="pw-skeleton-block"></div>
+                    </div>
                 </div>
                 <div
                     v-else-if="!previewType && !previewError"
@@ -221,6 +223,7 @@
                         <button
                             class="pw-zoom-btn"
                             :disabled="imageZoom <= 0.25"
+                            :title="$t('properties.zoomOut')"
                             @click.stop="
                                 imageZoom = Math.max(0.25, imageZoom - 0.1)
                             "
@@ -233,22 +236,55 @@
                         <button
                             class="pw-zoom-btn"
                             :disabled="imageZoom >= 5"
+                            :title="$t('properties.zoomIn')"
                             @click.stop="
                                 imageZoom = Math.min(5, imageZoom + 0.1)
                             "
                         >
                             +
                         </button>
-                        <button class="pw-zoom-btn" @click.stop="imageZoom = 1">
+                        <button
+                            class="pw-zoom-btn"
+                            :title="$t('properties.zoomReset')"
+                            @click.stop="imageZoom = 1; imageRotation = 0"
+                        >
                             ⊡
                         </button>
+                        <div class="pw-zoom-sep"></div>
+                        <button
+                            class="pw-zoom-btn"
+                            :title="$t('properties.rotateLeft')"
+                            @click.stop="imageRotation = (imageRotation + 270) % 360"
+                        >
+                            ↺
+                        </button>
+                        <button
+                            class="pw-zoom-btn"
+                            :title="$t('properties.rotateRight')"
+                            @click.stop="imageRotation = (imageRotation + 90) % 360"
+                        >
+                            ↻
+                        </button>
                     </div>
-                    <div class="pw-zoom-scroll">
-                        <img
+                    <div
+                        <div class="pw-zoom-scroll"
+                            @mousedown="(e) => onDragStart(e, e.currentTarget as HTMLElement)"
+                            @mousemove="(e) => onDragMove(e, e.currentTarget as HTMLElement)"
+                            @mouseup="(e) => onDragEnd(e.currentTarget as HTMLElement)"
+                            @mouseleave="(e) => onDragEnd(e.currentTarget as HTMLElement)"
+                        >
+                            <img
                             class="pw-image"
                             :src="previewSrc"
                             alt=""
-                            :style="{ transform: 'scale(' + imageZoom + ')' }"
+                            :style="{
+                                transform:
+                                    'scale(' +
+                                    imageZoom +
+                                    ') rotate(' +
+                                    imageRotation +
+                                    'deg)',
+                            }"
                             @wheel.prevent="
                                 imageZoom = Math.max(
                                     0.25,
@@ -281,6 +317,7 @@
                         <button
                             class="pw-zoom-btn"
                             :disabled="pdfZoom <= 0.5"
+                            :title="$t('properties.zoomOut')"
                             @click.stop="pdfZoom = Math.max(0.5, pdfZoom - 0.2)"
                         >
                             −
@@ -291,30 +328,43 @@
                         <button
                             class="pw-zoom-btn"
                             :disabled="pdfZoom >= 3"
+                            :title="$t('properties.zoomIn')"
                             @click.stop="pdfZoom = Math.min(3, pdfZoom + 0.2)"
                         >
                             +
                         </button>
-                        <button class="pw-zoom-btn" @click.stop="pdfZoom = 1">
+                        <button
+                            class="pw-zoom-btn"
+                            :title="$t('properties.zoomReset')"
+                            @click.stop="pdfZoom = 1"
+                        >
                             ⊡
                         </button>
                     </div>
                     <div
-                        class="pw-office"
-                        :style="{
-                            transform: 'scale(' + pdfZoom + ')',
-                            transformOrigin: 'top left',
-                        }"
-                    >
+                        class="pw-zoom-scroll"
+                        @mousedown="(e) => onDragStart(e, e.currentTarget as HTMLElement)"
+                            @mousemove="(e) => onDragMove(e, e.currentTarget as HTMLElement)"
+                            @mouseup="(e) => onDragEnd(e.currentTarget as HTMLElement)"
+                            @mouseleave="(e) => onDragEnd(e.currentTarget as HTMLElement)"
+                        >
+                            <div
+                                class="pw-office"
+                            :style="{
+                                transform: 'scale(' + pdfZoom + ')',
+                                transformOrigin: 'top left',
+                            }"
+                        >
                         <VueOfficePdf
                             v-if="officeData"
                             :src="officeData"
                             style="height: 100%; width: 100%"
                         />
                     </div>
+                    </div>
                 </div>
                 <div v-else-if="previewType === 'pptx'" class="pw-office">
-                    <PptxPreview v-if="officeData" :data="officeData" />
+                    <PptxPreview v-if="officeArrayBuffer" :data="officeArrayBuffer" />
                 </div>
                 <div v-else-if="previewType === 'text'" class="pw-code">
                     <CodePreview :code="previewContent" :ext="previewExt" />
@@ -322,8 +372,13 @@
                 <div
                     v-else-if="previewType === 'markdown'"
                     class="pw-markdown"
-                    v-html="renderedMarkdown"
-                />
+                >
+                    <MarkdownPreview
+                        :content="previewContent"
+                        :ext="previewExt"
+                        :filePath="activePath"
+                    />
+                </div>
                 <div
                     v-else-if="previewType === 'externalOnly'"
                     class="pw-status"
@@ -438,13 +493,13 @@ function onTopBarDrag(e: MouseEvent) {
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+
 import VueOfficeDocx from "@vue-office/docx";
 import VueOfficeExcel from "@vue-office/excel";
 import VueOfficePdf from "@vue-office/pdf";
 import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
+import MarkdownPreview from "@/components/MarkdownPreview.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 import {
@@ -687,9 +742,11 @@ function onArchiveEntryClick(entry: ArchiveEntry) {
     }
 }
 
-function onArchiveCtxMenu(_entry: ArchiveEntry, e: MouseEvent) {
-    // Placeholder for future context menu actions
-    e.preventDefault();
+function onArchiveCtxMenu(entry: ArchiveEntry, e: MouseEvent) {
+    ctxMenu.show = true;
+    ctxMenu.x = e.clientX;
+    ctxMenu.y = e.clientY;
+    ctxMenu.path = entry.path;
 }
 
 // ── Toolbar actions ──
@@ -868,7 +925,10 @@ const previewContent = ref("");
 const previewExt = ref("");
 const previewLoading = ref(false);
 const previewError = ref("");
-const officeData = ref<ArrayBuffer | null>(null);
+const officeData = ref<ArrayBuffer | string | null>(null);
+const officeArrayBuffer = computed(() =>
+    officeData.value instanceof ArrayBuffer ? officeData.value : null,
+);
 const archiveEntries = ref<ArchiveEntry[]>([]);
 const archivePath = ref("");
 const selectedArchivePath = ref("");
@@ -876,9 +936,41 @@ const lastArchivePath = ref("");
 const lastArchiveEntries = ref<ArchiveEntry[]>([]);
 const viewingExtracted = ref(false);
 const tbcopied = ref(false);
-const renderedMarkdown = ref("");
+
 const imageZoom = ref(1);
+const imageRotation = ref(0);
 const pdfZoom = ref(1);
+
+// ── Drag-to-pan state (shared) ──
+let _dragActive = false;
+let _dragStartX = 0;
+let _dragStartY = 0;
+let _dragScrollLeft = 0;
+let _dragScrollTop = 0;
+
+function onDragStart(e: MouseEvent, el: HTMLElement | null) {
+    if (!el) return;
+    _dragActive = true;
+    _dragStartX = e.clientX;
+    _dragStartY = e.clientY;
+    _dragScrollLeft = el.scrollLeft;
+    _dragScrollTop = el.scrollTop;
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+}
+function onDragMove(e: MouseEvent, el: HTMLElement | null) {
+    if (!_dragActive || !el) return;
+    el.scrollLeft = _dragScrollLeft - (e.clientX - _dragStartX);
+    el.scrollTop = _dragScrollTop - (e.clientY - _dragStartY);
+}
+function onDragEnd(el: HTMLElement | null) {
+    if (!_dragActive) return;
+    _dragActive = false;
+    if (el) {
+        el.style.cursor = "";
+        el.style.userSelect = "";
+    }
+}
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
 const ARCHIVE_EXTS = [
@@ -933,11 +1025,19 @@ async function loadPreview(path: string) {
         previewType.value = "externalOnly";
     } else if (ext === "pdf") {
         previewLoading.value = true;
+        const pdfTimeout = setTimeout(() => {
+            if (previewLoading.value) {
+                previewError.value = t("properties.pdfLoadTimeout");
+                previewLoading.value = false;
+            }
+        }, 15000);
         try {
-            const buf = await loadAsArrayBuffer(path);
-            officeData.value = buf;
+            const b64 = await readFileBytes(path);
+            clearTimeout(pdfTimeout);
+            officeData.value = `data:application/pdf;base64,${b64}`;
             previewType.value = "pdf";
         } catch (e: any) {
+            clearTimeout(pdfTimeout);
             previewError.value = translatePreviewError(String(e), t);
         }
         previewLoading.value = false;
@@ -958,9 +1058,8 @@ async function loadPreview(path: string) {
             const result = await getFilePreview(path);
             if (result.type === "markdown") {
                 previewType.value = "markdown";
-                renderedMarkdown.value = DOMPurify.sanitize(
-                    await marked.parse(result.content || ""),
-                );
+                previewContent.value = result.content || "";
+                previewExt.value = result.ext || ext;
             } else {
                 previewType.value = "text";
                 previewContent.value = result.content || "";
@@ -1341,6 +1440,34 @@ onMounted(async () => {
         transform: rotate(360deg);
     }
 }
+
+/* ── Skeleton loading ── */
+@keyframes pw-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
+.pw-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    width: 80%;
+    max-width: 400px;
+    animation: pw-pulse 1.5s ease-in-out infinite;
+}
+.pw-skeleton-line {
+    height: 12px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+}
+.pw-skeleton-line:nth-child(1) { width: 60%; }
+.pw-skeleton-line:nth-child(2) { width: 80%; }
+.pw-skeleton-line:nth-child(3) { width: 45%; }
+.pw-skeleton-block {
+    height: 160px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+}
 .pw-zoom-wrap {
     flex: 1;
     display: flex;
@@ -1386,6 +1513,12 @@ onMounted(async () => {
     text-align: center;
     font-variant-numeric: tabular-nums;
 }
+.pw-zoom-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    flex-shrink: 0;
+}
 .pw-zoom-scroll {
     flex: 1;
     overflow: auto;
@@ -1394,6 +1527,11 @@ onMounted(async () => {
     justify-content: center;
     padding: 12px;
     background: var(--bg-primary);
+}
+.pw-zoom-scroll .pw-office {
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
 }
 .pw-image {
     max-width: 100%;

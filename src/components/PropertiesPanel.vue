@@ -35,8 +35,13 @@
             <div class="preview-area" @contextmenu.prevent>
                 <!-- Loading -->
                 <div v-if="previewLoading" class="preview-status">
-                    <span class="preview-spinner"></span>
-                    <span>{{ $t("properties.previewLoading") }}</span>
+                    <div class="preview-skeleton">
+                        <div class="preview-skeleton-line"></div>
+                        <div class="preview-skeleton-line"></div>
+                        <div class="preview-skeleton-line"></div>
+                        <div class="preview-skeleton-line"></div>
+                        <div class="preview-skeleton-block"></div>
+                    </div>
                 </div>
                 <!-- Error -->
                 <div
@@ -57,6 +62,7 @@
                         <button
                             class="preview-zoom-btn"
                             :disabled="imageZoom <= 0.25"
+                            :title="$t('properties.zoomOut')"
                             @click.stop="
                                 imageZoom = Math.max(0.25, imageZoom - 0.1)
                             "
@@ -69,6 +75,7 @@
                         <button
                             class="preview-zoom-btn"
                             :disabled="imageZoom >= 5"
+                            :title="$t('properties.zoomIn')"
                             @click.stop="
                                 imageZoom = Math.min(5, imageZoom + 0.1)
                             "
@@ -77,17 +84,62 @@
                         </button>
                         <button
                             class="preview-zoom-btn"
-                            @click.stop="imageZoom = 1"
+                            :title="$t('properties.zoomReset')"
+                            @click.stop="
+                                imageZoom = 1;
+                                imageRotation = 0;
+                            "
                         >
                             ⊡
                         </button>
+                        <div class="preview-zoom-sep"></div>
+                        <button
+                            class="preview-zoom-btn"
+                            :title="$t('properties.rotateLeft')"
+                            @click.stop="
+                                imageRotation = (imageRotation + 270) % 360
+                            "
+                        >
+                            ↺
+                        </button>
+                        <button
+                            class="preview-zoom-btn"
+                            :title="$t('properties.rotateRight')"
+                            @click.stop="
+                                imageRotation = (imageRotation + 90) % 360
+                            "
+                        >
+                            ↻
+                        </button>
                     </div>
-                    <div class="preview-zoom-scroll">
+                    <div
+                        class="preview-zoom-scroll"
+                        @mousedown="
+                            (e) =>
+                                onDragStart(e, e.currentTarget as HTMLElement)
+                        "
+                        @mousemove="
+                            (e) => onDragMove(e, e.currentTarget as HTMLElement)
+                        "
+                        @mouseup="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                        @mouseleave="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                    >
                         <img
                             class="preview-image"
                             :src="previewSrc"
                             alt=""
-                            :style="{ transform: 'scale(' + imageZoom + ')' }"
+                            :style="{
+                                transform:
+                                    'scale(' +
+                                    imageZoom +
+                                    ') rotate(' +
+                                    imageRotation +
+                                    'deg)',
+                            }"
                             @click.stop
                             @wheel.prevent="
                                 imageZoom = Math.max(
@@ -127,6 +179,7 @@
                         <button
                             class="preview-zoom-btn"
                             :disabled="pdfZoom <= 0.5"
+                            :title="$t('properties.zoomOut')"
                             @click.stop="pdfZoom = Math.max(0.5, pdfZoom - 0.2)"
                         >
                             −
@@ -137,34 +190,57 @@
                         <button
                             class="preview-zoom-btn"
                             :disabled="pdfZoom >= 3"
+                            :title="$t('properties.zoomIn')"
                             @click.stop="pdfZoom = Math.min(3, pdfZoom + 0.2)"
                         >
                             +
                         </button>
                         <button
                             class="preview-zoom-btn"
+                            :title="$t('properties.zoomReset')"
                             @click.stop="pdfZoom = 1"
                         >
                             ⊡
                         </button>
+                        <div class="preview-zoom-sep"></div>
                     </div>
                     <div
-                        class="preview-office"
-                        :style="{
-                            transform: 'scale(' + pdfZoom + ')',
-                            transformOrigin: 'top left',
-                        }"
+                        class="preview-zoom-scroll"
+                        @mousedown="
+                            (e) =>
+                                onDragStart(e, e.currentTarget as HTMLElement)
+                        "
+                        @mousemove="
+                            (e) => onDragMove(e, e.currentTarget as HTMLElement)
+                        "
+                        @mouseup="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                        @mouseleave="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
                     >
-                        <VueOfficePdf
-                            v-if="officeData"
-                            :src="officeData"
-                            style="height: 100%; width: 100%"
-                        />
+                        <div
+                            class="preview-office"
+                            :style="{
+                                transform: 'scale(' + pdfZoom + ')',
+                                transformOrigin: 'top left',
+                            }"
+                        >
+                            <VueOfficePdf
+                                v-if="officeData"
+                                :src="officeData"
+                                style="height: 100%; width: 100%"
+                            />
+                        </div>
                     </div>
                 </div>
                 <!-- PPTX -->
                 <div v-else-if="previewType === 'pptx'" class="preview-office">
-                    <PptxPreview v-if="officeData" :data="officeData" />
+                    <PptxPreview
+                        v-if="officeArrayBuffer"
+                        :data="officeArrayBuffer"
+                    />
                 </div>
                 <!-- Archive listing -->
                 <div
@@ -212,8 +288,13 @@
                 <div
                     v-else-if="previewType === 'markdown'"
                     class="preview-markdown"
-                    v-html="renderedMarkdown"
-                ></div>
+                >
+                    <MarkdownPreview
+                        :content="previewContent"
+                        :ext="previewExt"
+                        :filePath="file?.path"
+                    />
+                </div>
                 <!-- External only (no preview available) -->
                 <div
                     v-else-if="previewType === 'externalOnly'"
@@ -351,13 +432,13 @@ import {
     listArchiveContents,
     openFile,
 } from "@/utils/tauri";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+
 import VueOfficeDocx from "@vue-office/docx";
 import VueOfficeExcel from "@vue-office/excel";
 import VueOfficePdf from "@vue-office/pdf";
 import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
+import MarkdownPreview from "@/components/MarkdownPreview.vue";
 import "@vue-office/docx/lib/index.css";
 import "@vue-office/excel/lib/index.css";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -377,12 +458,6 @@ const ARCHIVE_EXTS = [
     "txz",
 ];
 
-// ── Configure marked ──
-marked.setOptions({
-    gfm: true,
-    breaks: true,
-});
-
 const { t } = useI18n();
 const store = useFileStore();
 const sel = useSelectionStore();
@@ -394,17 +469,52 @@ const emit = defineEmits<{ close: []; resizeStart: [e: MouseEvent] }>();
 
 const imageInfo = ref<{ width: number; height: number } | null>(null);
 const imageZoom = ref(1);
+const imageRotation = ref(0);
 const pdfZoom = ref(1);
+
+// ── Drag-to-pan state (shared) ──
+let _dragActive = false;
+let _dragStartX = 0;
+let _dragStartY = 0;
+let _dragScrollLeft = 0;
+let _dragScrollTop = 0;
+
+function onDragStart(e: MouseEvent, el: HTMLElement | null) {
+    if (!el) return;
+    _dragActive = true;
+    _dragStartX = e.clientX;
+    _dragStartY = e.clientY;
+    _dragScrollLeft = el.scrollLeft;
+    _dragScrollTop = el.scrollTop;
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+}
+function onDragMove(e: MouseEvent, el: HTMLElement | null) {
+    if (!_dragActive || !el) return;
+    el.scrollLeft = _dragScrollLeft - (e.clientX - _dragStartX);
+    el.scrollTop = _dragScrollTop - (e.clientY - _dragStartY);
+}
+function onDragEnd(el: HTMLElement | null) {
+    if (!_dragActive) return;
+    _dragActive = false;
+    if (el) {
+        el.style.cursor = "";
+        el.style.userSelect = "";
+    }
+}
 const dirItemCount = ref(0);
 const osIconSrc = ref("");
 const previewType = ref<string>("");
 const previewSrc = ref<string>("");
 const previewContent = ref<string>("");
 const previewExt = ref<string>("");
-const renderedMarkdown = ref("");
+
 const previewLoading = ref(false);
 const previewError = ref("");
-const officeData = ref<ArrayBuffer | null>(null);
+const officeData = ref<ArrayBuffer | string | null>(null);
+const officeArrayBuffer = computed(() =>
+    officeData.value instanceof ArrayBuffer ? officeData.value : null,
+);
 const archiveEntries = ref<ArchiveEntry[]>([]);
 const archiveTotal = ref(0);
 
@@ -537,12 +647,20 @@ watch(file, async (f) => {
     } else if (ext === "pdf" && !f.is_dir) {
         // PDF — use @vue-office/pdf (read raw bytes)
         previewLoading.value = true;
+        const pdfTimeout = setTimeout(() => {
+            if (previewLoading.value) {
+                previewError.value = t("properties.pdfLoadTimeout");
+                previewLoading.value = false;
+            }
+        }, 15000);
         try {
-            const buf = await loadFileAsArrayBuffer(f.path);
-            officeData.value = buf;
+            const b64 = await readFileBytes(f.path);
+            clearTimeout(pdfTimeout);
+            officeData.value = `data:application/pdf;base64,${b64}`;
             previewType.value = "pdf";
             previewLoading.value = false;
         } catch (e: any) {
+            clearTimeout(pdfTimeout);
             previewError.value = translatePreviewError(
                 String(e || "Preview unavailable"),
                 t,
@@ -576,9 +694,8 @@ watch(file, async (f) => {
             const result = await getFilePreview(f.path);
             if (result.type === "markdown") {
                 previewType.value = "markdown";
-                const content = result.content || "";
-                const rawHtml = await marked.parse(content);
-                renderedMarkdown.value = DOMPurify.sanitize(rawHtml);
+                previewContent.value = result.content || "";
+                previewExt.value = result.ext || f.extension;
             } else if (result.type === "text") {
                 previewType.value = "text";
                 previewContent.value = result.content || "";
@@ -892,6 +1009,12 @@ async function openPreviewWindow() {
     text-align: center;
     font-variant-numeric: tabular-nums;
 }
+.preview-zoom-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    flex-shrink: 0;
+}
 .preview-zoom-scroll {
     flex: 1;
     overflow: auto;
@@ -900,6 +1023,12 @@ async function openPreviewWindow() {
     justify-content: center;
     padding: 8px;
     background: var(--bg-primary);
+}
+/* PDF container fills scroll area inside flex parent */
+.preview-zoom-scroll .preview-office {
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
 }
 .preview-image {
     max-width: 100%;
@@ -918,12 +1047,8 @@ async function openPreviewWindow() {
     overflow: auto;
 }
 .preview-markdown {
-    padding: 8px 12px;
-    font-size: 12px;
-    line-height: 1.6;
-    overflow: auto;
-    color: var(--text-primary);
     height: 100%;
+    overflow: hidden;
 }
 
 /* ── Info section (bottom, compact) ── */
@@ -1013,78 +1138,9 @@ async function openPreviewWindow() {
     background: var(--accent);
     color: #fff;
 }
-
-/* ── Markdown content styles ── */
-.preview-markdown h1,
-.preview-markdown h2,
-.preview-markdown h3,
-.preview-markdown h4 {
-    margin: 8px 0 4px;
-    font-weight: 600;
-}
-.preview-markdown h1 {
-    font-size: 15px;
-}
-.preview-markdown h2 {
-    font-size: 14px;
-}
-.preview-markdown h3 {
-    font-size: 13px;
-}
-.preview-markdown p {
-    margin: 4px 0;
-}
-.preview-markdown ul,
-.preview-markdown ol {
-    padding-left: 20px;
-    margin: 4px 0;
-}
-.preview-markdown code {
-    background: var(--input-bg);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-.preview-markdown pre {
-    background: var(--input-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 8px;
-    overflow: auto;
-}
-.preview-markdown pre code {
-    background: none;
-    padding: 0;
-}
-.preview-markdown table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-}
-.preview-markdown th,
-.preview-markdown td {
-    border: 1px solid var(--border);
-    padding: 4px 8px;
-    text-align: left;
-}
-.preview-markdown th {
-    background: var(--bg-secondary);
-    font-weight: 600;
-}
-.preview-markdown blockquote {
-    border-left: 3px solid var(--accent);
-    padding-left: 8px;
-    margin: 4px 0;
-    color: var(--text-secondary);
-}
-.preview-markdown img {
-    max-width: 100%;
-    border-radius: 4px;
-}
-.preview-markdown hr {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 8px 0;
+.preview-markdown {
+    height: 100%;
+    overflow: hidden;
 }
 /* ── Archive listing ── */
 .preview-archive {
@@ -1147,5 +1203,48 @@ async function openPreviewWindow() {
 .preview-unsupported-text {
     font-size: 13px;
     color: var(--text-muted);
+}
+
+/* ── Skeleton loading animation ── */
+@keyframes preview-pulse {
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+.preview-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    animation: preview-pulse 1.5s ease-in-out infinite;
+}
+.preview-skeleton-line {
+    height: 12px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+}
+.preview-skeleton-line:nth-child(1) {
+    width: 60%;
+}
+.preview-skeleton-line:nth-child(2) {
+    width: 80%;
+}
+.preview-skeleton-line:nth-child(3) {
+    width: 45%;
+}
+.preview-skeleton-line:nth-child(4) {
+    width: 70%;
+}
+.preview-skeleton-line:nth-child(5) {
+    width: 55%;
+}
+.preview-skeleton-block {
+    height: 120px;
+    background: var(--bg-hover);
+    border-radius: 6px;
 }
 </style>
