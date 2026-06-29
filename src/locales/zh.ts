@@ -117,6 +117,12 @@ export default {
     zoomOut: "缩小",
     zoomReset: "重置",
     rename: "重命名",
+    binaryFile: "二进制文件",
+    fileTooLarge: "文件过大无法预览",
+    previewUnavailable: "预览不可用",
+    extractFailed: "解压失败",
+    failedToStat: "无法读取文件信息",
+    readFailed: "读取文件失败",
   },
   previewToolbar: {
     open: "打开",

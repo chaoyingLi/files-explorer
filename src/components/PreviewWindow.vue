@@ -183,7 +183,7 @@
             <div class="pw-split-handle" @mousedown.stop="onSplitStart" />
 
             <!-- Right: preview -->
-            <div class="pw-preview">
+            <div class="pw-preview" @contextmenu.prevent>
                 <button
                     v-if="viewingExtracted"
                     class="pw-preview-back"
@@ -395,6 +395,24 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, watch, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
+
+// Translate common Rust backend error messages to localized strings
+function translatePreviewError(
+    err: string,
+    t: (key: string) => string,
+): string {
+    const known: Record<string, string> = {
+        "Binary file": t("properties.binaryFile"),
+        "File too large for preview": t("properties.fileTooLarge"),
+        "Preview unavailable": t("properties.previewUnavailable"),
+        "Extract failed": t("properties.extractFailed"),
+    };
+    if (known[err]) return known[err];
+    if (err.startsWith("Failed to stat")) return t("properties.failedToStat");
+    if (err.startsWith("Read failed")) return t("properties.readFailed");
+    if (err.startsWith("File too large")) return t("properties.fileTooLarge");
+    return err;
+}
 import {
     listDirectory,
     getFilePreview,
@@ -647,7 +665,10 @@ async function onArchiveEntryDblClick(entry: ArchiveEntry) {
         const result = await extractArchiveEntry(archivePath.value, entry.path);
         activePath.value = result.temp_path;
     } catch (e: any) {
-        previewError.value = String(e || "Extract failed");
+        previewError.value = translatePreviewError(
+            String(e || "Extract failed"),
+            t,
+        );
     }
 }
 
@@ -905,7 +926,7 @@ async function loadPreview(path: string) {
             officeData.value = buf;
             previewType.value = OFFICE_EXTS[ext];
         } catch (e: any) {
-            previewError.value = String(e);
+            previewError.value = translatePreviewError(String(e), t);
         }
         previewLoading.value = false;
     } else if (OFFICE_EXTS[ext] === "externalOnly") {
@@ -917,7 +938,7 @@ async function loadPreview(path: string) {
             officeData.value = buf;
             previewType.value = "pdf";
         } catch (e: any) {
-            previewError.value = String(e);
+            previewError.value = translatePreviewError(String(e), t);
         }
         previewLoading.value = false;
     } else if (ARCHIVE_EXTS.includes(ext)) {
@@ -928,7 +949,7 @@ async function loadPreview(path: string) {
             archivePath.value = path;
             previewType.value = "archive";
         } catch (e: any) {
-            previewError.value = String(e);
+            previewError.value = translatePreviewError(String(e), t);
         }
         previewLoading.value = false;
     } else {
@@ -946,7 +967,7 @@ async function loadPreview(path: string) {
                 previewExt.value = result.ext || ext;
             }
         } catch (e: any) {
-            previewError.value = String(e);
+            previewError.value = translatePreviewError(String(e), t);
         }
         previewLoading.value = false;
     }

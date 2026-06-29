@@ -117,6 +117,12 @@ export default {
     zoomOut: "Zoom Out",
     zoomReset: "Reset",
     rename: "Rename",
+    binaryFile: "Binary file",
+    fileTooLarge: "File too large for preview",
+    previewUnavailable: "Preview unavailable",
+    extractFailed: "Extract failed",
+    failedToStat: "Failed to read file info",
+    readFailed: "Failed to read file",
   },
   previewToolbar: {
     open: "Open",

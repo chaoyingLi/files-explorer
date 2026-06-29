@@ -1,13 +1,183 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Files Explorer</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Files Explorer</title>
+        <script>
+            // Detect theme before Vue mounts — prevents white/black flash
+            (function () {
+                var theme = "dark";
+                try {
+                    var saved = JSON.parse(
+                        localStorage.getItem("app-settings"),
+                    );
+                    if (
+                        saved &&
+                        (saved.theme === "light" || saved.theme === "dark")
+                    ) {
+                        theme = saved.theme;
+                    }
+                } catch (_) {
+                    // Fallback: system preference
+                    if (
+                        window.matchMedia("(prefers-color-scheme: light)")
+                            .matches
+                    ) {
+                        theme = "light";
+                    }
+                }
+                document.documentElement.setAttribute("data-theme", theme);
+                document.documentElement.className = theme;
+            })();
+        </script>
+        <style>
+            /* ── Reset ── */
+            html,
+            body,
+            #app {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            /* ── Dark theme (Catppuccin Mocha) ── */
+            :root,
+            [data-theme="dark"] {
+                --splash-bg: #1e1e2e;
+                --splash-card: #181825;
+                --splash-border: #313244;
+                --splash-text: #cdd6f4;
+                --splash-muted: #6c7086;
+                --splash-accent: #89b4fa;
+                --splash-spinner-track: #313244;
+                --splash-spinner-fg: #89b4fa;
+            }
+
+            /* ── Light theme (Catppuccin Latte) ── */
+            [data-theme="light"] {
+                --splash-bg: #eff1f5;
+                --splash-card: #e6e9ef;
+                --splash-border: #ccd0da;
+                --splash-text: #4c4f69;
+                --splash-muted: #9ca0b0;
+                --splash-accent: #1e66f5;
+                --splash-spinner-track: #ccd0da;
+                --splash-spinner-fg: #1e66f5;
+            }
+
+            /* ── Splash layout ── */
+            #loader-wrapper {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: var(--splash-bg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 999999;
+            }
+            #loader-card {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 24px;
+                padding: 48px 56px;
+                background: var(--splash-card);
+                border: 1px solid var(--splash-border);
+                border-radius: 16px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            }
+
+            /* ── Logo: folder icon ── */
+            #loader-logo {
+                width: 56px;
+                height: 56px;
+                color: var(--splash-accent);
+            }
+
+            /* ── App name ── */
+            #loader-title {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, Arial, sans-serif;
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--splash-text);
+                margin: 0;
+                letter-spacing: 0.3px;
+            }
+            #loader-subtitle {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, Arial, sans-serif;
+                font-size: 12px;
+                color: var(--splash-muted);
+                margin: -16px 0 0;
+            }
+
+            /* ── Spinner ── */
+            #loader-spinner {
+                width: 36px;
+                height: 36px;
+                border: 3px solid var(--splash-spinner-track);
+                border-top-color: var(--splash-spinner-fg);
+                border-radius: 50%;
+                animation: splash-spin 0.8s linear infinite;
+            }
+            @keyframes splash-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* ── Status text ── */
+            #loader-status {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, Arial, sans-serif;
+                font-size: 13px;
+                color: var(--splash-muted);
+                margin: 0;
+            }
+
+            /* Vue's app.mount('#app') replaces #app contents automatically,
+               so the loader inside #app is replaced by the Vue template. */
+        </style>
+    </head>
+    <body>
+        <div id="app">
+            <div id="loader-wrapper">
+                <div id="loader-card">
+                    <!-- Folder SVG icon -->
+                    <svg
+                        id="loader-logo"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                            fill="currentColor"
+                            fill-opacity="0.15"
+                        />
+                        <path
+                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                        />
+                    </svg>
+                    <p id="loader-title">Files Explorer</p>
+                    <p id="loader-subtitle">v0.1.4</p>
+                    <div id="loader-spinner"></div>
+                    <p id="loader-status">Loading...</p>
+                </div>
+            </div>
+        </div>
+        <script type="module" src="/src/main.ts"></script>
+    </body>
 </html>

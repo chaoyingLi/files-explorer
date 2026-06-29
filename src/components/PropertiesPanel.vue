@@ -32,7 +32,7 @@
 
         <template v-else-if="file">
             <!-- ════ Preview area (top, fills available space) ════ -->
-            <div class="preview-area">
+            <div class="preview-area" @contextmenu.prevent>
                 <!-- Loading -->
                 <div v-if="previewLoading" class="preview-status">
                     <span class="preview-spinner"></span>
@@ -317,6 +317,26 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+
+// Translate common Rust backend error messages to localized strings
+function translatePreviewError(
+    err: string,
+    t: (key: string) => string,
+): string {
+    const known: Record<string, string> = {
+        "Binary file": t("properties.binaryFile"),
+        "File too large for preview": t("properties.fileTooLarge"),
+        "Preview unavailable": t("properties.previewUnavailable"),
+        "Extract failed": t("properties.extractFailed"),
+    };
+    // Direct match
+    if (known[err]) return known[err];
+    // Partial match for errors like "Failed to stat: ..."
+    if (err.startsWith("Failed to stat")) return t("properties.failedToStat");
+    if (err.startsWith("Read failed")) return t("properties.readFailed");
+    if (err.startsWith("File too large")) return t("properties.fileTooLarge");
+    return err;
+}
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useViewStore } from "@/stores/viewStore";
 import { useTabStore } from "@/stores/tabStore";
@@ -508,7 +528,10 @@ watch(file, async (f) => {
             previewType.value = OFFICE_EXTS[ext];
             previewLoading.value = false;
         } catch (e: any) {
-            previewError.value = String(e || "Preview unavailable");
+            previewError.value = translatePreviewError(
+                String(e || "Preview unavailable"),
+                t,
+            );
             previewLoading.value = false;
         }
     } else if (ext === "pdf" && !f.is_dir) {
@@ -520,7 +543,10 @@ watch(file, async (f) => {
             previewType.value = "pdf";
             previewLoading.value = false;
         } catch (e: any) {
-            previewError.value = String(e || "Preview unavailable");
+            previewError.value = translatePreviewError(
+                String(e || "Preview unavailable"),
+                t,
+            );
             previewLoading.value = false;
         }
     } else if (!f.is_dir && ARCHIVE_EXTS.includes(ext)) {
@@ -532,7 +558,10 @@ watch(file, async (f) => {
             archiveTotal.value = entries.length;
             previewType.value = "archive";
         } catch (e: any) {
-            previewError.value = String(e || "Preview unavailable");
+            previewError.value = translatePreviewError(
+                String(e || "Preview unavailable"),
+                t,
+            );
         } finally {
             previewLoading.value = false;
         }
@@ -556,7 +585,10 @@ watch(file, async (f) => {
                 previewExt.value = result.ext || f.extension;
             }
         } catch (e: any) {
-            previewError.value = String(e || "Preview unavailable");
+            previewError.value = translatePreviewError(
+                String(e || "Preview unavailable"),
+                t,
+            );
         } finally {
             previewLoading.value = false;
         }
