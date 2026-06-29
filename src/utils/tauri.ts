@@ -215,3 +215,10 @@ export async function printFile(path: string): Promise<void> {
 export async function copyFileAs(src: string, dest: string): Promise<void> {
   return invoke("copy_file_as", { src, dest });
 }
+
+export async function saveTextFile(
+  path: string,
+  content: string,
+): Promise<void> {
+  return invoke("save_text_file", { path, content });
+}

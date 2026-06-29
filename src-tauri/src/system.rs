@@ -525,6 +525,37 @@ fn is_probably_text(data: &[u8]) -> bool {
     true
 }
 
+/// Known text/code extensions — always try to preview as text, skip binary detection.
+fn is_known_text_ext(ext: &str) -> bool {
+    matches!(
+        ext,
+        // Documents
+        "txt" | "md" | "mdx" | "log" | "ini" | "cfg" | "conf" | "env" | "yml" | "yaml"
+        | "toml" | "json" | "jsonc" | "xml" | "svg" | "html" | "htm" | "xhtml"
+        | "css" | "scss" | "sass" | "less" | "styl"
+        // Scripts / code
+        | "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx" | "vue"
+        | "svelte" | "astro"
+        | "py" | "pyi" | "pyx" | "rs" | "go" | "java" | "kt" | "kts" | "scala" | "groovy"
+        | "c" | "h" | "cpp" | "cxx" | "hpp" | "hxx" | "cc" | "hh" | "inl"
+        | "cs" | "fs" | "fsx" | "vb" | "swift" | "m" | "mm" | "dart"
+        | "rb" | "php" | "pl" | "pm" | "lua" | "r" | "hs" | "erl" | "hrl" | "ex" | "exs"
+        | "sh" | "bash" | "zsh" | "fish" | "bat" | "cmd" | "ps1" | "psm1" | "psd1"
+        | "sql" | "graphql" | "gql" | "proto" | "prisma"
+        | "tf" | "tfvars" | "hcl"
+        | "makefile" | "cmake" | "gradle"
+        | "diff" | "patch"
+        | "dockerfile" | "ignore" | "gitignore" | "editorconfig" | "properties"
+        | "tex" | "sty" | "cls" | "bib" | "rst"
+        | "clj" | "cljs" | "edn"
+        | "coffee" | "litcoffee"
+        | "zig" | "nim" | "v" | "vh" | "sv" | "vhd" | "sol" | "ml" | "mli"
+        | "pug" | "jade"
+        // Assembly / system
+        | "asm" | "s" | "S"
+    )
+}
+
 /// Known binary extensions that should skip text detection
 fn is_known_binary_ext(ext: &str) -> bool {
     matches!(
@@ -601,9 +632,11 @@ pub fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
         return Err("File too large for preview".to_string());
     }
 
-    // Smart detection: read first bytes and check if text
+    // Read file content
     let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
-    if !is_probably_text(&bytes) {
+
+    // For known text extensions, skip binary detection (handles UTF-16 etc.)
+    if !is_known_text_ext(&ext) && !is_probably_text(&bytes) {
         return Err("Binary file".to_string());
     }
 
@@ -1046,4 +1079,9 @@ pub fn print_file(path: String) -> Result<(), String> {
 pub fn copy_file_as(src: String, dest: String) -> Result<(), String> {
     std::fs::copy(&src, &dest).map_err(|e| format!("Copy: {}", e))?;
     Ok(())
+}
+
+/// Save text content to a file. Used for exporting markdown as HTML/DOC.
+pub fn save_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| format!("Save failed: {}", e))
 }

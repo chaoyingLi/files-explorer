@@ -160,6 +160,10 @@ fn copy_file_as(src: String, dest: String) -> Result<(), String> {
     system::copy_file_as(src, dest)
 }
 #[command]
+fn save_text_file(path: String, content: String) -> Result<(), String> {
+    system::save_text_file(path, content)
+}
+#[command]
 fn get_file_icon(path: String) -> Result<String, String> {
     system::get_file_icon(path)
 }
@@ -234,6 +238,7 @@ pub fn run() {
             extract_archive_entry,
             print_file,
             copy_file_as,
+            save_text_file,
             open_in_terminal,
             search_files,
             path_exists,
