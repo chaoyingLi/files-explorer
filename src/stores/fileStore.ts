@@ -120,7 +120,38 @@ export const useFileStore = defineStore("file", () => {
       drives.value = await tauri.getDrives();
       specialDirs.value = await tauri.getSpecialDirs();
     } catch (e) {
-      error.value = String(e);
+      console.error("loadDrives failed:", e);
+    }
+    // Listen for preview-window file changes
+    setupFileChangeListener();
+  }
+
+  // ── Listen for file changes from preview window ──
+  let _fileChangeUnlisten: (() => void) | null = null;
+
+  async function setupFileChangeListener() {
+    if (_fileChangeUnlisten) return;
+    try {
+      const { listen } = await import("@tauri-apps/api/event");
+      _fileChangeUnlisten = await listen<{ path: string }>(
+        "file-changed",
+        async (ev) => {
+          if (ev.payload.path && currentPath.value) {
+            // If the changed directory matches our current path, refresh
+            const normCurrent = currentPath.value.replace(/\\/g, "/");
+            const normChanged = ev.payload.path.replace(/\\/g, "/");
+            if (normCurrent === normChanged) {
+              await refresh();
+            }
+            // Also refresh drives in case of external drive changes
+            if (normChanged === "/" || normChanged.match(/^[A-Za-z]:\/?$/)) {
+              await loadDrives();
+            }
+          }
+        },
+      );
+    } catch {
+      /* ignore */
     }
   }
 

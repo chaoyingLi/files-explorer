@@ -135,6 +135,7 @@ export default {
     print: "Print",
     saveAs: "Save As",
     delete: "Delete",
+    copyContent: "Copy Content",
     confirmDelete: 'Delete "{name}"?',
     deleteWarning: "This file will be moved to Trash.",
     rename: "Rename",

@@ -32,7 +32,10 @@
 
         <template v-else-if="file">
             <!-- ════ Preview area (top, fills available space) ════ -->
-            <div class="preview-area" @contextmenu.prevent>
+            <div
+                class="preview-area"
+                @contextmenu.stop.prevent="onPanelCtxMenu"
+            >
                 <!-- Loading -->
                 <div v-if="previewLoading" class="preview-status">
                     <div class="preview-skeleton">
@@ -311,78 +314,79 @@
             </div>
 
             <!-- ════ File info (bottom, compact) ════ -->
-            <div class="preview-info">
+            <div
+                class="preview-info"
+                @contextmenu.stop.prevent="onPanelCtxMenu"
+            >
                 <div class="preview-info-header">
-                    <img
-                        v-if="osIconSrc"
-                        class="preview-info-icon"
-                        :src="osIconSrc"
-                        alt=""
-                    />
-                    <div
-                        v-else
-                        class="preview-info-icon"
-                        v-html="defaultFileIcon"
-                    ></div>
+                    <div class="preview-info-icon" v-html="fileIconSvg"></div>
                     <span class="preview-info-name">{{ file.name }}</span>
                 </div>
 
-                <div class="preview-info-grid">
-                    <div class="preview-info-cell">
-                        <span class="preview-info-label">{{
-                            $t("fileList.type")
-                        }}</span>
-                        <span class="preview-info-value">{{ fileType }}</span>
-                    </div>
-                    <div class="preview-info-cell">
-                        <span class="preview-info-label">{{
-                            $t("fileList.size")
-                        }}</span>
-                        <span class="preview-info-value">{{
-                            formatSize(file.size)
-                        }}</span>
-                    </div>
-                    <div v-if="imageInfo" class="preview-info-cell">
-                        <span class="preview-info-label">{{
-                            $t("properties.dimensions")
-                        }}</span>
-                        <span class="preview-info-value"
-                            >{{ imageInfo.width }} ×
-                            {{ imageInfo.height }}</span
+                <table class="props-table">
+                    <tr>
+                        <td class="props-td-label">
+                            {{ $t("fileList.type") }}
+                        </td>
+                        <td class="props-td-value">{{ fileType }}</td>
+                    </tr>
+                    <tr>
+                        <td class="props-td-label">
+                            {{ $t("fileList.size") }}
+                        </td>
+                        <td class="props-td-value">
+                            {{ formatSize(file.size) }}
+                        </td>
+                    </tr>
+                    <tr v-if="imageInfo">
+                        <td class="props-td-label">
+                            {{ $t("properties.dimensions") }}
+                        </td>
+                        <td class="props-td-value">
+                            {{ imageInfo.width }} × {{ imageInfo.height }}
+                        </td>
+                    </tr>
+                    <tr v-else-if="file.is_dir">
+                        <td class="props-td-label">
+                            {{ $t("properties.contents") }}
+                        </td>
+                        <td class="props-td-value">
+                            {{
+                                $t("properties.itemsCount", {
+                                    count: dirItemCount,
+                                })
+                            }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="props-td-label">
+                            {{ $t("fileList.dateModified") }}
+                        </td>
+                        <td class="props-td-value">
+                            {{ formatDate(file.modified) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="props-td-label">
+                            {{ $t("fileList.dateCreated") }}
+                        </td>
+                        <td class="props-td-value">
+                            {{ formatDate(file.created) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="props-td-label">
+                            {{ $t("properties.fullPath") }}
+                        </td>
+                        <td
+                            class="props-td-value props-td-path"
+                            :title="$t('contextMenu.showInFinder')"
+                            @click.stop="showInExplorerClick"
                         >
-                    </div>
-                    <div v-else-if="file.is_dir" class="preview-info-cell">
-                        <span class="preview-info-label">{{
-                            $t("properties.contents")
-                        }}</span>
-                        <span class="preview-info-value">{{
-                            $t("properties.itemsCount", { count: dirItemCount })
-                        }}</span>
-                    </div>
-                </div>
-
-                <div class="preview-info-row">
-                    <span class="preview-info-label">{{
-                        $t("fileList.dateModified")
-                    }}</span>
-                    <span class="preview-info-value">{{
-                        formatDate(file.modified)
-                    }}</span>
-                </div>
-                <div class="preview-info-row">
-                    <span class="preview-info-label">{{
-                        $t("fileList.dateCreated")
-                    }}</span>
-                    <span class="preview-info-value">{{
-                        formatDate(file.created)
-                    }}</span>
-                </div>
-                <div class="preview-info-row preview-info-path">
-                    <span class="preview-info-label">{{
-                        $t("properties.fullPath")
-                    }}</span>
-                    <span class="preview-info-value">{{ file.path }}</span>
-                </div>
+                            {{ file.path }}
+                        </td>
+                    </tr>
+                </table>
 
                 <div class="preview-info-actions">
                     <button class="preview-btn" @click="openFileExternally">
@@ -390,12 +394,66 @@
                     </button>
                 </div>
             </div>
+            <!-- Context menu -->
+            <teleport to="body">
+                <div
+                    v-if="panelCtx.show"
+                    class="panel-ctx-overlay"
+                    @click="panelCtx.show = false"
+                    @contextmenu.prevent="panelCtx.show = false"
+                >
+                    <div
+                        class="panel-ctx-menu"
+                        :style="{
+                            left: panelCtx.x + 'px',
+                            top: panelCtx.y + 'px',
+                        }"
+                    >
+                        <button
+                            class="panel-ctx-item"
+                            @click="ctxAction('open')"
+                        >
+                            <span v-html="panelIcons.open"></span
+                            >{{ $t("contextMenu.open") }}
+                        </button>
+                        <button
+                            class="panel-ctx-item"
+                            @click="ctxAction('showInExplorer')"
+                        >
+                            <span v-html="panelIcons.showInExplorer"></span
+                            >{{ $t("contextMenu.showInFinder") }}
+                        </button>
+                        <button
+                            class="panel-ctx-item"
+                            @click="ctxAction('openInTerminal')"
+                        >
+                            <span v-html="panelIcons.terminal"></span
+                            >{{ $t("contextMenu.openInTerminal") }}
+                        </button>
+                        <div class="panel-ctx-sep"></div>
+                        <button
+                            class="panel-ctx-item"
+                            @click="ctxAction('copyPath')"
+                        >
+                            <span v-html="panelIcons.copy"></span
+                            >{{ $t("contextMenu.copyPath") }}
+                        </button>
+                        <button
+                            class="panel-ctx-item"
+                            @click="ctxAction('previewWindow')"
+                        >
+                            <span v-html="panelIcons.popout"></span
+                            >{{ $t("contextMenu.openInPreviewWindow") }}
+                        </button>
+                    </div>
+                </div>
+            </teleport>
         </template>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 
@@ -431,7 +489,10 @@ import {
     readFileBytes,
     listArchiveContents,
     openFile,
+    showInExplorer,
+    openInTerminal,
 } from "@/utils/tauri";
+import { getFileIconSvg } from "@/utils/fileIcons";
 
 import VueOfficeDocx from "@vue-office/docx";
 import VueOfficeExcel from "@vue-office/excel";
@@ -471,6 +532,63 @@ const imageInfo = ref<{ width: number; height: number } | null>(null);
 const imageZoom = ref(1);
 const imageRotation = ref(0);
 const pdfZoom = ref(1);
+
+// ── File icon (matches file list) ──
+const FOLDER_ICON = `<svg viewBox="0 0 32 32" fill="none"><path d="M4 6.5A1.5 1.5 0 015.5 5h6.8l2.4 3H26.5A1.5 1.5 0 0128 9.5v16a1.5 1.5 0 01-1.5 1.5H5.5A1.5 1.5 0 014 25.5V6.5z" fill="#F6C23A"/><path d="M5.5 5h6.8l2.4 3" fill="#F9D56E"/></svg>`;
+const fileIconSvg = computed(() => {
+    const svg = getFileIconSvg(
+        file.value?.extension || "",
+        file.value?.is_dir || false,
+    );
+    if (svg) return svg;
+    if (file.value?.is_dir) return FOLDER_ICON;
+    return null;
+});
+
+// ── Panel context menu ──
+const panelCtx = reactive({ show: false, x: 0, y: 0 });
+const panelIcons = {
+    open: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M2 4.5a1 1 0 011-1h2.5l1.2 1.5H11a1 1 0 011 1V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5z" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+    showInExplorer: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    terminal: `<svg viewBox="0 0 14 14" width="12" height="12"><rect x="1.5" y="2.5" width="11" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 5l2 2-2 2M7 9h3" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    copy: `<svg viewBox="0 0 14 14" width="12" height="12"><rect x="3.5" y="1.5" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3.5" width="7" height="9" rx="1" fill="var(--bg-secondary)" stroke="currentColor" stroke-width="1"/></svg>`,
+    popout: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
+function onPanelCtxMenu(e: MouseEvent) {
+    e.stopPropagation();
+    if (!file.value) return;
+    panelCtx.x = e.clientX;
+    panelCtx.y = e.clientY;
+    panelCtx.show = true;
+}
+
+async function ctxAction(action: string) {
+    const p = file.value?.path;
+    if (!p) return;
+    panelCtx.show = false;
+    switch (action) {
+        case "open":
+            await openFile(p).catch(() => {});
+            break;
+        case "showInExplorer":
+            await showInExplorer(p).catch(() => {});
+            break;
+        case "openInTerminal":
+            await openInTerminal(p).catch(() => {});
+            break;
+        case "copyPath":
+            await navigator.clipboard.writeText(p).catch(() => {});
+            break;
+        case "previewWindow":
+            openPreviewWindow();
+            break;
+    }
+}
+
+function showInExplorerClick() {
+    if (file.value) showInExplorer(file.value.path).catch(() => {});
+}
 
 // ── Drag-to-pan state (shared) ──
 let _dragActive = false;
@@ -1084,38 +1202,38 @@ async function openPreviewWindow() {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.preview-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px 12px;
-    margin-bottom: 4px;
-}
-.preview-info-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-}
-.preview-info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 2px 0;
-}
-.preview-info-path {
-    flex-direction: column;
-}
-.preview-info-label {
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    flex-shrink: 0;
-    margin-right: 8px;
-}
-.preview-info-value {
+/* ── Properties table ── */
+.props-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 11px;
+}
+.props-table tr {
+    border-bottom: 1px solid var(--border);
+}
+.props-table tr:last-child {
+    border-bottom: none;
+}
+.props-td-label {
+    padding: 5px 8px 5px 0;
+    color: var(--text-muted);
+    white-space: nowrap;
+    vertical-align: top;
+    width: 1%;
+}
+.props-td-value {
+    padding: 5px 0;
+    text-align: left;
     color: var(--text-secondary);
+    user-select: text;
     word-break: break-all;
+}
+.props-td-path {
+    cursor: pointer;
+    color: var(--accent);
+}
+.props-td-path:hover {
+    text-decoration: underline;
 }
 .preview-info-actions {
     margin-top: 8px;
@@ -1137,6 +1255,49 @@ async function openPreviewWindow() {
 .preview-btn:hover {
     background: var(--accent);
     color: #fff;
+}
+/* ── Panel context menu ── */
+.panel-ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+}
+.panel-ctx-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    min-width: 180px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    font-size: 12px;
+}
+.panel-ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.panel-ctx-item:hover {
+    background: var(--bg-hover);
+}
+.panel-ctx-item :deep(svg) {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+.panel-ctx-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 6px;
 }
 .preview-markdown {
     height: 100%;

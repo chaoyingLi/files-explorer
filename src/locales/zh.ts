@@ -135,6 +135,7 @@ export default {
     print: "打印",
     saveAs: "另存为",
     delete: "删除",
+    copyContent: "复制内容",
     confirmDelete: '确定删除 "{name}" ？',
     deleteWarning: "此文件将被移至回收站。",
     rename: "重命名",

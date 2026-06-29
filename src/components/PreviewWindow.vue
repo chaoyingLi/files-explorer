@@ -7,7 +7,19 @@
         >
             <TitleBar />
             <div class="pw-header">
-                <span class="pw-title">{{ fileName || "Preview" }}</span>
+                <template v-if="renaming">
+                    <input
+                        ref="renameInput"
+                        class="pw-rename-input"
+                        v-model="renameValue"
+                        @keydown.enter="confirmRename"
+                        @keydown.escape="cancelRename"
+                        @blur="confirmRename"
+                    />
+                </template>
+                <template v-else>
+                    <span class="pw-title">{{ fileName || "Preview" }}</span>
+                </template>
             </div>
             <!-- Toolbar -->
             <div class="pw-toolbar" v-if="activePath && !viewingExtracted">
@@ -21,11 +33,11 @@
                 </button>
                 <button
                     class="pw-tb-btn"
-                    :title="$t('previewToolbar.print')"
-                    @click="tbPrint"
+                    :title="$t('previewToolbar.rename')"
+                    @click="tbRename"
                 >
-                    <span class="pw-tb-icon" v-html="ICONS.print"></span>
-                    {{ $t("previewToolbar.print") }}
+                    <span class="pw-tb-icon" v-html="ICONS.rename"></span>
+                    {{ $t("previewToolbar.rename") }}
                 </button>
                 <button
                     class="pw-tb-btn"
@@ -67,15 +79,6 @@
                     ></span>
                     {{ $t("previewToolbar.showInExplorer") }}
                 </button>
-                <div class="pw-tb-sep"></div>
-                <button
-                    class="pw-tb-btn"
-                    :title="$t('previewToolbar.rename')"
-                    @click="tbRename"
-                >
-                    <span class="pw-tb-icon">✏️</span>
-                    {{ $t("previewToolbar.rename") }}
-                </button>
             </div>
             <!-- Back to archive -->
             <div v-if="viewingExtracted" class="pw-back-bar">
@@ -108,7 +111,9 @@
                             :style="{ paddingLeft: 8 + node.depth * 18 + 'px' }"
                             @click="onTreeClick(node)"
                             @dblclick="onTreeDblClick(node)"
-                            @contextmenu.prevent.stop="onItemCtxMenu(node, $event)"
+                            @contextmenu.prevent.stop="
+                                onItemCtxMenu(node, $event)
+                            "
                         >
                             <!-- Chevron -->
                             <span
@@ -196,6 +201,54 @@
                 >
                     ↰
                 </button>
+                <button
+                    v-if="canCopy"
+                    class="pw-preview-copy"
+                    :title="
+                        pwCopied
+                            ? $t('previewToolbar.copied')
+                            : $t('previewToolbar.copyContent')
+                    "
+                    @click="copyContent"
+                >
+                    <svg
+                        v-if="pwCopied"
+                        viewBox="0 0 14 14"
+                        width="14"
+                        height="14"
+                    >
+                        <path
+                            d="M4.5 7l2 2 3.5-4"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                    <svg v-else viewBox="0 0 14 14" width="14" height="14">
+                        <rect
+                            x="3.5"
+                            y="1.5"
+                            width="7"
+                            height="9"
+                            rx="1"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1"
+                        />
+                        <rect
+                            x="1.5"
+                            y="3.5"
+                            width="7"
+                            height="9"
+                            rx="1"
+                            fill="var(--bg-secondary)"
+                            stroke="currentColor"
+                            stroke-width="1"
+                        />
+                    </svg>
+                </button>
                 <div v-if="previewLoading" class="pw-status">
                     <div class="pw-skeleton">
                         <div class="pw-skeleton-line"></div>
@@ -246,7 +299,10 @@
                         <button
                             class="pw-zoom-btn"
                             :title="$t('properties.zoomReset')"
-                            @click.stop="imageZoom = 1; imageRotation = 0"
+                            @click.stop="
+                                imageZoom = 1;
+                                imageRotation = 0;
+                            "
                         >
                             ⊡
                         </button>
@@ -254,26 +310,39 @@
                         <button
                             class="pw-zoom-btn"
                             :title="$t('properties.rotateLeft')"
-                            @click.stop="imageRotation = (imageRotation + 270) % 360"
+                            @click.stop="
+                                imageRotation = (imageRotation + 270) % 360
+                            "
                         >
                             ↺
                         </button>
                         <button
                             class="pw-zoom-btn"
                             :title="$t('properties.rotateRight')"
-                            @click.stop="imageRotation = (imageRotation + 90) % 360"
+                            @click.stop="
+                                imageRotation = (imageRotation + 90) % 360
+                            "
                         >
                             ↻
                         </button>
                     </div>
                     <div
-                        <div class="pw-zoom-scroll"
-                            @mousedown="(e) => onDragStart(e, e.currentTarget as HTMLElement)"
-                            @mousemove="(e) => onDragMove(e, e.currentTarget as HTMLElement)"
-                            @mouseup="(e) => onDragEnd(e.currentTarget as HTMLElement)"
-                            @mouseleave="(e) => onDragEnd(e.currentTarget as HTMLElement)"
-                        >
-                            <img
+                        class="pw-zoom-scroll"
+                        @mousedown="
+                            (e) =>
+                                onDragStart(e, e.currentTarget as HTMLElement)
+                        "
+                        @mousemove="
+                            (e) => onDragMove(e, e.currentTarget as HTMLElement)
+                        "
+                        @mouseup="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                        @mouseleave="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                    >
+                        <img
                             class="pw-image"
                             :src="previewSrc"
                             alt=""
@@ -343,36 +412,45 @@
                     </div>
                     <div
                         class="pw-zoom-scroll"
-                        @mousedown="(e) => onDragStart(e, e.currentTarget as HTMLElement)"
-                            @mousemove="(e) => onDragMove(e, e.currentTarget as HTMLElement)"
-                            @mouseup="(e) => onDragEnd(e.currentTarget as HTMLElement)"
-                            @mouseleave="(e) => onDragEnd(e.currentTarget as HTMLElement)"
-                        >
-                            <div
-                                class="pw-office"
+                        @mousedown="
+                            (e) =>
+                                onDragStart(e, e.currentTarget as HTMLElement)
+                        "
+                        @mousemove="
+                            (e) => onDragMove(e, e.currentTarget as HTMLElement)
+                        "
+                        @mouseup="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                        @mouseleave="
+                            (e) => onDragEnd(e.currentTarget as HTMLElement)
+                        "
+                    >
+                        <div
+                            class="pw-office"
                             :style="{
                                 transform: 'scale(' + pdfZoom + ')',
                                 transformOrigin: 'top left',
                             }"
                         >
-                        <VueOfficePdf
-                            v-if="officeData"
-                            :src="officeData"
-                            style="height: 100%; width: 100%"
-                        />
-                    </div>
+                            <VueOfficePdf
+                                v-if="officeData"
+                                :src="officeData"
+                                style="height: 100%; width: 100%"
+                            />
+                        </div>
                     </div>
                 </div>
                 <div v-else-if="previewType === 'pptx'" class="pw-office">
-                    <PptxPreview v-if="officeArrayBuffer" :data="officeArrayBuffer" />
+                    <PptxPreview
+                        v-if="officeArrayBuffer"
+                        :data="officeArrayBuffer"
+                    />
                 </div>
                 <div v-else-if="previewType === 'text'" class="pw-code">
                     <CodePreview :code="previewContent" :ext="previewExt" />
                 </div>
-                <div
-                    v-else-if="previewType === 'markdown'"
-                    class="pw-markdown"
-                >
+                <div v-else-if="previewType === 'markdown'" class="pw-markdown">
                     <MarkdownPreview
                         :content="previewContent"
                         :ext="previewExt"
@@ -483,6 +561,7 @@ import {
     renameItem,
 } from "@/utils/tauri";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { emit } from "@tauri-apps/api/event";
 
 function onTopBarDrag(e: MouseEvent) {
     if (e.button !== 0) return;
@@ -515,9 +594,9 @@ const ICONS = {
     open: `<svg viewBox="0 0 14 14"><path d="M2 4.5a1 1 0 011-1h2.5l1.2 1.5H11a1 1 0 011 1V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5z" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
     showInExplorer: `<svg viewBox="0 0 14 14"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     copy: `<svg viewBox="0 0 14 14"><rect x="3.5" y="1.5" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3.5" width="7" height="9" rx="1" fill="var(--bg-secondary)" stroke="currentColor" stroke-width="1"/></svg>`,
-    print: `<svg viewBox="0 0 14 14"><rect x="2.5" y="5" width="9" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4.5 2h5v3h-5z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4.5 8h5M4.5 10h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
     saveAs: `<svg viewBox="0 0 14 14"><path d="M2.5 10v1.5a1 1 0 001 1h7a1 1 0 001-1V10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><path d="M7 2v7M4.5 5.5L7 8l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     delete: `<svg viewBox="0 0 14 14"><path d="M3 3.5h8M5.5 3V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5V3" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 3.5v8a1 1 0 001 1h4a1 1 0 001-1v-8" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+    rename: `<svg viewBox="0 0 14 14"><path d="M3 11l3-7.5L7.5 7l-3 4H3zm4.5-8l1.5 1.5M10 2l2 2-4 4-2.5-.5L6 4.5 10 2z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>`,
 };
 
 const { t } = useI18n();
@@ -736,6 +815,18 @@ function backToArchive() {
     previewError.value = "";
 }
 
+async function copyContent() {
+    const text = previewContent.value || "";
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        pwCopied.value = true;
+        setTimeout(() => (pwCopied.value = false), 1500);
+    } catch {
+        /* ignore */
+    }
+}
+
 function onArchiveEntryClick(entry: ArchiveEntry) {
     if (!entry.is_dir) {
         selectedArchivePath.value = entry.path;
@@ -786,19 +877,34 @@ async function tbSaveAs() {
 async function tbRename() {
     const p = activePath.value;
     if (!p) return;
-    const oldName = fileName.value;
-    const newName = prompt(t("previewToolbar.rename"), oldName) || "";
-    if (!newName || newName === oldName) return;
+    renameValue.value = fileName.value;
+    renaming.value = true;
+    setTimeout(() => renameInput.value?.focus(), 50);
+}
+
+async function confirmRename() {
+    const p = activePath.value;
+    if (!p || !renameValue.value || renameValue.value === fileName.value) {
+        renaming.value = false;
+        return;
+    }
     const sep = p.includes("/") ? "/" : "\\";
-    const newPath = p.substring(0, p.lastIndexOf(sep)) + sep + newName;
+    const newPath =
+        p.substring(0, p.lastIndexOf(sep)) + sep + renameValue.value;
     try {
         await renameItem(p, newPath);
         activePath.value = newPath;
+        emit("file-changed", { path: parentDir.value });
         await loadDirTree(parentDir.value);
         await loadPreview(newPath);
     } catch (e: any) {
         previewError.value = String(e);
     }
+    renaming.value = false;
+}
+
+function cancelRename() {
+    renaming.value = false;
 }
 
 async function tbDelete() {
@@ -813,6 +919,7 @@ async function tbDelete() {
     if (!confirmed) return;
     try {
         await deleteItem(p, false);
+        emit("file-changed", { path: parentDir.value });
         getCurrentWebviewWindow().close();
     } catch {
         /* ignore */
@@ -935,6 +1042,14 @@ const selectedArchivePath = ref("");
 const lastArchivePath = ref("");
 const lastArchiveEntries = ref<ArchiveEntry[]>([]);
 const viewingExtracted = ref(false);
+const pwCopied = ref(false);
+const renaming = ref(false);
+const renameValue = ref("");
+const renameInput = ref<HTMLInputElement>();
+
+const canCopy = computed(() =>
+    ["text", "markdown"].includes(previewType.value),
+);
 const tbcopied = ref(false);
 
 const imageZoom = ref(1);
@@ -1146,6 +1261,18 @@ onMounted(async () => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.pw-rename-input {
+    -webkit-app-region: no-drag;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    outline: none;
+    width: 100%;
 }
 .pw-close {
     background: none;
@@ -1408,6 +1535,32 @@ onMounted(async () => {
     opacity: 1;
     background: var(--bg-hover);
 }
+.pw-preview-copy {
+    position: absolute;
+    top: 4px;
+    right: 44px;
+    z-index: 5;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition:
+        opacity 0.15s,
+        background 0.15s;
+}
+.pw-preview-copy:hover {
+    opacity: 1;
+    background: var(--bg-hover);
+    color: var(--accent);
+}
 .pw-status {
     flex: 1;
     display: flex;
@@ -1443,8 +1596,13 @@ onMounted(async () => {
 
 /* ── Skeleton loading ── */
 @keyframes pw-pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 0.8;
+    }
 }
 .pw-skeleton {
     display: flex;
@@ -1460,9 +1618,15 @@ onMounted(async () => {
     background: var(--bg-hover);
     border-radius: 4px;
 }
-.pw-skeleton-line:nth-child(1) { width: 60%; }
-.pw-skeleton-line:nth-child(2) { width: 80%; }
-.pw-skeleton-line:nth-child(3) { width: 45%; }
+.pw-skeleton-line:nth-child(1) {
+    width: 60%;
+}
+.pw-skeleton-line:nth-child(2) {
+    width: 80%;
+}
+.pw-skeleton-line:nth-child(3) {
+    width: 45%;
+}
 .pw-skeleton-block {
     height: 160px;
     background: var(--bg-hover);

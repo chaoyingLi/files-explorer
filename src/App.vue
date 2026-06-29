@@ -277,6 +277,9 @@ useKeyboardShortcuts({
 });
 
 function onGlobalContextMenu(e: MouseEvent) {
+    // 不拦截来自属性面板的右键事件（属性面板有自己的右键菜单）
+    const target = e.target as HTMLElement | null;
+    if (target?.closest(".preview-panel")) return;
     ctx.openContextMenu(e.clientX, e.clientY);
 }
 
