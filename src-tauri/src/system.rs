@@ -9,6 +9,63 @@ use image::ImageEncoder;
 use log;
 use std::io::Read;
 use std::path::Path;
+use std::time::Duration;
+
+/// Run a command with a timeout. Returns the output if successful within the timeout.
+fn run_command_with_timeout(
+    cmd: &str,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<std::process::Output, String> {
+    let child = std::process::Command::new(cmd)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn {}: {}", cmd, e))?;
+
+    let child = std::sync::Arc::new(std::sync::Mutex::new(child));
+
+    // Use a channel to get the output when done
+    let (tx, rx) = std::sync::mpsc::channel();
+    let child_clone = child.clone();
+    let handle = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut child = child_clone.lock().unwrap();
+        let status = child.wait();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        if let Some(ref mut out) = child.stdout {
+            let _ = out.read_to_end(&mut stdout);
+        }
+        if let Some(ref mut err) = child.stderr {
+            let _ = err.read_to_end(&mut stderr);
+        }
+        match status {
+            Ok(status) => {
+                let _ = tx.send(Ok(std::process::Output {
+                    status,
+                    stdout,
+                    stderr,
+                }));
+            }
+            Err(e) => {
+                let _ = tx.send(Err(e));
+            }
+        }
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(Ok(output)) => Ok(output),
+        Ok(Err(e)) => Err(format!("Failed to wait for process: {}", e)),
+        Err(_) => {
+            // Timeout: kill the child process
+            let _ = child.lock().unwrap().kill();
+            let _ = handle.join();
+            Err(format!("Command '{}' timed out after {:?}", cmd, timeout))
+        }
+    }
+}
 
 pub fn open_in_terminal(path: String) -> Result<(), String> {
     let p = Path::new(&path);
@@ -24,16 +81,14 @@ pub fn open_in_terminal(path: String) -> Result<(), String> {
             .args(["-d", &dir.to_string_lossy()])
             .spawn();
         if wt.is_err() {
-            std::process::Command::new("cmd")
-                .args([
-                    "/C",
-                    "start",
-                    "cmd",
-                    "/K",
-                    &format!("cd /d {}", dir.to_string_lossy()),
-                ])
+            // Use pushd to avoid shell string injection from path
+            // cmd /K pushd "path" changes to the directory safely
+            let mut child = std::process::Command::new("cmd")
+                .args(["/K", "pushd"])
+                .arg(dir.as_os_str())
                 .spawn()
                 .map_err(|e| format!("Failed to open terminal: {}", e))?;
+            child.wait().ok();
         }
     }
 
@@ -233,6 +288,7 @@ pub fn get_file_icon(path: String) -> Result<String, String> {
     const ICON_SIZE: i32 = 32;
 
     #[repr(C)]
+    #[allow(non_snake_case)]
     struct SHFILEINFOW {
         hIcon: *mut std::ffi::c_void,
         iIcon: i32,
@@ -242,6 +298,7 @@ pub fn get_file_icon(path: String) -> Result<String, String> {
     }
 
     #[repr(C)]
+    #[allow(non_snake_case)]
     struct BITMAPINFOHEADER {
         biSize: u32,
         biWidth: i32,
@@ -681,7 +738,14 @@ fn list_tar_xz(path: &str) -> Result<Vec<ArchiveEntry>, String> {
 }
 
 fn list_7z(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let sz = sevenz_rust::SevenZReader::open(path, "".into()).map_err(|e| format!("7z: {}", e))?;
+    let sz = sevenz_rust::SevenZReader::open(path, "".into()).map_err(|e| {
+        let msg = format!("{}", e);
+        if msg.contains("password") || msg.contains("encrypted") || msg.contains("wrong") {
+            format!("Password-protected 7z archives are not supported: {}", msg)
+        } else {
+            format!("7z: {}", msg)
+        }
+    })?;
     let mut result = Vec::new();
     for entry in sz.archive().files.iter() {
         if result.len() as u64 >= ARCHIVE_MAX_ENTRIES {
@@ -699,18 +763,18 @@ fn list_7z(path: &str) -> Result<Vec<ArchiveEntry>, String> {
 }
 
 fn list_rar(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    // Try system `unrar` command first, then `7z`
+    const CMD_TIMEOUT: Duration = Duration::from_secs(30);
+
     for cmd in &["unrar", "7z"] {
-        let output = std::process::Command::new(cmd)
-            .args(if *cmd == "7z" {
-                vec!["l", "-slt", path]
-            } else {
-                vec!["l", path]
-            })
-            .output();
-        if let Ok(out) = output {
-            if out.status.success() {
-                return parse_rar_output(cmd, &String::from_utf8_lossy(&out.stdout));
+        let args: Vec<&str> = if *cmd == "7z" {
+            vec!["l", "-slt", path]
+        } else {
+            vec!["l", path]
+        };
+        let result = run_command_with_timeout(cmd, &args, CMD_TIMEOUT);
+        if let Ok(output) = result {
+            if output.status.success() {
+                return parse_rar_output(cmd, &String::from_utf8_lossy(&output.stdout));
             }
         }
     }
@@ -900,8 +964,14 @@ fn extract_tar_entry(
 }
 
 fn extract_7z_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result<(), String> {
-    let mut sz =
-        sevenz_rust::SevenZReader::open(archive, "".into()).map_err(|e| format!("7z: {}", e))?;
+    let mut sz = sevenz_rust::SevenZReader::open(archive, "".into()).map_err(|e| {
+        let msg = format!("{}", e);
+        if msg.contains("password") || msg.contains("encrypted") || msg.contains("wrong") {
+            format!("Password-protected 7z archives are not supported: {}", msg)
+        } else {
+            format!("7z: {}", msg)
+        }
+    })?;
     sz.for_each_entries(|e, reader| {
         if e.name == entry || e.name == format!("/{}", entry) {
             if e.size > EXTRACT_MAX_SIZE {
@@ -920,6 +990,8 @@ fn extract_7z_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result
 }
 
 fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Result<(), String> {
+    const CMD_TIMEOUT: Duration = Duration::from_secs(60);
+
     for cmd in &["7z", "unrar"] {
         let out_dir = out.parent().unwrap_or(out).to_string_lossy().to_string();
         let args: Vec<String> = if *cmd == "7z" {
@@ -934,8 +1006,9 @@ fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Resul
             vec!["x".into(), "-o+".into(), archive.into(), entry.into()]
         };
         let str_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        if let Ok(o) = std::process::Command::new(cmd).args(&str_args).output() {
-            if o.status.success() {
+        let result = run_command_with_timeout(cmd, &str_args, CMD_TIMEOUT);
+        if let Ok(output) = result {
+            if output.status.success() {
                 return Ok(());
             }
         }

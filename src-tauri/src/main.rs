@@ -22,7 +22,7 @@ fn init_logging() {
 
     let log_file = std::path::PathBuf::from(&main_log);
     let _ = WriteLogger::init(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         Config::default(),
         fs::OpenOptions::new()
             .create(true)

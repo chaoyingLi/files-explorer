@@ -1,6 +1,6 @@
-use crate::error::{FsError, FsResult, op_err};
-use crate::types::{ActionKind, FileAction, PASTE_CONFLICT_SUFFIX, MAX_UNDO_HISTORY};
+use crate::error::{op_err, FsError, FsResult};
 use crate::state::AppState;
+use crate::types::{ActionKind, FileAction, MAX_UNDO_HISTORY, PASTE_CONFLICT_SUFFIX};
 use log;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,8 +24,11 @@ pub fn get_parent_directory(path: String) -> FsResult<String> {
 
 pub fn create_directory(state: State<AppState>, path: String) -> FsResult<()> {
     fs::create_dir_all(&path).map_err(|e| op_err("Failed to create directory", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    history.push(FileAction {
+    let mut inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    inner.undo_history.push(FileAction {
         kind: ActionKind::Create {
             path: path.clone(),
             is_dir: true,
@@ -35,7 +38,7 @@ pub fn create_directory(state: State<AppState>, path: String) -> FsResult<()> {
             .unwrap_or_default()
             .as_secs() as i64,
     });
-    trim_undo_history(&mut history);
+    trim_undo_history(&mut inner.undo_history);
     Ok(())
 }
 
@@ -44,8 +47,11 @@ pub fn create_file(state: State<AppState>, path: String) -> FsResult<()> {
         return Err(FsError::AlreadyExists("File already exists".into()));
     }
     fs::write(&path, "").map_err(|e| op_err("Failed to create file", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    history.push(FileAction {
+    let mut inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    inner.undo_history.push(FileAction {
         kind: ActionKind::Create {
             path: path.clone(),
             is_dir: false,
@@ -55,7 +61,7 @@ pub fn create_file(state: State<AppState>, path: String) -> FsResult<()> {
             .unwrap_or_default()
             .as_secs() as i64,
     });
-    trim_undo_history(&mut history);
+    trim_undo_history(&mut inner.undo_history);
     Ok(())
 }
 
@@ -79,8 +85,11 @@ pub fn delete_item(path: String, permanently: bool) -> FsResult<()> {
 
 pub fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> FsResult<()> {
     fs::rename(&old_path, &new_path).map_err(|e| op_err("Failed to rename", e))?;
-    let mut history = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    history.push(FileAction {
+    let mut inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    inner.undo_history.push(FileAction {
         kind: ActionKind::Rename {
             old_path: old_path.clone(),
             new_path: new_path.clone(),
@@ -90,7 +99,7 @@ pub fn rename_item(state: State<AppState>, old_path: String, new_path: String) -
             .unwrap_or_default()
             .as_secs() as i64,
     });
-    trim_undo_history(&mut history);
+    trim_undo_history(&mut inner.undo_history);
     Ok(())
 }
 
@@ -113,7 +122,10 @@ pub fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> FsResult<
         };
         let dest_path = dest.join(&file_name);
         if dest_path.exists() {
-            return Err(FsError::AlreadyExists(format!("Target already exists: {}", file_name)));
+            return Err(FsError::AlreadyExists(format!(
+                "Target already exists: {}",
+                file_name
+            )));
         }
         // Try fast rename first (same filesystem)
         if !copy && std::fs::rename(src, &dest_path).is_ok() {
@@ -127,8 +139,7 @@ pub fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> FsResult<
         }
         if !copy {
             if src.is_dir() {
-                std::fs::remove_dir_all(src)
-                    .map_err(|e| op_err("Failed to remove source", e))?;
+                std::fs::remove_dir_all(src).map_err(|e| op_err("Failed to remove source", e))?;
             } else {
                 std::fs::remove_file(src).map_err(|e| op_err("Failed to remove source", e))?;
             }

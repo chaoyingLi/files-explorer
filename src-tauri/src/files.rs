@@ -1,7 +1,9 @@
-use crate::types::{FileEntry, ts_from_metadata, LIST_BATCH_SIZE};
+use crate::types::{ts_from_metadata, FileEntry, LIST_BATCH_SIZE};
 use log;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 pub fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
@@ -66,7 +68,15 @@ pub fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
-pub fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), String> {
+/// List directory contents with streaming via events.
+/// The generation counter is incremented but NOT used for stale-thread cancellation
+/// to avoid multi-pane interference during session restore. The frontend's
+/// `navigateSeq` already filters stale responses.
+pub fn list_directory_streamed(
+    app: AppHandle,
+    path: String,
+    navigate_gen: Arc<AtomicU64>,
+) -> Result<(), String> {
     let dir = Path::new(&path);
     if !dir.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -74,6 +84,7 @@ pub fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), Strin
     if !dir.is_dir() {
         return Err(format!("Not a directory: {}", path));
     }
+    navigate_gen.fetch_add(1, Ordering::SeqCst);
     let app2 = app.clone();
     std::thread::spawn(move || {
         let mut batch: Vec<FileEntry> = Vec::new();

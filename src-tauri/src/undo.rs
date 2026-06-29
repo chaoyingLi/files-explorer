@@ -1,26 +1,42 @@
-use crate::error::{FsError, FsResult, op_err};
-use crate::types::{ActionKind, FileAction};
-use crate::state::AppState;
+use crate::error::{op_err, FsError, FsResult};
 use crate::operations::copy_dir_recursive;
+use crate::state::AppState;
+use crate::types::{ActionKind, FileAction};
 use std::fs;
 use std::path::Path;
 use tauri::State;
 
 pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
-    let mut history = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    let action = history.pop().ok_or(FsError::Other("Nothing to undo".into()))?;
+    let mut inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    let action = inner
+        .undo_history
+        .pop()
+        .ok_or(FsError::Other("Nothing to undo".into()))?;
     match &action.kind {
         ActionKind::Delete => Err(FsError::Other("Cannot undo delete operation".into())),
         ActionKind::Rename { old_path, new_path } => {
             if !Path::new(new_path).exists() {
-                return Err(FsError::Other(format!("Cannot undo: {new_path} no longer exists")));
+                return Err(FsError::Other(format!(
+                    "Cannot undo: {new_path} no longer exists"
+                )));
             }
             fs::rename(new_path, old_path).map_err(|e| op_err("Undo rename failed", e))?;
             Ok(format!("Undid rename: restored {old_path}"))
         }
         ActionKind::Create { path, is_dir } => {
             if *is_dir {
-                fs::remove_dir_all(path).map_err(|e| op_err("Undo create failed", e))?;
+                // Safety check: only remove empty directories
+                let mut read_dir = std::fs::read_dir(path)
+                    .map_err(|e| op_err("Undo create: cannot read directory", e))?;
+                if read_dir.next().is_some() {
+                    return Err(FsError::Other(format!(
+                        "Cannot undo: directory is not empty: {path}"
+                    )));
+                }
+                std::fs::remove_dir(path).map_err(|e| op_err("Undo create failed", e))?;
             } else {
                 fs::remove_file(path).map_err(|e| op_err("Undo create failed", e))?;
             }
@@ -29,7 +45,9 @@ pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
         ActionKind::Copy { src, dest, was_cut } => {
             let dest_path = Path::new(dest);
             if !dest_path.exists() {
-                return Err(FsError::Other(format!("Cannot undo: {dest} no longer exists")));
+                return Err(FsError::Other(format!(
+                    "Cannot undo: {dest} no longer exists"
+                )));
             }
             if *was_cut {
                 // Bug 11 fix: cut-paste undo — restore original file at src, then remove copy
@@ -46,8 +64,7 @@ pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
             } else {
                 // Regular copy: just remove the copy
                 if dest_path.is_dir() {
-                    fs::remove_dir_all(dest_path)
-                        .map_err(|e| op_err("Undo copy failed", e))?;
+                    fs::remove_dir_all(dest_path).map_err(|e| op_err("Undo copy failed", e))?;
                 } else {
                     fs::remove_file(dest_path).map_err(|e| op_err("Undo copy failed", e))?;
                 }
@@ -58,6 +75,9 @@ pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
 }
 
 pub fn get_undo_info(state: State<AppState>) -> FsResult<Option<FileAction>> {
-    let history = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    Ok(history.last().cloned())
+    let inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    Ok(inner.undo_history.last().cloned())
 }

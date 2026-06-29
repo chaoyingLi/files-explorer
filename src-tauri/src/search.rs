@@ -1,9 +1,14 @@
-use crate::types::{FileEntry, SearchProgress, ts_from_metadata, SEARCH_MAX_RESULTS, SEARCH_BATCH_SIZE};
 use crate::state::AppState;
+use crate::types::{
+    ts_from_metadata, FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS,
+};
 use std::fs;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
+
+/// Maximum file size (in bytes) for content search. Files larger than this are skipped.
+const CONTENT_SEARCH_MAX_BYTES: u64 = 1 * 1024 * 1024; // 1 MB
 
 pub fn wildcard_match(pattern: &str, filename: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
@@ -123,11 +128,25 @@ pub fn search_files(
             .filter_entry(|e| {
                 // Skip well-known directories that are never user files
                 let name = e.file_name().to_str().unwrap_or("");
-                !matches!(name,
-                    "node_modules" | ".git" | "target" | ".next" | ".nuxt" |
-                    "__pycache__" | ".venv" | "venv" | ".tox" | ".mypy_cache" |
-                    "dist" | ".cache" | ".sass-cache" | ".parcel-cache" |
-                    "vendor" | ".terraform" | ".serverless"
+                !matches!(
+                    name,
+                    "node_modules"
+                        | ".git"
+                        | "target"
+                        | ".next"
+                        | ".nuxt"
+                        | "__pycache__"
+                        | ".venv"
+                        | "venv"
+                        | ".tox"
+                        | ".mypy_cache"
+                        | "dist"
+                        | ".cache"
+                        | ".sass-cache"
+                        | ".parcel-cache"
+                        | "vendor"
+                        | ".terraform"
+                        | ".serverless"
                 )
             })
             .filter_map(|e| e.ok());
@@ -176,13 +195,17 @@ pub fn search_files(
 
             // Content search (only for non-directory files)
             if !content_clone.is_empty() && !is_dir {
+                // Skip files larger than CONTENT_SEARCH_MAX_BYTES
+                if file_size > CONTENT_SEARCH_MAX_BYTES {
+                    continue;
+                }
                 // Try to read the file as text
                 if let Ok(text) = std::fs::read_to_string(&path) {
                     if !text.to_lowercase().contains(&content_clone.to_lowercase()) {
                         continue;
                     }
                 } else {
-                    // Binary file or too large — skip
+                    // Binary file or unreadable — skip
                     continue;
                 }
             }

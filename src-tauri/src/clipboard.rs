@@ -1,4 +1,4 @@
-use crate::error::{FsError, FsResult, op_err};
+use crate::error::{op_err, FsError, FsResult};
 use crate::operations::{copy_dir_recursive, resolve_paste_conflict, trim_undo_history};
 use crate::state::AppState;
 use crate::types::{ActionKind, ClipboardInfo, FileAction};
@@ -11,13 +11,15 @@ pub fn copy_clipboard(state: State<AppState>, paths: Vec<String>) -> FsResult<()
     log::info!("copy_clipboard: {} items", paths.len());
     // 1. Set internal clipboard (guaranteed to work)
     {
-        let mut cb = state.clipboard.lock().map_err(|e| FsError::Other(e.to_string()))?;
-        let mut act = state.clipboard_action.lock().map_err(|e| FsError::Other(e.to_string()))?;
-        cb.clear();
+        let mut inner = state
+            .inner
+            .lock()
+            .map_err(|e| FsError::Other(e.to_string()))?;
+        inner.clipboard.clear();
         for p in &paths {
-            cb.push(PathBuf::from(p));
+            inner.clipboard.push(PathBuf::from(p));
         }
-        *act = "copy".to_string();
+        inner.clipboard_action = "copy".to_string();
     }
     // 2. Best-effort write to system clipboard
     write_to_system_clipboard(&paths);
@@ -28,13 +30,15 @@ pub fn cut_clipboard(state: State<AppState>, paths: Vec<String>) -> FsResult<()>
     log::info!("cut_clipboard: {} items", paths.len());
     // 1. Set internal clipboard
     {
-        let mut cb = state.clipboard.lock().map_err(|e| FsError::Other(e.to_string()))?;
-        let mut act = state.clipboard_action.lock().map_err(|e| FsError::Other(e.to_string()))?;
-        cb.clear();
+        let mut inner = state
+            .inner
+            .lock()
+            .map_err(|e| FsError::Other(e.to_string()))?;
+        inner.clipboard.clear();
         for p in &paths {
-            cb.push(PathBuf::from(p));
+            inner.clipboard.push(PathBuf::from(p));
         }
-        *act = "cut".to_string();
+        inner.clipboard_action = "cut".to_string();
     }
     // 2. Best-effort write to system clipboard
     write_to_system_clipboard(&paths);
@@ -122,7 +126,15 @@ pub fn write_to_system_clipboard(paths: &[String]) {
             fn GlobalUnlock(m: *mut std::ffi::c_void) -> i32;
             fn GlobalFree(h: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
         }
-        if OpenClipboard(std::ptr::null_mut()) == 0 {
+        let mut retries = 3;
+        while retries > 0 {
+            if OpenClipboard(std::ptr::null_mut()) != 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            retries -= 1;
+        }
+        if retries == 0 {
             return;
         }
         EmptyClipboard();
@@ -173,7 +185,15 @@ pub fn read_from_system_clipboard() -> Option<Vec<String>> {
             fn IsClipboardFormatAvailable(f: u32) -> i32;
             fn DragQueryFileW(h: *mut std::ffi::c_void, i: u32, b: *mut u16, c: u32) -> u32;
         }
-        if OpenClipboard(std::ptr::null_mut()) == 0 {
+        let mut retries = 3;
+        while retries > 0 {
+            if OpenClipboard(std::ptr::null_mut()) != 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            retries -= 1;
+        }
+        if retries == 0 {
             return None;
         }
         if IsClipboardFormatAvailable(15) == 0 {
@@ -221,9 +241,10 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> FsResult<()>
             // Check if internal clipboard says "cut" (for cut-paste delete)
             let is_cut = {
                 state
-                    .clipboard_action
+                    .inner
                     .lock()
-                    .map(|a| *a == "cut")
+                    .ok()
+                    .map(|i| i.clipboard_action == "cut")
                     .unwrap_or(false)
             };
             let dest = Path::new(&dest_dir);
@@ -245,8 +266,11 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> FsResult<()>
                             fs::remove_file(src).map_err(|e| op_err("Remove failed", e))?;
                         }
                     }
-                    let mut h = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-                    h.push(FileAction {
+                    let mut inner = state
+                        .inner
+                        .lock()
+                        .map_err(|e| FsError::Other(e.to_string()))?;
+                    inner.undo_history.push(FileAction {
                         kind: ActionKind::Copy {
                             src: src_str.clone(),
                             dest: dp.to_string_lossy().to_string(),
@@ -257,30 +281,36 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> FsResult<()>
                             .unwrap_or_default()
                             .as_secs() as i64,
                     });
-                    trim_undo_history(&mut h);
+                    trim_undo_history(&mut inner.undo_history);
                 }
             }
             if is_cut {
-                let _ = state.clipboard.lock().map(|mut c| c.clear());
-                let _ = state
-                    .clipboard_action
-                    .lock()
-                    .map(|mut a| *a = String::new());
+                let _ = state.inner.lock().map(|mut i| {
+                    i.clipboard.clear();
+                    i.clipboard_action.clear();
+                });
             }
             return Ok(());
         }
     }
 
     // Fall back to internal clipboard
-    let clipboard = state.clipboard.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    let action = state.clipboard_action.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    if clipboard.is_empty() {
+    let inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
+    if inner.clipboard.is_empty() {
         return Err(FsError::Other("Clipboard is empty".into()));
     }
 
+    // Collect paths to avoid holding a borrow on inner during mutation
+    let clipboard_paths: Vec<PathBuf> = inner.clipboard.clone();
     let dest = Path::new(&dest_dir);
-    let is_cut = *action == "cut";
-    for src_path in clipboard.iter() {
+    let is_cut = inner.clipboard_action == "cut";
+
+    drop(inner);
+
+    for src_path in &clipboard_paths {
         if let Some(file_name) = src_path.file_name() {
             let dest_path = resolve_paste_conflict(&dest.join(file_name));
             if src_path.is_dir() {
@@ -295,8 +325,11 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> FsResult<()>
                 }
             }
             if !is_cut {
-                let mut h = state.undo_history.lock().map_err(|e| FsError::Other(e.to_string()))?;
-                h.push(FileAction {
+                let mut inner = state
+                    .inner
+                    .lock()
+                    .map_err(|e| FsError::Other(e.to_string()))?;
+                inner.undo_history.push(FileAction {
                     kind: ActionKind::Copy {
                         src: src_path.to_string_lossy().to_string(),
                         dest: dest_path.to_string_lossy().to_string(),
@@ -307,14 +340,15 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> FsResult<()>
                         .unwrap_or_default()
                         .as_secs() as i64,
                 });
-                trim_undo_history(&mut h);
+                trim_undo_history(&mut inner.undo_history);
             }
         }
     }
     if is_cut {
-        drop(clipboard);
-        drop(action);
-        state.clipboard.lock().map_err(|e| FsError::Other(e.to_string()))?.clear();
+        let _ = state.inner.lock().map(|mut i| {
+            i.clipboard.clear();
+            i.clipboard_action.clear();
+        });
     }
     Ok(())
 }
@@ -328,10 +362,16 @@ pub fn get_clipboard_info(state: State<AppState>) -> FsResult<ClipboardInfo> {
             });
         }
     }
-    let c = state.clipboard.lock().map_err(|e| FsError::Other(e.to_string()))?;
-    let a = state.clipboard_action.lock().map_err(|e| FsError::Other(e.to_string()))?;
+    let inner = state
+        .inner
+        .lock()
+        .map_err(|e| FsError::Other(e.to_string()))?;
     Ok(ClipboardInfo {
-        paths: c.iter().map(|x| x.to_string_lossy().to_string()).collect(),
-        action: a.clone(),
+        paths: inner
+            .clipboard
+            .iter()
+            .map(|x| x.to_string_lossy().to_string())
+            .collect(),
+        action: inner.clipboard_action.clone(),
     })
 }

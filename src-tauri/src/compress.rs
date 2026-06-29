@@ -6,6 +6,37 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
+/// Sanitize archive entry paths to prevent Zip Slip / path traversal attacks.
+/// Returns the cleaned path string, or an error if the path is invalid.
+fn sanitize_archive_path(entry_path: &str) -> FsResult<String> {
+    // Normalize separators and strip leading separators
+    let cleaned = entry_path
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_string();
+    // Reject any path containing ".." component
+    if cleaned.split('/').any(|c| c == "..") {
+        return Err(FsError::InvalidPath(format!(
+            "Archive entry path contains illegal traversal: {}",
+            entry_path
+        )));
+    }
+    // Reject absolute paths (e.g. /etc/passwd or C:\\windows)
+    if cleaned.starts_with('/')
+        || cleaned.starts_with("\\\\")
+        || cleaned.chars().nth(1) == Some(':')
+    {
+        return Err(FsError::InvalidPath(format!(
+            "Archive entry path is absolute: {}",
+            entry_path
+        )));
+    }
+    Ok(cleaned)
+}
+
+/// Maximum total bytes to extract from an archive (2 GB)
+const EXTRACT_TOTAL_MAX: u64 = 2 * 1024 * 1024 * 1024;
+
 #[derive(Clone, serde::Serialize)]
 pub struct ProgressPayload {
     pub current: u64,
@@ -91,15 +122,23 @@ fn add_to_zip<W: Write + std::io::Seek>(
             .map_err(|e| FsError::IoError(format!("Add dir: {}", e)))?;
         if let Ok(entries) = fs::read_dir(src) {
             for e in entries.flatten() {
-                add_to_zip(zip, &e.path(), &relative, options, processed, total, app, cancel)?;
+                add_to_zip(
+                    zip,
+                    &e.path(),
+                    &relative,
+                    options,
+                    processed,
+                    total,
+                    app,
+                    cancel,
+                )?;
             }
         }
     } else {
         let name = relative.to_string_lossy().to_string();
         zip.start_file(&name, options)
             .map_err(|e| FsError::IoError(format!("Start file: {}", e)))?;
-        let mut f = fs::File::open(src)
-            .map_err(|e| FsError::IoError(format!("Open: {}", e)))?;
+        let mut f = fs::File::open(src).map_err(|e| FsError::IoError(format!("Open: {}", e)))?;
         let mut buf = [0u8; 8192];
         loop {
             let n = f
@@ -155,11 +194,12 @@ fn extract_zip(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file =
-        fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let mut zip =
         zip::ZipArchive::new(file).map_err(|e| FsError::IoError(format!("Open zip: {}", e)))?;
     let total = zip.len() as u64;
+
+    let mut total_extracted: u64 = 0;
 
     for i in 0..zip.len() {
         if cancel.load(Ordering::SeqCst) {
@@ -168,13 +208,23 @@ fn extract_zip(
         let mut entry = zip
             .by_index(i)
             .map_err(|e| FsError::IoError(format!("Read entry: {}", e)))?;
-        let out_path = Path::new(dest_dir).join(entry.name());
+        let safe_name = sanitize_archive_path(entry.name())?;
+        let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.is_dir() {
             fs::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
                 fs::create_dir_all(parent).ok();
             }
+            // Check total size limit
+            if entry.size() > EXTRACT_TOTAL_MAX
+                || total_extracted + entry.size() > EXTRACT_TOTAL_MAX
+            {
+                return Err(FsError::Other(
+                    "Archive too large: total extraction size exceeds limit".into(),
+                ));
+            }
+            total_extracted += entry.size();
             let mut out = fs::File::create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)
@@ -199,8 +249,7 @@ fn extract_tar(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file =
-        fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let mut tar = tar::Archive::new(file);
     let entries: Vec<_> = tar
         .entries()
@@ -209,17 +258,31 @@ fn extract_tar(
         .collect();
     let total = entries.len() as u64;
 
+    let mut total_extracted: u64 = 0;
+
     for (i, mut entry) in entries.into_iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             return Err(FsError::Other("Cancelled".into()));
         }
-        let out_path = Path::new(dest_dir).join(entry.path().unwrap_or_default());
+        let raw_path = entry
+            .path()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let safe_name = sanitize_archive_path(&raw_path)?;
+        let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.header().entry_type().is_dir() {
             fs::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
                 fs::create_dir_all(parent).ok();
             }
+            if total_extracted + entry.size() > EXTRACT_TOTAL_MAX {
+                return Err(FsError::Other(
+                    "Archive too large: total extraction size exceeds limit".into(),
+                ));
+            }
+            total_extracted += entry.size();
             let mut out = fs::File::create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)
@@ -244,8 +307,7 @@ fn extract_tar_gz(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file =
-        fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut tar = tar::Archive::new(decoder);
     let entries: Vec<_> = tar
@@ -255,17 +317,31 @@ fn extract_tar_gz(
         .collect();
     let total = entries.len() as u64;
 
+    let mut total_extracted: u64 = 0;
+
     for (i, mut entry) in entries.into_iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             return Err(FsError::Other("Cancelled".into()));
         }
-        let out_path = Path::new(dest_dir).join(entry.path().unwrap_or_default());
+        let raw_path = entry
+            .path()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let safe_name = sanitize_archive_path(&raw_path)?;
+        let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.header().entry_type().is_dir() {
             fs::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
                 fs::create_dir_all(parent).ok();
             }
+            if total_extracted + entry.size() > EXTRACT_TOTAL_MAX {
+                return Err(FsError::Other(
+                    "Archive too large: total extraction size exceeds limit".into(),
+                ));
+            }
+            total_extracted += entry.size();
             let mut out = fs::File::create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)

@@ -130,6 +130,7 @@ export const useFileStore = defineStore("file", () => {
   async function navigateTo(path: string, addToHistory = true) {
     loading.value = true;
     error.value = "";
+
     if (isSearching.value) {
       isSearching.value = false;
       cancelCurrentSearch();

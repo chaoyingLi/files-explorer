@@ -42,13 +42,31 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
         fn GlobalUnlock(h: *mut std::ffi::c_void) -> i32;
     }
 
-    if OleInitialize(std::ptr::null_mut()) < 0 {
-        return Err("OleInit failed".into());
+    // RAII guard for OleInitialize/OleUninitialize
+    struct OleGuard;
+    impl OleGuard {
+        fn init() -> Result<Self, String> {
+            unsafe {
+                if OleInitialize(std::ptr::null_mut()) >= 0 {
+                    Ok(OleGuard)
+                } else {
+                    Err("OleInit failed".into())
+                }
+            }
+        }
     }
+    impl Drop for OleGuard {
+        fn drop(&mut self) {
+            unsafe {
+                OleUninitialize();
+            }
+        }
+    }
+
+    let _ole = OleGuard::init()?;
 
     let hmem = GlobalAlloc(2, total);
     if hmem.is_null() {
-        OleUninitialize();
         return Err("Alloc failed".into());
     }
     let ptr = GlobalLock(hmem) as *mut u8;
@@ -210,7 +228,6 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
         3,
         &mut effect,
     );
-    OleUninitialize();
 
     log::info!("DoDragDrop result: {}, effect: {}", hr, effect);
     // S_OK, DRAGDROP_S_DROP (0x00040100), and DRAGDROP_S_CANCEL are all success

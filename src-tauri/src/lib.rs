@@ -13,8 +13,11 @@ mod system;
 mod types;
 mod undo;
 
-use state::AppState;
-use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use state::{AppState, AppStateInner};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64},
+    Arc, Mutex,
+};
 use tauri::{command, AppHandle, State};
 
 use crate::error::FsError;
@@ -26,8 +29,12 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     files::list_directory(path)
 }
 #[command]
-fn list_directory_streamed(app: AppHandle, path: String) -> Result<(), String> {
-    files::list_directory_streamed(app, path)
+fn list_directory_streamed(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<(), String> {
+    files::list_directory_streamed(app, path, state.navigate_gen.clone())
 }
 #[command]
 fn get_file_info(path: String) -> Result<FileEntry, String> {
@@ -194,10 +201,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
-            clipboard: Mutex::new(Vec::new()),
-            clipboard_action: Mutex::new(String::new()),
-            undo_history: Mutex::new(Vec::new()),
+            inner: Mutex::new(AppStateInner {
+                clipboard: Vec::new(),
+                clipboard_action: String::new(),
+                undo_history: Vec::new(),
+            }),
             search_cancel: Arc::new(AtomicBool::new(false)),
+            navigate_gen: Arc::new(AtomicU64::new(0)),
         })
         .invoke_handler(tauri::generate_handler![
             list_directory,
