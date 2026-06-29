@@ -775,16 +775,23 @@ async function openPreviewWindow() {
     overflow: auto;
     min-height: 0;
     padding: 4px;
+    background: var(--bg-primary);
 }
-
-/* ── Status (loading / error) ── */
+.preview-area:empty::after {
+    content: "";
+    display: block;
+    min-height: 120px;
+}
 .preview-status {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 12px;
     color: var(--text-muted);
     font-size: 12px;
+    min-height: 200px;
 }
 .preview-status-error {
     color: var(--danger);
@@ -793,12 +800,13 @@ async function openPreviewWindow() {
     gap: 8px;
 }
 .preview-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border);
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: preview-spin 0.6s linear infinite;
+    flex-shrink: 0;
 }
 @keyframes preview-spin {
     to {
@@ -859,6 +867,7 @@ async function openPreviewWindow() {
     align-items: center;
     justify-content: center;
     padding: 8px;
+    background: var(--bg-primary);
 }
 .preview-image {
     max-width: 100%;

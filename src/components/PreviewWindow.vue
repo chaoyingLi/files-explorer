@@ -198,6 +198,17 @@
                 </button>
                 <div v-if="previewLoading" class="pw-status">
                     <span class="pw-spinner"></span>
+                    <span class="pw-status-text">{{
+                        $t("properties.previewLoading")
+                    }}</span>
+                </div>
+                <div
+                    v-else-if="!previewType && !previewError"
+                    class="pw-status"
+                >
+                    <span class="pw-status-text">{{
+                        $t("properties.noFileSelected")
+                    }}</span>
                 </div>
                 <div
                     v-else-if="previewError"
@@ -1244,6 +1255,12 @@ onMounted(async () => {
     flex-direction: column;
     padding: 8px;
     position: relative;
+    background: var(--bg-primary);
+}
+.pw-preview:empty::after {
+    content: "";
+    display: block;
+    min-height: 120px;
 }
 .pw-preview-back {
     position: absolute;
@@ -1274,21 +1291,29 @@ onMounted(async () => {
 .pw-status {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 12px;
     color: var(--text-muted);
     font-size: 13px;
+    min-height: 200px;
 }
 .pw-status--error {
     color: var(--danger);
 }
+.pw-status-text {
+    font-size: 12px;
+    color: var(--text-muted);
+}
 .pw-spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--border);
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: pw-spin 0.6s linear infinite;
+    flex-shrink: 0;
 }
 @keyframes pw-spin {
     to {
@@ -1347,6 +1372,7 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     padding: 12px;
+    background: var(--bg-primary);
 }
 .pw-image {
     max-width: 100%;
