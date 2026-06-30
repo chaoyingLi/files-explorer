@@ -106,9 +106,8 @@ fn search_files(
     state: State<AppState>,
     directory: String,
     query: String,
-    content: String,
 ) -> Result<(), String> {
-    search::search_files(app, state, directory, query, content)
+    search::search_files(app, state, directory, query)
 }
 #[command]
 fn cancel_search(state: State<AppState>) -> Result<(), String> {

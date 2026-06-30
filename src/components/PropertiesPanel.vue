@@ -498,6 +498,7 @@ import {
     openFile,
     showInExplorer,
     openInTerminal,
+    getAdaptivePreviewSize,
 } from "@/utils/tauri";
 import { getFileIconSvg } from "@/utils/fileIcons";
 
@@ -921,11 +922,12 @@ async function openPreviewWindow() {
         /* window doesn't exist yet, proceed to create */
     }
     try {
+        const { width, height } = await getAdaptivePreviewSize();
         const win = new WebviewWindow(label, {
             url: `/?preview=${encodeURIComponent(file.value.path)}`,
             title: file.value.name,
-            width: 960,
-            height: 680,
+            width,
+            height,
             minWidth: 640,
             minHeight: 400,
             decorations: false,

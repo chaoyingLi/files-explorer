@@ -17,9 +17,13 @@ export function useSearchService(
       searchTabUnlisten();
       searchTabUnlisten = null;
     }
+    // 同步重置 UI 状态，避免帧延迟
+    store.isSearching = false;
+    // 异步取消后端搜索（fire-and-forget）
+    store.cancelCurrentSearch();
   }
 
-  async function submitSearch(query: string, contentQuery: string = "") {
+  async function submitSearch(query: string) {
     await store.cancelCurrentSearch();
     cleanupSearch();
 
@@ -78,7 +82,6 @@ export function useSearchService(
             count: p.total,
             folder: searchDir,
           });
-          // Show toast to inform user
           showToast(
             t("search.resultsTruncatedHint", {
               max: p.total,
@@ -97,7 +100,7 @@ export function useSearchService(
     });
 
     try {
-      await tauri.searchFiles(searchDir, query, contentQuery);
+      await tauri.searchFiles(searchDir, query);
     } catch (e: any) {
       store.isSearching = false;
       showToast(e, true);

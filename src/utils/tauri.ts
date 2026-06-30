@@ -2,6 +2,37 @@ import { invoke } from "@tauri-apps/api/core";
 import type { FileEntry, DiskInfo, SpecialDirs, ClipboardInfo } from "@/types";
 
 /**
+ * Get adaptive preview window size based on current monitor.
+ * Returns { width, height } at 65%×75% of screen, min 640×400, max 90%.
+ */
+export async function getAdaptivePreviewSize(): Promise<{
+  width: number;
+  height: number;
+}> {
+  try {
+    const { currentMonitor } = await import("@tauri-apps/api/window");
+    const monitor = await currentMonitor();
+    if (monitor) {
+      const mw = monitor.size.width;
+      const mh = monitor.size.height;
+      return {
+        width: Math.min(
+          Math.max(640, Math.round(mw * 0.65)),
+          Math.round(mw * 0.9),
+        ),
+        height: Math.min(
+          Math.max(400, Math.round(mh * 0.75)),
+          Math.round(mh * 0.9),
+        ),
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { width: 960, height: 680 };
+}
+
+/**
  * Join path segments using the separator style detected from the base path.
  * On Windows, if base uses backslashes, result uses backslashes;
  * otherwise forward slashes.
@@ -115,9 +146,8 @@ export async function openInTerminal(path: string): Promise<void> {
 export async function searchFiles(
   directory: string,
   query: string,
-  content: string = "",
 ): Promise<void> {
-  return invoke("search_files", { directory, query, content });
+  return invoke("search_files", { directory, query });
 }
 
 export async function cancelSearch(): Promise<void> {

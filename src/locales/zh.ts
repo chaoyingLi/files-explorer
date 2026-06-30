@@ -261,6 +261,9 @@ export default {
   },
   settings: {
     title: "设置",
+    tabAppearance: "外观",
+    tabLanguage: "语言",
+    tabAbout: "关于",
     theme: "主题",
     dark: "深色",
     light: "浅色",

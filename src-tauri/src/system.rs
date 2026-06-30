@@ -199,7 +199,27 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if let Some(parent) = std::path::Path::new(&path).parent() {
+        let p = std::path::Path::new(&path);
+        // Try FreeDesktop FileManager1 DBus API — selects/highlights the file
+        if let Ok(abs) = p.canonicalize() {
+            let uri = format!("file://{}", abs.display());
+            let dbus = std::process::Command::new("dbus-send")
+                .args([
+                    "--session",
+                    "--dest=org.freedesktop.FileManager1",
+                    "--type=method_call",
+                    "/org/freedesktop/FileManager1",
+                    "org.freedesktop.FileManager1.ShowItems",
+                    &format!("array:string:{}", uri),
+                    "string:",
+                ])
+                .spawn();
+            if dbus.is_ok() {
+                return Ok(());
+            }
+        }
+        // Fallback: just open the parent directory
+        if let Some(parent) = p.parent() {
             std::process::Command::new("xdg-open")
                 .arg(parent)
                 .spawn()

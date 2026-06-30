@@ -124,19 +124,6 @@
                     spellcheck="false"
                     @keydown.enter="onSearchEnter"
                 />
-                <!-- Content search toggle -->
-                <button
-                    class="toolbar-btn content-search-toggle"
-                    :class="{ active: contentSearch }"
-                    :title="
-                        contentSearch
-                            ? 'Content search ON'
-                            : 'Content search OFF'
-                    "
-                    @click="contentSearch = !contentSearch"
-                >
-                    🔍
-                </button>
                 <!-- Stop button when searching -->
                 <button
                     v-if="store.isSearching && searchQuery"
@@ -179,27 +166,6 @@
                     </svg>
                 </button>
             </div>
-            <button
-                class="icon-btn settings-btn"
-                :title="t('settings.title')"
-                @click="$emit('openSettings')"
-            >
-                <svg viewBox="0 0 20 20" fill="none">
-                    <circle
-                        cx="10"
-                        cy="10"
-                        r="2.5"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                    />
-                    <path
-                        d="M10 1.5v2M10 16.5v2M3.5 10h-2M18.5 10h-2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                        stroke-linecap="round"
-                    />
-                </svg>
-            </button>
         </div>
     </div>
 </template>
@@ -218,7 +184,6 @@ const settings = useSettingsStore();
 const addressInput = ref<HTMLInputElement | null>(null);
 const addressValue = ref("");
 const searchQuery = ref("");
-const contentSearch = ref(false);
 
 // ── Address autocomplete ──
 const showDropdown = ref(false);
@@ -234,13 +199,12 @@ watch(
 );
 
 const emit = defineEmits<{
-    openSettings: [];
     navigateBack: [];
     navigateForward: [];
     navigateUp: [];
     refresh: [];
     navigateAddress: [path: string];
-    searchSubmit: [query: string, content: string];
+    searchSubmit: [query: string];
 }>();
 
 // Sync locale from settings store
@@ -329,7 +293,7 @@ function onAddressEnter() {
 function onSearchEnter() {
     const q = searchQuery.value.trim();
     if (q) {
-        emit("searchSubmit", q, contentSearch.value ? q : "");
+        emit("searchSubmit", q);
     } else {
         store.cancelCurrentSearch();
     }
@@ -473,9 +437,6 @@ function clearSearch() {
 
 .stop-btn:hover {
     color: var(--danger) !important;
-}
-.settings-btn {
-    flex-shrink: 0;
 }
 .content-search-toggle {
     padding: 1px 4px;

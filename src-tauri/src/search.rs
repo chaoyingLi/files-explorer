@@ -8,7 +8,6 @@ use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
 /// Maximum file size (in bytes) for content search. Files larger than this are skipped.
-const CONTENT_SEARCH_MAX_BYTES: u64 = 1 * 1024 * 1024; // 1 MB
 
 pub fn wildcard_match(pattern: &str, filename: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
@@ -88,13 +87,11 @@ pub fn search_files(
     state: State<AppState>,
     directory: String,
     query: String,
-    content: String,
 ) -> Result<(), String> {
     // Reset cancel flag
     state.search_cancel.store(false, Ordering::SeqCst);
     let cancel = state.search_cancel.clone();
 
-    let content_clone = content.clone();
     let conditions: Vec<String> = query
         .split('|')
         .map(|s| s.trim().to_string())
@@ -191,23 +188,6 @@ pub fn search_files(
                 .any(|cond| condition_matches_file(cond, &file_name, file_size));
             if !matched {
                 continue;
-            }
-
-            // Content search (only for non-directory files)
-            if !content_clone.is_empty() && !is_dir {
-                // Skip files larger than CONTENT_SEARCH_MAX_BYTES
-                if file_size > CONTENT_SEARCH_MAX_BYTES {
-                    continue;
-                }
-                // Try to read the file as text
-                if let Ok(text) = std::fs::read_to_string(&path) {
-                    if !text.to_lowercase().contains(&content_clone.to_lowercase()) {
-                        continue;
-                    }
-                } else {
-                    // Binary file or unreadable — skip
-                    continue;
-                }
             }
 
             total += 1;

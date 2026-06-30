@@ -56,15 +56,25 @@ pub fn get_drives() -> Result<Vec<DiskInfo>, String> {
         {
             // Enumerate external volumes mounted under /Volumes
             if let Ok(entries) = std::fs::read_dir("/Volumes") {
+                // Get root device ID to dedup alias volumes
+                let root_dev = std::fs::metadata("/").ok().and_then(|m| {
+                    use std::os::unix::fs::MetadataExt;
+                    Some(m.dev())
+                });
                 for entry in entries.flatten() {
                     let vol_path = entry.path();
                     if !vol_path.is_dir() {
                         continue;
                     }
                     let vol_str = vol_path.to_string_lossy().to_string();
-                    // Skip the root volume itself (already added above)
-                    if vol_str == "/" {
-                        continue;
+                    // Skip root volume alias (same device ID as /)
+                    if let Some(rd) = root_dev {
+                        if let Ok(m) = std::fs::metadata(&vol_str) {
+                            use std::os::unix::fs::MetadataExt;
+                            if m.dev() == rd {
+                                continue;
+                            }
+                        }
                     }
                     if let Ok(mut info) = get_unix_disk_info(&vol_str) {
                         // Use the volume name from the mount point
@@ -72,6 +82,16 @@ pub fn get_drives() -> Result<Vec<DiskInfo>, String> {
                             .file_name()
                             .map(|n| n.to_string_lossy().to_string())
                             .unwrap_or_else(|| vol_str.clone());
+                        // Skip system-temporary mounts (DMG, installer volumes, etc.)
+                        let name_lower = vol_name.to_lowercase();
+                        if name_lower.starts_with("dmg.")
+                            || name_lower.starts_with("install ")
+                            || name_lower == "preboot"
+                            || name_lower == "recovery"
+                            || name_lower == "vm"
+                        {
+                            continue;
+                        }
                         info.label = vol_name.clone();
                         if info.name == vol_str && vol_name != "/" {
                             info.name = vol_name;

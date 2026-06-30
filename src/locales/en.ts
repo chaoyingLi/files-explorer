@@ -262,6 +262,9 @@ export default {
   },
   settings: {
     title: "Settings",
+    tabAppearance: "Appearance",
+    tabLanguage: "Language",
+    tabAbout: "About",
     theme: "Theme",
     dark: "Dark",
     light: "Light",

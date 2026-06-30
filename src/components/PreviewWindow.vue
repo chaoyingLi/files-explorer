@@ -5,7 +5,7 @@
             data-tauri-drag-region
             @mousedown="onTopBarDrag"
         >
-            <TitleBar />
+            <TitleBar @open-settings="showSettings = true" />
             <div class="pw-header">
                 <template v-if="renaming">
                     <input
@@ -528,11 +528,20 @@
                 </button>
             </div>
         </div>
+        <SettingsDialog v-if="showSettings" @close="showSettings = false" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, watch, shallowRef } from "vue";
+import {
+    ref,
+    computed,
+    reactive,
+    onMounted,
+    onUnmounted,
+    watch,
+    shallowRef,
+} from "vue";
 import { useI18n } from "vue-i18n";
 
 // Translate common Rust backend error messages to localized strings
@@ -558,7 +567,6 @@ import {
     readFileBytes,
     listArchiveContents,
     extractArchiveEntry,
-    printFile,
     copyFileAs,
     deleteItem,
     openFile,
@@ -586,6 +594,7 @@ import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
 import MarkdownPreview from "@/components/MarkdownPreview.vue";
 import XlsPreview from "@/components/XlsPreview.vue";
+import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 import {
@@ -867,10 +876,6 @@ async function tbCopyPath() {
         /* ignore */
     }
 }
-function tbPrint() {
-    const p = activePath.value || archivePath.value;
-    if (p) printFile(p).catch(() => {});
-}
 async function tbSaveAs() {
     const src = activePath.value || archivePath.value;
     if (!src) return;
@@ -1053,6 +1058,7 @@ const pwCopied = ref(false);
 const renaming = ref(false);
 const renameValue = ref("");
 const renameInput = ref<HTMLInputElement>();
+const showSettings = ref(false);
 
 const canCopy = computed(() =>
     ["text", "markdown"].includes(previewType.value),
@@ -1238,6 +1244,30 @@ onMounted(async () => {
         }
         loadPreview(startPath);
     }
+
+    // ── Keyboard shortcuts ──
+    const onKey = (e: KeyboardEvent) => {
+        if (
+            e.target instanceof HTMLInputElement ||
+            e.target instanceof HTMLTextAreaElement
+        )
+            return;
+        if (renaming.value) return;
+        if (e.key === "Escape") {
+            getCurrentWebviewWindow().close();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+            e.preventDefault();
+            tbSaveAs();
+        } else if (e.key === "Delete" && activePath.value) {
+            e.preventDefault();
+            tbDelete();
+        } else if (e.key === "F2" && activePath.value) {
+            e.preventDefault();
+            tbRename();
+        }
+    };
+    window.addEventListener("keydown", onKey);
+    onUnmounted(() => window.removeEventListener("keydown", onKey));
 });
 </script>
 

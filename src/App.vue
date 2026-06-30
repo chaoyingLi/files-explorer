@@ -6,15 +6,14 @@
         @click="ctx.closeContextMenu()"
         @contextmenu.prevent="onGlobalContextMenu"
     >
-        <TitleBar />
+        <TitleBar @open-settings="showSettings = true" />
         <Toolbar
-            @open-settings="showSettings = true"
             @navigate-back="nav.toolbarBack"
             @navigate-forward="nav.toolbarForward"
             @navigate-up="nav.toolbarUp"
             @refresh="nav.toolbarRefresh"
             @navigate-address="nav.toolbarAddress"
-            @search-submit="(q, c) => search.submitSearch(q, c)"
+            @search-submit="(q: string) => search.submitSearch(q)"
         />
         <RibbonToolbar @action="(a: string) => actions.executeAction(a)" />
         <div class="main-content">
@@ -154,6 +153,12 @@ const navStore = useNavigationStore();
 const view = useViewStore();
 const showSettings = ref(false);
 const showProperties = ref(true);
+
+// ── Window resize state (captured by onMounted closures) ──
+let _cachedWinWidth = 1200;
+let _cachedWinHeight = 800;
+let _unmaximizedWidth = 1200;
+let _unmaximizedHeight = 800;
 
 // ── Detect preview window mode ──
 const isPreviewWindow = computed(() =>
@@ -304,11 +309,12 @@ async function handleContextAction(action: string) {
                     return;
                 }
             } catch {}
+            const { width, height } = await tauri.getAdaptivePreviewSize();
             new WebviewWindow(label, {
                 url: `/?preview=${encodeURIComponent(path)}`,
                 title: path.split("/").pop() || path,
-                width: 960,
-                height: 680,
+                width,
+                height,
                 minWidth: 640,
                 minHeight: 400,
                 decorations: false,
@@ -382,13 +388,15 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
-    // ── Restore window size (from resize-time saves, fallback to session, then defaults) ──
+    // ── Restore window size (three-tier fallback) ──
     let _restoredPath = "";
     let _sessionData: SessionSnapshot | null = null;
     try {
         const win = getCurrentWebviewWindow();
-        let winWidth = 1200;
-        let winHeight = 800;
+        let winWidth = 0;
+        let winHeight = 0;
+
+        // Tier 1: User-adjusted size (saved on every non-maximized resize)
         try {
             const winSizeRaw = localStorage.getItem("app-win-size");
             if (winSizeRaw) {
@@ -401,6 +409,45 @@ onMounted(async () => {
         } catch {
             /* ignore */
         }
+
+        // Tier 2: Session snapshot window size
+        if (!winWidth || !winHeight) {
+            _sessionData = loadSession();
+            if (_sessionData?.window?.width && _sessionData?.window?.height) {
+                winWidth = _sessionData.window.width;
+                winHeight = _sessionData.window.height;
+            }
+        }
+
+        // Tier 3: Screen-adaptive default (65% × 75% of monitor, min 1024×680)
+        if (!winWidth || !winHeight) {
+            try {
+                const { currentMonitor } =
+                    await import("@tauri-apps/api/window");
+                const monitor = await currentMonitor();
+                if (monitor) {
+                    const mw = monitor.size.width;
+                    const mh = monitor.size.height;
+                    winWidth = Math.max(1024, Math.round(mw * 0.65));
+                    winHeight = Math.max(680, Math.round(mh * 0.75));
+                    // Cap at 90% of screen
+                    winWidth = Math.min(winWidth, Math.round(mw * 0.9));
+                    winHeight = Math.min(winHeight, Math.round(mh * 0.9));
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+
+        // Final fallback
+        if (!winWidth || !winHeight) {
+            winWidth = 1200;
+            winHeight = 800;
+        }
+
+        // Also update unmaximized cache for future saves
+        _unmaximizedWidth = winWidth;
+        _unmaximizedHeight = winHeight;
         const { PhysicalSize, PhysicalPosition } =
             await import("@tauri-apps/api/dpi");
         await win.setSize(new PhysicalSize(winWidth, winHeight));
@@ -422,7 +469,7 @@ onMounted(async () => {
         }
 
         // ── Restore session state (view mode, layout, etc.) ──
-        _sessionData = loadSession();
+        if (!_sessionData) _sessionData = loadSession();
         if (_sessionData) {
             // Restore view mode
             view.setViewMode(_sessionData.viewMode);
@@ -523,8 +570,6 @@ onMounted(async () => {
     await store.checkUndoStatus();
 
     // ── Track window resize ──
-    let _cachedWinWidth = 1200;
-    let _cachedWinHeight = 800;
     let _resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const _onResize = async () => {
         if (_resizeTimer) clearTimeout(_resizeTimer);
@@ -533,11 +578,13 @@ onMounted(async () => {
                 const win = getCurrentWebviewWindow();
                 const maximized = await win.isMaximized();
                 const size = await win.innerSize();
-                // Always cache for exit save
+                // Always cache current size for exit save
                 _cachedWinWidth = size.width;
                 _cachedWinHeight = size.height;
-                // When NOT maximized, persist the real (unmaximized) size immediately
+                // When NOT maximized, persist the unmaximized size
                 if (!maximized) {
+                    _unmaximizedWidth = size.width;
+                    _unmaximizedHeight = size.height;
                     localStorage.setItem(
                         "app-win-size",
                         JSON.stringify({
@@ -546,8 +593,6 @@ onMounted(async () => {
                         }),
                     );
                 }
-                // If maximized, do NOT overwrite app-win-size —
-                // the last unmaximized size stays on disk.
             } catch {
                 /* ignore */
             }
@@ -585,6 +630,14 @@ onMounted(async () => {
                 focusPaneIndexPath,
             };
             saveSession(snapshot);
+            // Also persist unmaximized window size for next cold start
+            localStorage.setItem(
+                "app-win-size",
+                JSON.stringify({
+                    width: _unmaximizedWidth,
+                    height: _unmaximizedHeight,
+                }),
+            );
         } catch (e) {
             console.error("Failed to save session:", e);
         }

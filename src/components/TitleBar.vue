@@ -70,17 +70,7 @@
         </div>
         <!-- Non-mac: app icon + title (left) -->
         <div v-else class="titlebar-left">
-            <svg class="app-icon" viewBox="0 0 20 20" fill="none">
-                <path
-                    d="M3 6.5A1.5 1.5 0 014.5 5h3.3a1.5 1.5 0 011.2.6l1 1.4h5.5A1.5 1.5 0 0117 8.5v6a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 14.5V5.5z"
-                    fill="var(--accent)"
-                    opacity="0.7"
-                />
-                <path
-                    d="M3 7.5A1.5 1.5 0 014.5 6h3.3a1.5 1.5 0 011.2.6l1 1.4h5.5A1.5 1.5 0 0117 9.5v6a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 14.5V5.5z"
-                    fill="var(--accent)"
-                />
-            </svg>
+            <img class="app-icon" src="/icon.png" alt="Files Explorer" />
             <span class="app-title">{{ t("app.title") }}</span>
         </div>
         <div class="titlebar-center">
@@ -88,8 +78,54 @@
                 store.currentPath
             }}</span>
         </div>
-        <div v-if="isMac" class="titlebar-right" data-tauri-drag-region="" />
-        <div v-else class="titlebar-right" data-tauri-drag-region="">
+        <!-- Settings gear + window controls (platform-specific) -->
+        <div v-if="isMac" class="titlebar-right">
+            <button
+                v-if="!props.hideSettings"
+                class="titlebar-settings-btn"
+                :title="t('settings.title')"
+                @click="$emit('openSettings')"
+            >
+                <svg viewBox="0 0 18 18" fill="none">
+                    <circle
+                        cx="9"
+                        cy="9"
+                        r="2.5"
+                        stroke="currentColor"
+                        stroke-width="1.3"
+                    />
+                    <path
+                        d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.3 3.3l1.4 1.4M13.3 13.3l1.4 1.4M3.3 14.7l1.4-1.4M13.3 4.7l1.4-1.4"
+                        stroke="currentColor"
+                        stroke-width="1.3"
+                        stroke-linecap="round"
+                    />
+                </svg>
+            </button>
+        </div>
+        <div v-else class="titlebar-right">
+            <button
+                v-if="!props.hideSettings"
+                class="titlebar-settings-btn"
+                :title="t('settings.title')"
+                @click="$emit('openSettings')"
+            >
+                <svg viewBox="0 0 18 18" fill="none">
+                    <circle
+                        cx="9"
+                        cy="9"
+                        r="2.5"
+                        stroke="currentColor"
+                        stroke-width="1.3"
+                    />
+                    <path
+                        d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.3 3.3l1.4 1.4M13.3 13.3l1.4 1.4M3.3 14.7l1.4-1.4M13.3 4.7l1.4-1.4"
+                        stroke="currentColor"
+                        stroke-width="1.3"
+                        stroke-linecap="round"
+                    />
+                </svg>
+            </button>
             <button
                 class="titlebar-btn"
                 @click="minimize"
@@ -170,6 +206,9 @@ import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 const { t } = useI18n();
 const store = useFileStore();
 const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+const props = defineProps<{ hideSettings?: boolean }>();
+defineEmits<{ openSettings: [] }>();
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
@@ -329,6 +368,7 @@ onMounted(async () => {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
+    border-radius: 4px;
 }
 .app-title {
     font-size: 12px;
@@ -381,5 +421,30 @@ onMounted(async () => {
 .titlebar-close:hover {
     background: var(--danger);
     color: white;
+}
+.titlebar-settings-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition:
+        background 0.1s,
+        color 0.1s;
+    margin-right: 2px;
+}
+.titlebar-settings-btn svg {
+    width: 16px;
+    height: 16px;
+}
+.titlebar-settings-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 </style>

@@ -197,7 +197,7 @@ function navigateHome() {
 }
 
 function openDrive(drive: DiskInfo) {
-    emit("navigate", drive.name);
+    emit("navigate", drive.mount_point);
 }
 
 async function handleQuickAccess(path: string) {
