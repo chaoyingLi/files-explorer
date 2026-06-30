@@ -381,6 +381,12 @@
                         style="height: 100%"
                     />
                 </div>
+                <div v-else-if="previewType === 'xls'" class="pw-office">
+                    <XlsPreview
+                        v-if="officeArrayBuffer"
+                        :data="officeArrayBuffer"
+                    />
+                </div>
                 <div v-else-if="previewType === 'pdf'" class="pw-zoom-wrap">
                     <div class="pw-zoom-bar">
                         <button
@@ -579,6 +585,7 @@ import VueOfficePdf from "@vue-office/pdf";
 import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
 import MarkdownPreview from "@/components/MarkdownPreview.vue";
+import XlsPreview from "@/components/XlsPreview.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
 import {
@@ -1108,9 +1115,9 @@ const OFFICE_EXTS: Record<string, string> = {
     wps: "docx",
     et: "xlsx",
     dps: "pptx",
-    // Legacy formats (external only)
+    // Legacy formats
     doc: "externalOnly",
-    xls: "externalOnly",
+    xls: "xls",
     ppt: "externalOnly",
     // National standard e-invoice
     ofd: "externalOnly",
