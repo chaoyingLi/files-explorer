@@ -158,6 +158,14 @@ export async function getSpecialDirs(): Promise<SpecialDirs> {
   return invoke("get_special_dirs");
 }
 
+export async function setAutoStart(enabled: boolean): Promise<void> {
+  return invoke("set_auto_start", { enabled });
+}
+
+export async function isAutoStartEnabled(): Promise<boolean> {
+  return invoke("is_auto_start_enabled");
+}
+
 export async function pathExists(path: string): Promise<boolean> {
   return invoke("path_exists", { path });
 }

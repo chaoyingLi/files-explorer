@@ -46,9 +46,19 @@ pub struct SearchProgress {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ActionKind {
     Delete,
-    Rename { old_path: String, new_path: String },
-    Create { path: String, is_dir: bool },
-    Copy { src: String, dest: String, was_cut: bool },
+    Rename {
+        old_path: String,
+        new_path: String,
+    },
+    Create {
+        path: String,
+        is_dir: bool,
+    },
+    Copy {
+        src: String,
+        dest: String,
+        was_cut: bool,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,7 +73,7 @@ pub struct ClipboardInfo {
     pub action: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct SpecialDirs {
     pub home: String,
     pub desktop: String,

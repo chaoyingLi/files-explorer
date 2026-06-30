@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Files Explorer",
         "width": 1200,
         "height": 800,
@@ -21,7 +22,19 @@
         "fullscreen": false,
         "decorations": false,
         "dragDropEnabled": true,
+        "visible": false,
         "devtools": true
+      },
+      {
+        "label": "splashscreen",
+        "title": "Files Explorer",
+        "width": 360,
+        "height": 320,
+        "resizable": false,
+        "decorations": false,
+        "center": true,
+        "alwaysOnTop": true,
+        "url": "/splashscreen.html"
       }
     ],
     "security": {

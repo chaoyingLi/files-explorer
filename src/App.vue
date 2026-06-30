@@ -650,8 +650,13 @@ onMounted(async () => {
     let _closeUnlisten: (() => void) | null = null;
     try {
         const win = getCurrentWebviewWindow();
-        win.onCloseRequested(async (_event) => {
+        win.onCloseRequested(async (event) => {
             _saveSessionNow();
+            const s = useSettingsStore();
+            if (s.showTray && !s.quitOnClose) {
+                event.preventDefault();
+                await win.hide();
+            }
         }).then((u) => {
             _closeUnlisten = u;
         });
@@ -659,12 +664,41 @@ onMounted(async () => {
         /* Tauri API may not be available */
     }
 
+    // ── Tray event listeners ──
+    let _trayNavUnlisten: (() => void) | null = null;
+    let _traySettingsUnlisten: (() => void) | null = null;
+    try {
+        const { listen } = await import("@tauri-apps/api/event");
+        _trayNavUnlisten = await listen<string>("tray-navigate", (event) => {
+            const path = event.payload;
+            if (path) {
+                const fp = tabStore.getFocusedPane();
+                if (fp) nav.navigatePane(fp.id, path);
+            }
+        });
+        _traySettingsUnlisten = await listen("tray-open-settings", () => {
+            showSettings.value = true;
+        });
+    } catch {
+        /* ignore */
+    }
+
     onUnmounted(() => {
         window.removeEventListener("resize", _onResize);
         window.removeEventListener("beforeunload", _saveSessionNow);
         _closeUnlisten?.();
+        _trayNavUnlisten?.();
+        _traySettingsUnlisten?.();
         store.stopDrivePolling();
     });
+
+    // Signal splashscreen: frontend ready
+    try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_complete", { task: "frontend" });
+    } catch {
+        /* ignore */
+    }
 });
 </script>
 

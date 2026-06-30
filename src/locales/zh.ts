@@ -264,6 +264,7 @@ export default {
     tabAppearance: "外观",
     tabLanguage: "语言",
     tabAbout: "关于",
+    tabGeneral: "通用",
     theme: "主题",
     catppuccinDark: "Catppuccin 暗",
     catppuccinLight: "Catppuccin 亮",
@@ -285,5 +286,12 @@ export default {
     version: "版本",
     description:
       "基于 Tauri 2.0 和 Vue 3 构建的现代化文件资源管理器，支持文件浏览、复制粘贴、搜索等功能。",
+    general: "通用设置",
+    autoStart: "随系统启动",
+    autoStartDesc: "开机时自动运行 Files Explorer",
+    showTray: "显示系统托盘",
+    showTrayDesc: "在菜单栏/任务栏显示托盘图标",
+    quitOnClose: "关闭界面时退出",
+    quitOnCloseDesc: "关闭窗口时退出应用程序（取消勾选则隐藏到托盘）",
   },
 };

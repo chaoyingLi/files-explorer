@@ -265,6 +265,7 @@ export default {
     tabAppearance: "Appearance",
     tabLanguage: "Language",
     tabAbout: "About",
+    tabGeneral: "General",
     theme: "Theme",
     catppuccinDark: "Catppuccin Dark",
     catppuccinLight: "Catppuccin Light",
@@ -286,5 +287,13 @@ export default {
     version: "Version",
     description:
       "A modern file explorer built with Tauri 2.0 and Vue 3. Supports file browsing, copy/paste, search, and more.",
+    general: "General",
+    autoStart: "Launch at startup",
+    autoStartDesc: "Automatically run Files Explorer when system starts",
+    showTray: "Show system tray",
+    showTrayDesc: "Show icon in menu bar / taskbar",
+    quitOnClose: "Quit on close",
+    quitOnCloseDesc:
+      "Exit application when closing window (uncheck to hide to tray)",
   },
 };

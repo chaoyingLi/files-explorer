@@ -1,5 +1,6 @@
 // ── Files Explorer ── Tauri backend entry point ──
 
+mod autostart;
 mod clipboard;
 mod compress;
 mod drives;
@@ -10,6 +11,7 @@ mod operations;
 mod search;
 mod state;
 mod system;
+mod tray;
 mod types;
 mod undo;
 
@@ -18,10 +20,40 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64},
     Arc, Mutex,
 };
-use tauri::{command, AppHandle, State};
+use tauri::{command, AppHandle, Manager, State};
 
 use crate::error::FsError;
 use crate::types::{ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs};
+
+// ── Splashscreen state ──
+struct SetupState {
+    frontend_task: bool,
+    backend_task: bool,
+}
+
+#[command]
+async fn set_complete(
+    app: AppHandle,
+    state: State<'_, Mutex<SetupState>>,
+    task: String,
+) -> Result<(), String> {
+    let mut state_lock = state.lock().map_err(|e| e.to_string())?;
+    match task.as_str() {
+        "frontend" => state_lock.frontend_task = true,
+        "backend" => state_lock.backend_task = true,
+        _ => return Err("invalid task".into()),
+    }
+    if state_lock.backend_task && state_lock.frontend_task {
+        if let Some(splash) = app.get_webview_window("splashscreen") {
+            let _ = splash.close();
+        }
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.show();
+            let _ = main.set_focus();
+        }
+    }
+    Ok(())
+}
 
 // ── Files ──
 #[command]
@@ -197,6 +229,23 @@ fn get_undo_info(state: State<AppState>) -> Result<Option<FileAction>, FsError> 
     undo::get_undo_info(state)
 }
 
+// ── Auto-start ──
+#[command]
+fn set_auto_start(enabled: bool) -> Result<(), String> {
+    autostart::set_auto_start(enabled)
+}
+#[command]
+fn is_auto_start_enabled() -> bool {
+    autostart::is_auto_start_enabled()
+}
+
+#[command]
+fn set_tray_visible(visible: bool, app: AppHandle) {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let _ = tray.set_visible(visible);
+    }
+}
+
 // ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -211,6 +260,24 @@ pub fn run() {
             }),
             search_cancel: Arc::new(AtomicBool::new(false)),
             navigate_gen: Arc::new(AtomicU64::new(0)),
+        })
+        .manage(Mutex::new(SetupState {
+            frontend_task: false,
+            backend_task: false,
+        }))
+        .setup(|app| {
+            tray::create_tray(app.handle())?;
+            // Signal backend ready
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = set_complete(
+                    handle.clone(),
+                    handle.state::<Mutex<SetupState>>(),
+                    "backend".to_string(),
+                )
+                .await;
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             list_directory,
@@ -249,6 +316,10 @@ pub fn run() {
             move_files,
             compress_files,
             extract_archive_cmd,
+            set_auto_start,
+            is_auto_start_enabled,
+            set_tray_visible,
+            set_complete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

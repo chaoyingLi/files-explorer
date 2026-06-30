@@ -103,7 +103,7 @@
                             <div class="group-title">
                                 {{ t("settings.iconTheme") }}
                             </div>
-                            <div class="theme-options">
+                            <div class="theme-grid">
                                 <button
                                     class="theme-card"
                                     :class="{
@@ -264,6 +264,89 @@
                             <span class="meta-chip">Rust</span>
                         </div>
                     </div>
+
+                    <!-- General -->
+                    <div v-if="activeTab === 'general'" class="tab-panel">
+                        <div class="setting-group">
+                            <div class="group-title">
+                                {{ t("settings.general") }}
+                            </div>
+                            <label
+                                class="checkbox-label"
+                                @click="
+                                    settings.setAutoStart(!settings.autoStart)
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="settings.autoStart"
+                                    @click.stop
+                                    @change="
+                                        settings.setAutoStart(
+                                            ($event.target as HTMLInputElement)
+                                                .checked,
+                                        )
+                                    "
+                                />
+                                <div class="checkbox-text">
+                                    <span>{{ t("settings.autoStart") }}</span>
+                                    <span class="checkbox-desc">{{
+                                        t("settings.autoStartDesc")
+                                    }}</span>
+                                </div>
+                            </label>
+                            <label
+                                class="checkbox-label"
+                                @click="
+                                    settings.setShowTray(!settings.showTray)
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="settings.showTray"
+                                    @click.stop
+                                    @change="
+                                        settings.setShowTray(
+                                            ($event.target as HTMLInputElement)
+                                                .checked,
+                                        )
+                                    "
+                                />
+                                <div class="checkbox-text">
+                                    <span>{{ t("settings.showTray") }}</span>
+                                    <span class="checkbox-desc">{{
+                                        t("settings.showTrayDesc")
+                                    }}</span>
+                                </div>
+                            </label>
+                            <label
+                                class="checkbox-label"
+                                @click="
+                                    settings.setQuitOnClose(
+                                        !settings.quitOnClose,
+                                    )
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="settings.quitOnClose"
+                                    @click.stop
+                                    @change="
+                                        settings.setQuitOnClose(
+                                            ($event.target as HTMLInputElement)
+                                                .checked,
+                                        )
+                                    "
+                                />
+                                <div class="checkbox-text">
+                                    <span>{{ t("settings.quitOnClose") }}</span>
+                                    <span class="checkbox-desc">{{
+                                        t("settings.quitOnCloseDesc")
+                                    }}</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -298,6 +381,11 @@ const tabs = [
         id: "about",
         labelKey: "settings.tabAbout",
         icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v4M8 5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`,
+    },
+    {
+        id: "general",
+        labelKey: "settings.tabGeneral",
+        icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2.5 2.5M10.5 10.5L13 13M3 13l2.5-2.5M10.5 5.5L13 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
     },
 ];
 
@@ -754,5 +842,42 @@ function handleLocaleChange(l: string) {
     color: #fff;
     font-size: 8px;
     font-weight: 700;
+}
+
+/* ── Checkbox ── */
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.checkbox-label:hover {
+    border-color: var(--text-muted);
+}
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.checkbox-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.checkbox-text span {
+    font-size: 13px;
+    font-weight: 500;
+}
+.checkbox-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
 }
 </style>
