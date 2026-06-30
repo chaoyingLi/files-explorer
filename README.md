@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src-tauri/icons/icon.pngfiles-explorer/blob/master/screenshots/logo/应用程序图标设计1024x.png" alt="Files Explorer" width="80" height="80" />
+  <img src="screenshots/logo/应用程序图标设计1024x.png" alt="Files Explorer" width="80" height="80" />
   <h1>Files Explorer</h1>
   <p>
     <strong>轻量 · 极速 · 现代 · 智能</strong><br/>
