@@ -8,19 +8,22 @@
         <script>
             // Detect theme before Vue mounts — prevents white/black flash
             (function () {
+                var darkThemes = [
+                    "dark",
+                    "nord",
+                    "tokyo-night",
+                    "one-dark-pro",
+                    "dracula",
+                ];
                 var theme = "dark";
                 try {
                     var saved = JSON.parse(
                         localStorage.getItem("app-settings"),
                     );
-                    if (
-                        saved &&
-                        (saved.theme === "light" || saved.theme === "dark")
-                    ) {
+                    if (saved && saved.theme) {
                         theme = saved.theme;
                     }
                 } catch (_) {
-                    // Fallback: system preference
                     if (
                         window.matchMedia("(prefers-color-scheme: light)")
                             .matches
@@ -29,7 +32,9 @@
                     }
                 }
                 document.documentElement.setAttribute("data-theme", theme);
-                document.documentElement.className = theme;
+                // Use splash dark styles for dark themes, light styles for light themes
+                var isDark = darkThemes.indexOf(theme) >= 0;
+                document.documentElement.className = isDark ? "dark" : "light";
             })();
         </script>
         <style>

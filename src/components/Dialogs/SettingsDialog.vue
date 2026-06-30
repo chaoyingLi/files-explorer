@@ -38,7 +38,7 @@
                             <div class="group-title">
                                 {{ t("settings.theme") }}
                             </div>
-                            <div class="theme-options">
+                            <div class="theme-grid">
                                 <button
                                     v-for="opt in themeOptions"
                                     :key="opt.value"
@@ -49,20 +49,22 @@
                                     @click="settings.setTheme(opt.value)"
                                 >
                                     <div
-                                        class="theme-preview"
-                                        :class="opt.value"
+                                        class="theme-bars"
+                                        :style="{ background: opt.preview.bg }"
                                     >
-                                        <div class="preview-sidebar"></div>
-                                        <div class="preview-main">
-                                            <div class="preview-toolbar"></div>
-                                            <div class="preview-content">
-                                                <div
-                                                    class="preview-folder"
-                                                ></div>
-                                                <div class="preview-file"></div>
-                                                <div class="preview-file"></div>
-                                            </div>
-                                        </div>
+                                        <div
+                                            class="tb-bar"
+                                            :style="{
+                                                background: opt.preview.sidebar,
+                                            }"
+                                        ></div>
+                                        <div class="tb-spacer"></div>
+                                        <div
+                                            class="tb-dot"
+                                            :style="{
+                                                background: opt.preview.accent,
+                                            }"
+                                        ></div>
                                     </div>
                                     <span class="theme-label">{{
                                         t(opt.labelKey)
@@ -92,6 +94,99 @@
                                     >
                                     <span class="font-label">{{
                                         t(opt.labelKey)
+                                    }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <div class="group-title">
+                                {{ t("settings.iconTheme") }}
+                            </div>
+                            <div class="theme-options">
+                                <button
+                                    class="theme-card"
+                                    :class="{
+                                        active: settings.iconTheme === 'fluent',
+                                    }"
+                                    @click="settings.setIconTheme('fluent')"
+                                >
+                                    <div class="icon-preview fluent-preview">
+                                        <div class="ip-file ip-blue">JS</div>
+                                        <div class="ip-file ip-green">VU</div>
+                                        <div class="ip-folder"></div>
+                                    </div>
+                                    <span class="theme-label">{{
+                                        t("settings.fluent")
+                                    }}</span>
+                                </button>
+                                <button
+                                    class="theme-card"
+                                    :class="{
+                                        active:
+                                            settings.iconTheme === 'material',
+                                    }"
+                                    @click="settings.setIconTheme('material')"
+                                >
+                                    <div class="icon-preview material-preview">
+                                        <div
+                                            class="mp-file"
+                                            style="background: #3178c6"
+                                        >
+                                            TS
+                                        </div>
+                                        <div
+                                            class="mp-file"
+                                            style="background: #41b883"
+                                        >
+                                            VU
+                                        </div>
+                                        <div
+                                            class="mp-folder"
+                                            style="background: #f6c23a"
+                                        >
+                                            FD
+                                        </div>
+                                    </div>
+                                    <span class="theme-label">{{
+                                        t("settings.material")
+                                    }}</span>
+                                    <span class="theme-label">{{
+                                        t("settings.material")
+                                    }}</span>
+                                </button>
+                                <button
+                                    class="theme-card"
+                                    :class="{
+                                        active:
+                                            settings.iconTheme ===
+                                            'material-full',
+                                    }"
+                                    @click="
+                                        settings.setIconTheme('material-full')
+                                    "
+                                >
+                                    <div
+                                        class="icon-preview material-full-preview"
+                                    >
+                                        <img
+                                            src="/icons/typescript.svg"
+                                            width="20"
+                                            height="20"
+                                        />
+                                        <img
+                                            src="/icons/vue.svg"
+                                            width="20"
+                                            height="20"
+                                        />
+                                        <img
+                                            src="/icons/folder-src.svg"
+                                            width="20"
+                                            height="20"
+                                        />
+                                    </div>
+                                    <span class="theme-label">{{
+                                        t("settings.materialFull")
                                     }}</span>
                                 </button>
                             </div>
@@ -206,9 +301,46 @@ const tabs = [
     },
 ];
 
-const themeOptions: { value: ThemeMode; labelKey: string }[] = [
-    { value: "dark", labelKey: "settings.dark" },
-    { value: "light", labelKey: "settings.light" },
+const themeOptions: {
+    value: ThemeMode;
+    labelKey: string;
+    preview: { bg: string; sidebar: string; accent: string };
+}[] = [
+    {
+        value: "dark",
+        labelKey: "settings.catppuccinDark",
+        preview: { bg: "#1E1E2E", sidebar: "#11111B", accent: "#89B4FA" },
+    },
+    {
+        value: "light",
+        labelKey: "settings.catppuccinLight",
+        preview: { bg: "#EFF1F5", sidebar: "#CCD0DA", accent: "#1E66F5" },
+    },
+    {
+        value: "nord",
+        labelKey: "settings.nord",
+        preview: { bg: "#2E3440", sidebar: "#434C5E", accent: "#88C0D0" },
+    },
+    {
+        value: "tokyo-night",
+        labelKey: "settings.tokyoNight",
+        preview: { bg: "#1A1B26", sidebar: "#1F202A", accent: "#7AA2F7" },
+    },
+    {
+        value: "one-dark-pro",
+        labelKey: "settings.oneDarkPro",
+        preview: { bg: "#282C34", sidebar: "#1B1E24", accent: "#61AFEF" },
+    },
+    {
+        value: "dracula",
+        labelKey: "settings.dracula",
+        preview: { bg: "#282A36", sidebar: "#1B1D26", accent: "#BD93F9" },
+    },
+    {
+        value: "solarized-light",
+        labelKey: "settings.solarizedLight",
+        preview: { bg: "#FDF6E3", sidebar: "#E0D8C3", accent: "#268BD2" },
+    },
 ];
 
 const langOptions = [
@@ -257,6 +389,7 @@ function handleLocaleChange(l: string) {
     }
 }
 
+/* ── Header ── */
 .settings-header {
     display: flex;
     align-items: center;
@@ -265,26 +398,25 @@ function handleLocaleChange(l: string) {
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
-
 .settings-header h2 {
     font-size: 16px;
     font-weight: 600;
     margin: 0;
 }
-
 .close-btn {
     width: 32px;
     height: 32px;
     border-radius: 8px;
 }
 
+/* ── Layout ── */
 .settings-layout {
     display: flex;
     flex: 1;
     min-height: 0;
 }
 
-/* ── Tabs sidebar ── */
+/* ── Tabs ── */
 .settings-tabs {
     width: 130px;
     flex-shrink: 0;
@@ -294,7 +426,6 @@ function handleLocaleChange(l: string) {
     flex-direction: column;
     gap: 2px;
 }
-
 .settings-tab {
     display: flex;
     align-items: center;
@@ -309,17 +440,14 @@ function handleLocaleChange(l: string) {
     text-align: left;
     transition: all 0.12s;
 }
-
 .settings-tab:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
 }
-
 .settings-tab.active {
     background: var(--accent);
     color: #fff;
 }
-
 .tab-icon {
     width: 16px;
     height: 16px;
@@ -327,35 +455,30 @@ function handleLocaleChange(l: string) {
     align-items: center;
     flex-shrink: 0;
 }
-
 .tab-icon :deep(svg) {
     width: 16px;
     height: 16px;
 }
-
 .tab-label {
     white-space: nowrap;
 }
 
-/* ── Content area ── */
+/* ── Content ── */
 .settings-content {
     flex: 1;
     overflow-y: auto;
     padding: 20px 24px;
 }
-
 .tab-panel {
     display: flex;
     flex-direction: column;
     gap: 20px;
 }
-
 .setting-group {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-
 .group-title {
     font-size: 12px;
     font-weight: 600;
@@ -364,21 +487,21 @@ function handleLocaleChange(l: string) {
     letter-spacing: 0.5px;
 }
 
-/* ── Theme ── */
-.theme-options {
+/* ── Theme grid ── */
+.theme-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
 }
 
 .theme-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 12px;
+    gap: 6px;
+    padding: 10px 8px;
     border: 2px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--bg-primary);
     cursor: pointer;
     transition: all 0.15s;
@@ -393,76 +516,32 @@ function handleLocaleChange(l: string) {
     background: var(--bg-hover);
 }
 
-.theme-preview {
+.theme-bars {
     width: 100%;
-    height: 64px;
-    border-radius: 6px;
-    overflow: hidden;
+    height: 28px;
+    border-radius: 4px;
     display: flex;
-    border: 1px solid var(--border);
+    align-items: center;
+    padding: 4px 6px;
+    gap: 4px;
 }
 
-.theme-preview.dark {
-    background: #1e1e2e;
-}
-.theme-preview.light {
-    background: #eff1f5;
-}
-
-.preview-sidebar {
-    width: 25%;
-}
-.theme-preview.dark .preview-sidebar {
-    background: #11111b;
-}
-.theme-preview.light .preview-sidebar {
-    background: #ccd0da;
-}
-
-.preview-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.preview-toolbar {
-    height: 14px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-}
-
-.theme-preview.dark .preview-toolbar {
-    background: #181825;
-}
-.theme-preview.light .preview-toolbar {
-    background: #e6e9ef;
-}
-
-.preview-content {
-    flex: 1;
-    padding: 5px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-.preview-folder {
-    height: 7px;
-    width: 60%;
+.tb-bar {
+    width: 20%;
+    height: 100%;
     border-radius: 2px;
-    background: #f5c542;
-    opacity: 0.6;
+    opacity: 0.7;
 }
 
-.preview-file {
-    height: 5px;
-    border-radius: 2px;
-    background: var(--text-muted);
-    opacity: 0.3;
+.tb-spacer {
+    flex: 1;
 }
 
-.preview-file:last-child {
-    width: 70%;
+.tb-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
 .theme-label {
@@ -617,5 +696,63 @@ function handleLocaleChange(l: string) {
     background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: 4px;
+}
+
+.icon-preview {
+    width: 100%;
+    height: 48px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px;
+}
+.fluent-preview {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+}
+.material-preview {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+}
+.ip-file {
+    width: 22px;
+    height: 26px;
+    border-radius: 3px 3px 0 0;
+    border: 1.5px solid;
+    border-bottom: 3px solid;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    font-size: 7px;
+    font-weight: 700;
+    padding-bottom: 1px;
+}
+.ip-blue {
+    border-color: #4a6a9a;
+    color: #4a6a9a;
+}
+.ip-green {
+    border-color: #2d7d46;
+    color: #2d7d46;
+}
+.ip-folder {
+    width: 22px;
+    height: 18px;
+    border-radius: 3px;
+    background: #f6c23a;
+}
+.mp-file,
+.mp-folder {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 700;
 }
 </style>

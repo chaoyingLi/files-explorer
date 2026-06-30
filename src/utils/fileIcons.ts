@@ -1,7 +1,21 @@
-// Fluent UI System Icons (Microsoft) — file-type-specific SVGs
-// Icon key derivation now handled by fileTypes.ts (single source of truth)
+// Fluent UI System Icons + Material-style icon themes
+import { useSettingsStore } from "@/stores/settingsStore";
+import { getIconKey, getFileCategory } from "./fileTypes";
+import {
+  FILE_ICON_MAP,
+  FOLDER_ICON_MAP,
+  DEFAULT_ICON,
+  DEFAULT_FOLDER_COLOR,
+  DEFAULT_FOLDER_ABBR,
+  MATERIAL_ICON_NAMES,
+  DEFAULT_MATERIAL_ICON,
+  MATERIAL_FOLDER_NAMES,
+  DEFAULT_MATERIAL_FOLDER,
+} from "./iconMap";
+import type { IconMeta } from "./iconMap";
 
-const icons = {
+// ── Fluent UI icons (default theme) ──
+const fluentIcons: Record<string, string> = {
   word: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#185ABD"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#4A8FE0"/><path d="M10.5 14h11v1.5h-11V14zm0 4h11v1.5h-11V18zm0 4h7v1.5h-7V22z" fill="#fff"/></svg>`,
   excel: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#1E7145"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#3DA56A"/><path d="M11 14h4v5.5h-4V14zm6 0h4v5.5h-4V14zm-6 7h4V26h-4v-5zm6 0h4V26h-4v-5z" fill="#fff"/></svg>`,
   ppt: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#C43E1C"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#E66A3E"/><path d="M11 14h10v1.5H11V14zm0 3.5h10v1.5H11v-1.5zm0 3.5h6V26h-6v-5z" fill="#fff"/></svg>`,
@@ -14,15 +28,37 @@ const icons = {
   code: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#2D7D46"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#4DA868"/><path d="M13 15l-2.5 2.5L13 20m6-5l2.5 2.5L19 20" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   exe: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#4A5A6A"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#7A8A9A"/><path d="M12 14l3 3-3 3m5-6v6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   shortcut: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 2.5A1.5 1.5 0 004.5 4v24A1.5 1.5 0 006 29.5h20a1.5 1.5 0 001.5-1.5V10.8a1.5 1.5 0 00-.44-1.06l-6.3-6.3A1.5 1.5 0 0019.7 3H6z" fill="#6C7086"/><path d="M19.5 3v5.5a1.5 1.5 0 001.5 1.5h5.5" fill="#9CA0B0"/><path d="M19 14l-4 4V21h3l4-4v-3h-3z" fill="#89B4FA"/></svg>`,
-} as const;
+};
 
-// Re-export bundle helper from single source
+const FLUENT_FOLDER = `<svg viewBox="0 0 32 32" fill="none"><path d="M4 6.5A1.5 1.5 0 015.5 5h6.8l2.4 3H26.5A1.5 1.5 0 0128 9.5v16a1.5 1.5 0 01-1.5 1.5H5.5A1.5 1.5 0 014 25.5V6.5z" fill="#F6C23A"/><path d="M5.5 5h6.8l2.4 3" fill="#F9D56E"/></svg>`;
+
+// ── Material-style icon generator ──
+function materialFileIcon(meta: IconMeta): string {
+  const { color, abbr } = meta;
+  return `<svg viewBox="0 0 32 32" fill="none"><rect x="2" y="1" width="28" height="30" rx="5" fill="${color}"/><path d="M17 1l13 13H20a3 3 0 01-3-3V1z" fill="rgba(255,255,255,0.2)"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-family="system-ui" font-size="10" font-weight="700">${abbr}</text></svg>`;
+}
+
+function materialFolderIcon(color: string, abbr: string): string {
+  return `<svg viewBox="0 0 32 32" fill="none"><path d="M2 7a2.5 2.5 0 012.5-2.5h8.7l2.8 3.5H27.5A2.5 2.5 0 0130 10.5v14a2.5 2.5 0 01-2.5 2.5H4.5A2.5 2.5 0 012 24.5V7z" fill="${color}"/><path d="M4.5 4.5h8.7l2.8 3.5" fill="rgba(255,255,255,0.2)"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-family="system-ui" font-size="10" font-weight="700">${abbr}</text></svg>`;
+}
+
 export { isBundleDirectory } from "./fileTypes";
 
-import { getIconKey, getFileCategory } from "./fileTypes";
-import type { FileCategory } from "./fileTypes";
-
 const iconCache = new Map<string, string | null>();
+let _cachedTheme: string | null = null;
+
+function getIconTheme(): string {
+  try {
+    return useSettingsStore().iconTheme || "fluent";
+  } catch {
+    return "fluent";
+  }
+}
+
+export function clearIconCache() {
+  iconCache.clear();
+  _cachedTheme = null;
+}
 
 export function getFileIconSvg(
   extOrFile: string | { extension: string; is_dir: boolean },
@@ -38,33 +74,54 @@ export function getFileIconSvg(
     isDirFlag = extOrFile.is_dir;
   }
 
-  // Cache key: "ext|isDir"
-  const cacheKey = `${extension.toLowerCase()}|${isDirFlag}`;
+  const theme = getIconTheme();
+  if (_cachedTheme !== theme) {
+    iconCache.clear();
+    _cachedTheme = theme;
+  }
+
+  const cacheKey = `${theme}|${extension.toLowerCase()}|${isDirFlag}`;
   const cached = iconCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   let result: string | null = null;
 
-  // Directory icon
   if (isDirFlag) {
-    const cat = getFileCategory(extension, true);
-    if (cat === "app") {
-      // Bundle directory (e.g. .app)
-      result = icons["exe"] || icons["shortcut"] || null;
+    if (theme === "material-full") {
+      const name =
+        MATERIAL_FOLDER_NAMES[extension.toLowerCase()] ||
+        DEFAULT_MATERIAL_FOLDER;
+      result = `<img src="/icons/${name}.svg" width="32" height="32" style="display:block"/>`;
+    } else if (theme === "material") {
+      const m = FOLDER_ICON_MAP[extension.toLowerCase()];
+      result = m
+        ? materialFolderIcon(m.color, m.abbr)
+        : materialFolderIcon(DEFAULT_FOLDER_COLOR, DEFAULT_FOLDER_ABBR);
     } else {
-      // Regular folder — return null so caller uses default folder icon
-      result = null;
+      const cat = getFileCategory(extension, true);
+      result =
+        cat === "app"
+          ? fluentIcons["exe"] || fluentIcons["shortcut"] || null
+          : FLUENT_FOLDER;
     }
   } else {
-    const key = getIconKey(extension);
-    result = key ? icons[key as keyof typeof icons] : null;
+    if (theme === "material-full") {
+      const name =
+        MATERIAL_ICON_NAMES[extension.toLowerCase()] || DEFAULT_MATERIAL_ICON;
+      result = `<img src="/icons/${name}.svg" width="32" height="32" style="display:block"/>`;
+    } else if (theme === "material") {
+      const meta = FILE_ICON_MAP[extension.toLowerCase()] || DEFAULT_ICON;
+      result = materialFileIcon(meta);
+    } else {
+      const key = getIconKey(extension);
+      result = key ? fluentIcons[key] || null : null;
+    }
   }
 
   iconCache.set(cacheKey, result);
   return result;
 }
 
-/** Return file type description string for display */
 export function getFileTypeDescription(
   extOrFile: string | { extension: string; is_dir: boolean },
 ): string {
@@ -78,7 +135,7 @@ export function getFileTypeDescription(
     isDir = extOrFile.is_dir;
   }
   const cat = getFileCategory(extension, isDir);
-  const labels: Record<FileCategory, string> = {
+  const labels: Record<string, string> = {
     folder: "Folder",
     code: "Code",
     image: "Image",

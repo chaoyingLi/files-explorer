@@ -1,8 +1,16 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export type ThemeMode = "dark" | "light";
+export type ThemeMode =
+  | "dark"
+  | "light"
+  | "nord"
+  | "tokyo-night"
+  | "one-dark-pro"
+  | "dracula"
+  | "solarized-light";
 export type FontSize = "small" | "medium" | "large";
+export type IconTheme = "fluent" | "material" | "material-full";
 
 export interface Bookmark {
   path: string;
@@ -13,6 +21,7 @@ export interface AppSettings {
   theme: ThemeMode;
   locale: string;
   fontSize: FontSize;
+  iconTheme: IconTheme;
   bookmarks: Bookmark[];
 }
 
@@ -37,6 +46,7 @@ function loadSettings(): AppSettings {
         theme: parsed.theme || "dark",
         locale: parsed.locale || localStorage.getItem("app-locale") || "zh",
         fontSize: parsed.fontSize || "medium",
+        iconTheme: parsed.iconTheme || "fluent",
         bookmarks: loadBookmarks(),
       };
     }
@@ -45,6 +55,7 @@ function loadSettings(): AppSettings {
     theme: "dark",
     locale: localStorage.getItem("app-locale") || "zh",
     fontSize: "medium",
+    iconTheme: "fluent",
     bookmarks: loadBookmarks(),
   };
 }
@@ -66,6 +77,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const theme = ref<ThemeMode>(initial.theme);
   const locale = ref<string>(initial.locale);
   const fontSize = ref<FontSize>(initial.fontSize);
+  const iconTheme = ref<IconTheme>(initial.iconTheme);
 
   // Apply on init
   applyTheme(theme.value);
@@ -86,6 +98,11 @@ export const useSettingsStore = defineStore("settings", () => {
   function setFontSize(s: FontSize) {
     fontSize.value = s;
     applyFontSize(s);
+    persist();
+  }
+
+  function setIconTheme(t: IconTheme) {
+    iconTheme.value = t;
     persist();
   }
 
@@ -111,6 +128,7 @@ export const useSettingsStore = defineStore("settings", () => {
       theme: theme.value,
       locale: locale.value,
       fontSize: fontSize.value,
+      iconTheme: iconTheme.value as IconTheme,
       bookmarks: bookmarks.value,
     });
   }
@@ -119,6 +137,7 @@ export const useSettingsStore = defineStore("settings", () => {
     theme,
     locale,
     fontSize,
+    iconTheme,
     bookmarks,
     addBookmark,
     removeBookmark,
@@ -126,5 +145,6 @@ export const useSettingsStore = defineStore("settings", () => {
     setTheme,
     setLocale,
     setFontSize,
+    setIconTheme,
   };
 });

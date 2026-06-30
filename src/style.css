@@ -76,6 +76,126 @@
     --dialog-overlay: rgba(0, 0, 0, 0.35);
 }
 
+/* ===== Nord ===== */
+[data-theme="nord"] {
+    --bg-primary: #2e3440;
+    --bg-secondary: #3b4252;
+    --bg-tertiary: #434c5e;
+    --bg-hover: #4c566a;
+    --bg-selected: #5e6688;
+    --text-primary: #eceff4;
+    --text-secondary: #d8dee9;
+    --text-muted: #81a1c1;
+    --accent: #88c0d0;
+    --accent-hover: #8fbcbb;
+    --danger: #bf616a;
+    --danger-hover: #d08770;
+    --success: #a3be8c;
+    --warning: #ebcb8b;
+    --border: #4c566a;
+    --scrollbar: #4c566a;
+    --input-bg: #3b4252;
+    --card-bg: #2e3440;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --dialog-overlay: rgba(0, 0, 0, 0.55);
+}
+
+/* ===== Tokyo Night ===== */
+[data-theme="tokyo-night"] {
+    --bg-primary: #1a1b26;
+    --bg-secondary: #16161e;
+    --bg-tertiary: #1f202a;
+    --bg-hover: #292e42;
+    --bg-selected: #364a82;
+    --text-primary: #c0caf5;
+    --text-secondary: #a9b1d6;
+    --text-muted: #565f89;
+    --accent: #7aa2f7;
+    --accent-hover: #89b4fa;
+    --danger: #f7768e;
+    --danger-hover: #ff9e9e;
+    --success: #9ece6a;
+    --warning: #e0af68;
+    --border: #292e42;
+    --scrollbar: #3b4261;
+    --input-bg: #1f202a;
+    --card-bg: #1a1b26;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --dialog-overlay: rgba(0, 0, 0, 0.6);
+}
+
+/* ===== One Dark Pro ===== */
+[data-theme="one-dark-pro"] {
+    --bg-primary: #282c34;
+    --bg-secondary: #21252b;
+    --bg-tertiary: #1b1e24;
+    --bg-hover: #3a3f4b;
+    --bg-selected: #4b5263;
+    --text-primary: #abb2bf;
+    --text-secondary: #828997;
+    --text-muted: #5c6370;
+    --accent: #61afef;
+    --accent-hover: #7ec8ff;
+    --danger: #e06c75;
+    --danger-hover: #f0888e;
+    --success: #98c379;
+    --warning: #e5c07b;
+    --border: #3a3f4b;
+    --scrollbar: #4b5263;
+    --input-bg: #2c313a;
+    --card-bg: #282c34;
+    --shadow: rgba(0, 0, 0, 0.45);
+    --dialog-overlay: rgba(0, 0, 0, 0.55);
+}
+
+/* ===== Dracula ===== */
+[data-theme="dracula"] {
+    --bg-primary: #282a36;
+    --bg-secondary: #21222c;
+    --bg-tertiary: #1b1d26;
+    --bg-hover: #44475a;
+    --bg-selected: #6272a4;
+    --text-primary: #f8f8f2;
+    --text-secondary: #cfcfc2;
+    --text-muted: #6272a4;
+    --accent: #bd93f9;
+    --accent-hover: #d4afff;
+    --danger: #ff5555;
+    --danger-hover: #ff8888;
+    --success: #50fa7b;
+    --warning: #f1fa8c;
+    --border: #44475a;
+    --scrollbar: #44475a;
+    --input-bg: #313340;
+    --card-bg: #282a36;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --dialog-overlay: rgba(0, 0, 0, 0.6);
+}
+
+/* ===== Solarized Light ===== */
+[data-theme="solarized-light"] {
+    --bg-primary: #fdf6e3;
+    --bg-secondary: #eee8d5;
+    --bg-tertiary: #e0d8c3;
+    --bg-hover: #d6cdb6;
+    --bg-selected: #c8c0aa;
+    --text-primary: #657b83;
+    --text-secondary: #586e75;
+    --text-muted: #93a1a1;
+    --accent: #268bd2;
+    --accent-hover: #2d9cff;
+    --danger: #dc322f;
+    --danger-hover: #e64545;
+    --success: #859900;
+    --warning: #b58900;
+    --border: #d6cdb6;
+    --scrollbar: #c8c0aa;
+    --input-bg: #eee8d5;
+    --card-bg: #fdf6e3;
+    --shadow: rgba(0, 0, 0, 0.08);
+    --dialog-overlay: rgba(0, 0, 0, 0.3);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -90,6 +210,7 @@ body {
     color: var(--text-primary);
     overflow: hidden;
     user-select: none;
+    font-size: var(--font-size-base);
 }
 
 #app {
@@ -154,7 +275,7 @@ button {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 
 button:hover {
@@ -215,7 +336,7 @@ button.danger:hover {
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 
 .context-menu-item:hover {
@@ -224,7 +345,7 @@ button.danger:hover {
 
 .context-menu-item .shortcut {
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 
 .context-menu-separator {
@@ -255,7 +376,7 @@ button.danger:hover {
 
 .dialog h3 {
     margin-bottom: 16px;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     font-weight: 600;
 }
 
@@ -263,7 +384,7 @@ button.danger:hover {
     width: 100%;
     padding: 8px 12px;
     margin-bottom: 16px;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
 }
 
 .dialog-actions {
@@ -275,7 +396,7 @@ button.danger:hover {
 .dialog-actions button {
     padding: 6px 16px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 
 .toast {
@@ -287,7 +408,7 @@ button.danger:hover {
     border: 1px solid var(--border);
     padding: 10px 20px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     z-index: 1001;
     box-shadow: 0 4px 16px var(--shadow);
     animation: toast-in 0.2s ease-out;
@@ -307,7 +428,7 @@ button.danger:hover {
 
 .toast-icon {
     color: var(--danger);
-    font-size: 14px;
+    font-size: var(--font-size-base);
     flex-shrink: 0;
 }
 
