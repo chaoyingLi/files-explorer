@@ -371,7 +371,7 @@ onMounted(async () => {
     border-radius: 4px;
 }
 .app-title {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -384,7 +384,7 @@ onMounted(async () => {
     padding: 0 16px;
 }
 .titlebar-path {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;

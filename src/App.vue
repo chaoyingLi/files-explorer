@@ -653,6 +653,7 @@ onMounted(async () => {
     let _trayNavUnlisten: (() => void) | null = null;
     let _traySettingsUnlisten: (() => void) | null = null;
     let _trayHideUnlisten: (() => void) | null = null;
+    let _trayQuitUnlisten: (() => void) | null = null;
     try {
         const { listen } = await import("@tauri-apps/api/event");
         _trayNavUnlisten = await listen<string>("tray-navigate", (event) => {
@@ -664,6 +665,14 @@ onMounted(async () => {
         });
         _traySettingsUnlisten = await listen("tray-open-settings", () => {
             showSettings.value = true;
+        });
+
+        // Tray quit: save session then exit
+        _trayQuitUnlisten = await listen("tray-quit", async () => {
+            _saveSessionNow();
+            const { getCurrentWebviewWindow } =
+                await import("@tauri-apps/api/webviewWindow");
+            getCurrentWebviewWindow().close();
         });
 
         // First-hide notification: show OS notification once
@@ -692,6 +701,7 @@ onMounted(async () => {
         _trayNavUnlisten?.();
         _traySettingsUnlisten?.();
         _trayHideUnlisten?.();
+        _trayQuitUnlisten?.();
         store.stopDrivePolling();
     });
 
@@ -737,7 +747,7 @@ onMounted(async () => {
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 20px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     color: var(--text-primary);
     box-shadow: 0 4px 16px var(--shadow);
     display: flex;
@@ -750,6 +760,6 @@ onMounted(async () => {
     color: var(--danger);
 }
 .toast-icon {
-    font-size: 14px;
+    font-size: var(--font-size-lg);
 }
 </style>

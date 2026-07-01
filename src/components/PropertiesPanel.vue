@@ -997,7 +997,7 @@ async function openPreviewWindow() {
     border: 1px solid transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     padding: 2px 6px;
     border-radius: 4px;
     line-height: 1;
@@ -1013,7 +1013,7 @@ async function openPreviewWindow() {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -1028,7 +1028,7 @@ async function openPreviewWindow() {
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 .preview-multi {
     padding: 16px 12px;
@@ -1039,11 +1039,11 @@ async function openPreviewWindow() {
 .preview-multi-text {
     font-weight: 600;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 .preview-meta {
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 
 /* ── Preview area (top, flex-fill) ── */
@@ -1067,7 +1067,7 @@ async function openPreviewWindow() {
     gap: 12px;
     padding: 48px 12px;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     min-height: 200px;
 }
 .preview-status-error {
@@ -1115,7 +1115,7 @@ async function openPreviewWindow() {
     border-radius: 3px;
     width: 24px;
     height: 22px;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -1131,7 +1131,7 @@ async function openPreviewWindow() {
     cursor: not-allowed;
 }
 .preview-zoom-pct {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     min-width: 36px;
     text-align: center;
@@ -1205,7 +1205,7 @@ async function openPreviewWindow() {
 }
 .preview-info-name {
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     color: var(--text-primary);
     word-break: break-all;
     overflow: hidden;
@@ -1216,7 +1216,7 @@ async function openPreviewWindow() {
 .props-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
 }
 .props-table tr {
     border-bottom: 1px solid var(--border);
@@ -1257,7 +1257,7 @@ async function openPreviewWindow() {
     padding: 3px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     transition:
         background 0.15s,
         color 0.15s;
@@ -1280,7 +1280,7 @@ async function openPreviewWindow() {
     padding: 4px;
     min-width: 180px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .panel-ctx-item {
     display: flex;
@@ -1294,7 +1294,7 @@ async function openPreviewWindow() {
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .panel-ctx-item:hover {
     background: var(--bg-hover);
@@ -1321,7 +1321,7 @@ async function openPreviewWindow() {
 }
 .preview-archive-header {
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -1336,12 +1336,12 @@ async function openPreviewWindow() {
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     white-space: nowrap;
 }
 .preview-archive-icon {
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .preview-archive-name {
     overflow: hidden;
@@ -1351,7 +1351,7 @@ async function openPreviewWindow() {
 }
 .preview-archive-size {
     margin-left: auto;
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -1372,7 +1372,7 @@ async function openPreviewWindow() {
     opacity: 0.5;
 }
 .preview-unsupported-text {
-    font-size: 13px;
+    font-size: var(--font-size-base);
     color: var(--text-muted);
 }
 

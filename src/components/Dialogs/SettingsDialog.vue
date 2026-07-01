@@ -443,8 +443,8 @@ function handleLocaleChange(l: string) {
     border: 1px solid var(--border);
     border-radius: 14px;
     width: 600px;
-    height: 960px;
-    max-height: 92vh;
+    height: 840px;
+    max-height: 80vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;

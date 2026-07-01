@@ -258,7 +258,7 @@ function onResizeStart(e: MouseEvent) {
     padding: 8px 16px 4px;
 }
 .sidebar-title {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -274,7 +274,7 @@ function onResizeStart(e: MouseEvent) {
     padding: 7px 10px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     transition: background 0.1s;
 }
 .sidebar-item:hover {
@@ -303,7 +303,7 @@ function onResizeStart(e: MouseEvent) {
     text-overflow: ellipsis;
 }
 .sidebar-item-meta {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
 }
 .bookmark-icon {

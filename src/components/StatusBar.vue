@@ -53,7 +53,7 @@ const itemCount = computed(() => {
     padding: 2px 12px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     height: 24px;
     flex-shrink: 0;
@@ -96,7 +96,7 @@ const itemCount = computed(() => {
     color: var(--text-muted);
     cursor: pointer;
     border-radius: 3px;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     line-height: 1;
 }
 

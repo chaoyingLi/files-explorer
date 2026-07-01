@@ -308,7 +308,7 @@ export default { name: "PaneNode" };
     height: 26px;
     border-radius: 6px 6px 0 0;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     background: transparent;
     color: var(--text-muted);
     white-space: nowrap;
@@ -346,7 +346,7 @@ export default { name: "PaneNode" };
 .pane-tab-new {
     width: 24px;
     height: 24px;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     line-height: 1;
     padding: 0;
     border-radius: 5px;
@@ -378,7 +378,7 @@ export default { name: "PaneNode" };
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
     min-height: 32px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 .search-header-icon {
     width: 16px;
@@ -395,13 +395,13 @@ export default { name: "PaneNode" };
 }
 .search-header-count {
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     margin-left: auto;
     flex-shrink: 0;
 }
 .search-header-searching {
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     margin-left: auto;
     display: flex;
     align-items: center;

@@ -224,7 +224,7 @@ function isBundle(file: FileEntry): boolean {
     display: block;
 }
 .grid-name {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     line-height: 1.3;
     word-break: break-word;
     overflow: hidden;

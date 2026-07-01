@@ -180,7 +180,7 @@ onUnmounted(() => {
     cursor: pointer;
     border-radius: 4px;
     padding: 2px 8px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     line-height: 1.4;
     transition: all 0.15s;
 }
@@ -198,7 +198,7 @@ onUnmounted(() => {
     cursor: not-allowed;
 }
 .pptx-zoom-pct {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     min-width: 32px;
     text-align: center;

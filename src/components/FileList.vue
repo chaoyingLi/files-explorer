@@ -455,7 +455,7 @@ function onDrop(e: DragEvent) {
     gap: 8px;
     z-index: 50;
     color: var(--accent);
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     font-weight: 500;
     pointer-events: none;
     background: rgba(137, 180, 250, 0.06);
@@ -475,7 +475,7 @@ function onDrop(e: DragEvent) {
     padding: 2px 8px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     font-weight: 500;
     min-height: 28px;
@@ -557,7 +557,7 @@ function onDrop(e: DragEvent) {
     justify-content: center;
     gap: 12px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: var(--font-size-lg);
 }
 
 .empty-state {
@@ -566,6 +566,6 @@ function onDrop(e: DragEvent) {
     justify-content: center;
     padding: 40px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: var(--font-size-lg);
 }
 </style>

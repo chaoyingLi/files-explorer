@@ -242,7 +242,7 @@ function formatDate(ts: number): string {
     align-items: center;
     padding: 3px 12px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     transition: background 0.05s;
     min-height: 34px;
     border-radius: 4px;
@@ -269,21 +269,21 @@ function formatDate(ts: number): string {
     min-width: 70px;
     flex-shrink: 0;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .col-created {
     width: var(--col-created, 140px);
     min-width: 70px;
     flex-shrink: 0;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .col-type {
     width: var(--col-type, 100px);
     min-width: 60px;
     flex-shrink: 0;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .col-size {
     width: var(--col-size, 90px);
@@ -291,7 +291,7 @@ function formatDate(ts: number): string {
     flex-shrink: 0;
     text-align: right;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 
 .file-icon-wrap {
@@ -350,7 +350,7 @@ function formatDate(ts: number): string {
 }
 
 .cut-badge {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     opacity: 0.7;
 }
 

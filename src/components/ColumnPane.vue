@@ -80,7 +80,7 @@ function selectFirstIfNone(e: MouseEvent) {
 }
 .column-header {
     padding: 8px 12px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -96,7 +96,7 @@ function selectFirstIfNone(e: MouseEvent) {
 }
 .column-loading {
     padding: 12px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     text-align: center;
 }
@@ -106,7 +106,7 @@ function selectFirstIfNone(e: MouseEvent) {
     gap: 6px;
     padding: 4px 12px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     min-height: 28px;
     transition: background 0.05s;
 }
@@ -135,7 +135,7 @@ function selectFirstIfNone(e: MouseEvent) {
 }
 .column-arrow {
     color: var(--accent);
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     flex-shrink: 0;
 }
 </style>

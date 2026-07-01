@@ -1293,7 +1293,7 @@ onMounted(async () => {
     border-bottom: 1px solid var(--border);
 }
 .pw-title {
-    font-size: 13px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1304,7 +1304,7 @@ onMounted(async () => {
     background: var(--input-bg);
     border: 1px solid var(--accent);
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 4px;
@@ -1316,7 +1316,7 @@ onMounted(async () => {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -1337,7 +1337,7 @@ onMounted(async () => {
     padding: 2px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     transition: background 0.15s;
     -webkit-app-region: no-drag;
 }
@@ -1364,7 +1364,7 @@ onMounted(async () => {
     padding: 2px 8px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     white-space: nowrap;
     transition: all 0.1s;
     -webkit-app-region: no-drag;
@@ -1422,7 +1422,7 @@ onMounted(async () => {
     padding: 2px 8px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     -webkit-app-region: no-drag;
 }
 .pw-nav-btn:disabled {
@@ -1446,7 +1446,7 @@ onMounted(async () => {
     padding: 2px 4px;
     margin: 0 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     min-height: 26px;
     border-radius: 4px;
     white-space: nowrap;
@@ -1495,11 +1495,11 @@ onMounted(async () => {
     text-overflow: ellipsis;
     flex: 1;
     min-width: 0;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .pw-tree-size {
     margin-left: auto;
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -1558,7 +1558,7 @@ onMounted(async () => {
     height: 28px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1584,7 +1584,7 @@ onMounted(async () => {
     height: 28px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1606,14 +1606,14 @@ onMounted(async () => {
     justify-content: center;
     gap: 12px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--font-size-base);
     min-height: 200px;
 }
 .pw-status--error {
     color: var(--danger);
 }
 .pw-status-text {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
 }
 .pw-spinner {
@@ -1692,7 +1692,7 @@ onMounted(async () => {
     border-radius: 3px;
     width: 24px;
     height: 22px;
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -1708,7 +1708,7 @@ onMounted(async () => {
     cursor: not-allowed;
 }
 .pw-zoom-pct {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     min-width: 36px;
     text-align: center;
@@ -1752,7 +1752,7 @@ onMounted(async () => {
 }
 .pw-markdown {
     padding: 12px 16px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     line-height: 1.6;
     overflow: auto;
     flex: 1;
@@ -1768,7 +1768,7 @@ onMounted(async () => {
 }
 .pw-archive-hdr {
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -1783,7 +1783,7 @@ onMounted(async () => {
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     white-space: nowrap;
     cursor: pointer;
     border-radius: 3px;
@@ -1803,7 +1803,7 @@ onMounted(async () => {
 }
 .pw-archive-size {
     margin-left: auto;
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -1822,7 +1822,7 @@ onMounted(async () => {
     padding: 4px;
     min-width: 180px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .pw-ctx-item {
     display: block;
@@ -1834,7 +1834,7 @@ onMounted(async () => {
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .pw-ctx-item:hover {
     background: var(--bg-hover);

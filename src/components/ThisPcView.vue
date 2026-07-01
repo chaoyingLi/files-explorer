@@ -216,7 +216,7 @@ function usePercent(drive: DiskInfo): number {
     padding: 20px;
 }
 .this-pc-header {
-    font-size: 14px;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     margin-bottom: 12px;
     color: var(--text-primary);
@@ -267,14 +267,14 @@ function usePercent(drive: DiskInfo): number {
     gap: 1px;
 }
 .drive-label {
-    font-size: 13px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--text-primary);
     text-align: center;
     word-break: break-word;
 }
 .drive-letter {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
 }
 .drive-space {
@@ -296,7 +296,7 @@ function usePercent(drive: DiskInfo): number {
     min-width: 2px;
 }
 .drive-space-text {
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     text-align: center;
     white-space: nowrap;
@@ -304,20 +304,20 @@ function usePercent(drive: DiskInfo): number {
     text-overflow: ellipsis;
 }
 .drive-card-label {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-primary);
     text-align: center;
     margin-top: 4px;
 }
 /* ── Recent items table ── */
 .recent-table {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
 }
 .recent-header {
     display: flex;
     padding: 6px 8px;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     text-transform: uppercase;
     letter-spacing: 0.3px;
     border-bottom: 1px solid var(--border);
@@ -349,7 +349,7 @@ function usePercent(drive: DiskInfo): number {
 .recent-col-type {
     flex: 1;
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -357,7 +357,7 @@ function usePercent(drive: DiskInfo): number {
 .recent-col-path {
     flex: 2;
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -367,7 +367,7 @@ function usePercent(drive: DiskInfo): number {
 .recent-col-time {
     flex: 1;
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     text-align: right;
     white-space: nowrap;
 }

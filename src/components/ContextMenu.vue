@@ -107,7 +107,7 @@ function onSubLeave() {
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     position: relative;
 }
 .menu-icon {
@@ -135,10 +135,10 @@ function onSubLeave() {
 }
 .context-menu-item .shortcut {
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-sm);
 }
 .arrow {
-    font-size: 9px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     margin-left: 8px;
 }

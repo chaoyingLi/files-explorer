@@ -185,7 +185,7 @@ function onContextMenu(file: FileEntry, e: MouseEvent) {
     gap: 4px;
     padding: 3px 12px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     min-height: 34px;
     border-radius: 4px;
     margin: 0 4px;

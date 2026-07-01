@@ -346,7 +346,7 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     cursor: pointer;
     border-radius: 4px;
     padding: 2px 8px;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     line-height: 1.4;
     white-space: nowrap;
     transition: all 0.15s;
@@ -379,20 +379,20 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     font-weight: 600;
 }
 .md-content h1 {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
     border-bottom: 1px solid var(--border);
     padding-bottom: 6px;
 }
 .md-content h2 {
-    font-size: 17px;
+    font-size: var(--font-size-xl);
     border-bottom: 1px solid var(--border);
     padding-bottom: 4px;
 }
 .md-content h3 {
-    font-size: 15px;
+    font-size: var(--font-size-lg);
 }
 .md-content h4 {
-    font-size: 13px;
+    font-size: var(--font-size-base);
 }
 .md-content p {
     margin: 8px 0;
@@ -438,7 +438,7 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     padding: 16px !important;
     overflow: auto;
     margin: 12px 0;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     line-height: 1.5;
     position: relative;
 }
@@ -462,7 +462,7 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s;
@@ -526,7 +526,7 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     outline: none;
     padding: 12px 16px;
     font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     line-height: 1.6;
     background: var(--bg-primary);
     color: var(--text-primary);
@@ -542,7 +542,7 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     gap: 12px;
     padding: 48px 12px;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     min-height: 200px;
 }
 .md-spinner {

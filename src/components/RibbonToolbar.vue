@@ -630,7 +630,7 @@ const selectedCount = computed(() => sel.selectedFiles.size);
 }
 
 .ribbon-label {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     line-height: 1;
 }

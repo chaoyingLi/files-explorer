@@ -339,7 +339,7 @@ function clearSearch() {
 .address-input {
     width: 100%;
     height: 30px;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     background: var(--input-bg);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -370,7 +370,7 @@ function clearSearch() {
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     transition: background 0.05s;
 }
 
@@ -393,7 +393,7 @@ function clearSearch() {
 }
 
 .suggestion-meta {
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -419,7 +419,7 @@ function clearSearch() {
     background: transparent;
     flex: 1;
     height: 100%;
-    font-size: 13px;
+    font-size: var(--font-size-base);
     padding: 0;
     min-width: 0;
 }
@@ -443,7 +443,7 @@ function clearSearch() {
     min-width: 22px;
     height: 20px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--font-size-sm);
     opacity: 0.5;
     transition: opacity 0.15s;
 }
