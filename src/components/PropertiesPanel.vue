@@ -180,6 +180,10 @@
                         :data="officeArrayBuffer"
                     />
                 </div>
+                <!-- Video -->
+                <div v-else-if="previewType === 'video'" class="preview-office">
+                    <VideoPreview :src="previewSrc" :minimalist="true" />
+                </div>
                 <!-- PDF with zoom -->
                 <div
                     v-else-if="previewType === 'pdf'"
@@ -509,12 +513,14 @@ import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
 import MarkdownPreview from "@/components/MarkdownPreview.vue";
 import XlsPreview from "@/components/XlsPreview.vue";
+import VideoPreview from "@/components/VideoPreview.vue";
 import "@vue-office/docx/lib/index.css";
 import "@vue-office/excel/lib/index.css";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
+const VIDEO_EXTS = ["mp4", "webm", "ogg", "mov", "flv", "mkv", "avi", "wmv"];
 const ARCHIVE_EXTS = [
     "zip",
     "7z",
@@ -756,6 +762,14 @@ watch(file, async (f) => {
         // Image preview — use native asset protocol, no size limit
         previewType.value = "image";
         previewSrc.value = convertFileSrc(f.path);
+    } else if (VIDEO_EXTS.includes(ext) && !f.is_dir) {
+        const nativeExts = ["mp4", "webm", "ogg", "mov", "flv"];
+        if (nativeExts.includes(ext)) {
+            previewType.value = "video";
+            previewSrc.value = convertFileSrc(f.path);
+        } else {
+            previewType.value = "externalOnly";
+        }
     } else if (OFFICE_EXTS[ext] && !f.is_dir) {
         // Office documents: docx / xlsx / pptx — read raw bytes
         previewLoading.value = true;

@@ -387,6 +387,9 @@
                         :data="officeArrayBuffer"
                     />
                 </div>
+                <div v-else-if="previewType === 'video'" class="pw-office">
+                    <VideoPreview :src="previewSrc" />
+                </div>
                 <div v-else-if="previewType === 'pdf'" class="pw-zoom-wrap">
                     <div class="pw-zoom-bar">
                         <button
@@ -594,6 +597,7 @@ import PptxPreview from "@/components/PptxPreview.vue";
 import CodePreview from "@/components/CodePreview.vue";
 import MarkdownPreview from "@/components/MarkdownPreview.vue";
 import XlsPreview from "@/components/XlsPreview.vue";
+import VideoPreview from "@/components/VideoPreview.vue";
 import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { getFileIconSvg, isBundleDirectory } from "@/utils/fileIcons";
@@ -1101,6 +1105,7 @@ function onDragEnd(el: HTMLElement | null) {
 }
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
+const VIDEO_EXTS = ["mp4", "webm", "ogg", "mov", "flv", "mkv", "avi", "wmv"];
 const ARCHIVE_EXTS = [
     "zip",
     "7z",
@@ -1138,6 +1143,15 @@ async function loadPreview(path: string) {
     if (IMG_EXTS.includes(ext)) {
         previewType.value = "image";
         previewSrc.value = convertFileSrc(path);
+        previewLoading.value = false;
+    } else if (VIDEO_EXTS.includes(ext)) {
+        const nativeExts = ["mp4", "webm", "ogg", "mov", "flv"];
+        if (nativeExts.includes(ext)) {
+            previewType.value = "video";
+            previewSrc.value = convertFileSrc(path);
+        } else {
+            previewType.value = "externalOnly";
+        }
         previewLoading.value = false;
     } else if (OFFICE_EXTS[ext] && OFFICE_EXTS[ext] !== "externalOnly") {
         previewLoading.value = true;
