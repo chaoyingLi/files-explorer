@@ -272,77 +272,62 @@
                                 {{ t("settings.general") }}
                             </div>
                             <label
-                                class="checkbox-label"
+                                class="switch-row"
                                 @click="
                                     settings.setAutoStart(!settings.autoStart)
                                 "
                             >
-                                <input
-                                    type="checkbox"
-                                    :checked="settings.autoStart"
-                                    @click.stop
-                                    @change="
-                                        settings.setAutoStart(
-                                            ($event.target as HTMLInputElement)
-                                                .checked,
-                                        )
-                                    "
-                                />
-                                <div class="checkbox-text">
+                                <div class="switch-text">
                                     <span>{{ t("settings.autoStart") }}</span>
-                                    <span class="checkbox-desc">{{
+                                    <span class="switch-desc">{{
                                         t("settings.autoStartDesc")
                                     }}</span>
                                 </div>
+                                <div
+                                    class="switch-track"
+                                    :class="{ active: settings.autoStart }"
+                                >
+                                    <div class="switch-thumb" />
+                                </div>
                             </label>
                             <label
-                                class="checkbox-label"
+                                class="switch-row"
                                 @click="
                                     settings.setShowTray(!settings.showTray)
                                 "
                             >
-                                <input
-                                    type="checkbox"
-                                    :checked="settings.showTray"
-                                    @click.stop
-                                    @change="
-                                        settings.setShowTray(
-                                            ($event.target as HTMLInputElement)
-                                                .checked,
-                                        )
-                                    "
-                                />
-                                <div class="checkbox-text">
+                                <div class="switch-text">
                                     <span>{{ t("settings.showTray") }}</span>
-                                    <span class="checkbox-desc">{{
+                                    <span class="switch-desc">{{
                                         t("settings.showTrayDesc")
                                     }}</span>
                                 </div>
+                                <div
+                                    class="switch-track"
+                                    :class="{ active: settings.showTray }"
+                                >
+                                    <div class="switch-thumb" />
+                                </div>
                             </label>
                             <label
-                                class="checkbox-label"
+                                class="switch-row"
                                 @click="
                                     settings.setQuitOnClose(
                                         !settings.quitOnClose,
                                     )
                                 "
                             >
-                                <input
-                                    type="checkbox"
-                                    :checked="settings.quitOnClose"
-                                    @click.stop
-                                    @change="
-                                        settings.setQuitOnClose(
-                                            ($event.target as HTMLInputElement)
-                                                .checked,
-                                        )
-                                    "
-                                />
-                                <div class="checkbox-text">
+                                <div class="switch-text">
                                     <span>{{ t("settings.quitOnClose") }}</span>
-                                    <span class="checkbox-desc">{{
+                                    <span class="switch-desc">{{
                                         t("settings.quitOnCloseDesc")
                                     }}</span>
+                                </div>
+                                <div
+                                    class="switch-track"
+                                    :class="{ active: settings.quitOnClose }"
+                                >
+                                    <div class="switch-thumb" />
                                 </div>
                             </label>
                         </div>
@@ -362,11 +347,16 @@ import type { ThemeMode, FontSize } from "@/stores/settingsStore";
 
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
-const activeTab = ref("appearance");
+const activeTab = ref("general");
 
 defineEmits<{ close: [] }>();
 
 const tabs = [
+    {
+        id: "general",
+        labelKey: "settings.tabGeneral",
+        icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2.5 2.5M10.5 10.5L13 13M3 13l2.5-2.5M10.5 5.5L13 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+    },
     {
         id: "appearance",
         labelKey: "settings.tabAppearance",
@@ -381,11 +371,6 @@ const tabs = [
         id: "about",
         labelKey: "settings.tabAbout",
         icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v4M8 5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`,
-    },
-    {
-        id: "general",
-        labelKey: "settings.tabGeneral",
-        icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2.5 2.5M10.5 10.5L13 13M3 13l2.5-2.5M10.5 5.5L13 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
     },
 ];
 
@@ -458,7 +443,8 @@ function handleLocaleChange(l: string) {
     border: 1px solid var(--border);
     border-radius: 14px;
     width: 600px;
-    max-height: 80vh;
+    height: 960px;
+    max-height: 92vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -845,39 +831,60 @@ function handleLocaleChange(l: string) {
 }
 
 /* ── Checkbox ── */
-.checkbox-label {
+.switch-row {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-primary);
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s;
+    gap: 16px;
 }
-.checkbox-label:hover {
-    border-color: var(--text-muted);
+.switch-row:hover {
+    background: var(--bg-hover);
 }
-.checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
-    accent-color: var(--accent);
-    cursor: pointer;
-    flex-shrink: 0;
+.switch-text {
+    flex: 1;
+    min-width: 0;
 }
-.checkbox-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.checkbox-text span {
+.switch-text span {
+    display: block;
+    color: var(--text-primary);
     font-size: 13px;
     font-weight: 500;
 }
-.checkbox-desc {
-    font-size: var(--font-size-sm);
+.switch-desc {
     color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 2px;
+}
+.switch-track {
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--bg-hover);
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.2s;
+    border: 1px solid var(--border);
+}
+.switch-track.active {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+.switch-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.switch-track.active .switch-thumb {
+    transform: translateX(18px);
 }
 </style>
