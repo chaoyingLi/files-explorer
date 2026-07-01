@@ -20,7 +20,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64},
     Arc, Mutex,
 };
-use tauri::{command, AppHandle, Manager, State};
+use tauri::{command, AppHandle, Emitter, Manager, State};
 
 use crate::error::FsError;
 use crate::types::{ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs};
@@ -252,6 +252,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .manage(AppState {
             inner: Mutex::new(AppStateInner {
                 clipboard: Vec::new(),
@@ -267,6 +273,17 @@ pub fn run() {
         }))
         .setup(|app| {
             tray::create_tray(app.handle())?;
+            // Intercept window close: hide to tray instead of closing
+            if let Some(win) = app.get_webview_window("main") {
+                let w = win.clone();
+                win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                        let _ = w.emit("tray-hide", ());
+                    }
+                });
+            }
             // Signal backend ready
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

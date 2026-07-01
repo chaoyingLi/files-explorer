@@ -259,6 +259,9 @@ export default {
     en: "English",
     zh: "中文",
   },
+  tray: {
+    hideHint: "已最小化到系统托盘",
+  },
   settings: {
     title: "设置",
     tabAppearance: "外观",

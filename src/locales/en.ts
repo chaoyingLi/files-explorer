@@ -260,6 +260,9 @@ export default {
     en: "English",
     zh: "中文",
   },
+  tray: {
+    hideHint: "Minimized to system tray",
+  },
   settings: {
     title: "Settings",
     tabAppearance: "Appearance",

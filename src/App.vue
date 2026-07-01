@@ -388,21 +388,8 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
-    // ── Register close handler EARLY — before any async operations ──
-    let _closeUnlisten: (() => void) | null = null;
-    try {
-        const win = getCurrentWebviewWindow();
-        _closeUnlisten = await win.onCloseRequested((event) => {
-            _saveSessionNow();
-            const s = useSettingsStore();
-            if (s.showTray && !s.quitOnClose) {
-                event.preventDefault();
-                win.hide();
-            }
-        });
-    } catch {
-        /* Tauri API may not be available */
-    }
+    // ── Window close handled by Rust backend (api.prevent_close + hide) ──
+
     // ── Restore window size (three-tier fallback) ──
     let _restoredPath = "";
     let _sessionData: SessionSnapshot | null = null;
@@ -665,6 +652,7 @@ onMounted(async () => {
     // ── Tray event listeners ──
     let _trayNavUnlisten: (() => void) | null = null;
     let _traySettingsUnlisten: (() => void) | null = null;
+    let _trayHideUnlisten: (() => void) | null = null;
     try {
         const { listen } = await import("@tauri-apps/api/event");
         _trayNavUnlisten = await listen<string>("tray-navigate", (event) => {
@@ -677,6 +665,23 @@ onMounted(async () => {
         _traySettingsUnlisten = await listen("tray-open-settings", () => {
             showSettings.value = true;
         });
+
+        // First-hide notification: show OS notification once
+        _trayHideUnlisten = await listen("tray-hide", () => {
+            const KEY = "app-tray-hide-notified";
+            if (!localStorage.getItem(KEY)) {
+                localStorage.setItem(KEY, "1");
+                if (
+                    "Notification" in window &&
+                    Notification.permission === "granted"
+                ) {
+                    new Notification("Files Explorer", {
+                        body: t("tray.hideHint"),
+                        icon: "/icon.png",
+                    });
+                }
+            }
+        });
     } catch {
         /* ignore */
     }
@@ -684,9 +689,9 @@ onMounted(async () => {
     onUnmounted(() => {
         window.removeEventListener("resize", _onResize);
         window.removeEventListener("beforeunload", _saveSessionNow);
-        _closeUnlisten?.();
         _trayNavUnlisten?.();
         _traySettingsUnlisten?.();
+        _trayHideUnlisten?.();
         store.stopDrivePolling();
     });
 
