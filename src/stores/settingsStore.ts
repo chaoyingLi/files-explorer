@@ -94,9 +94,6 @@ export const useSettingsStore = defineStore("settings", () => {
   // Apply on init
   applyTheme(theme.value);
   applyFontSize(fontSize.value);
-  if (autoStart.value) {
-    import("@/utils/tauri").then((m) => m.setAutoStart(true).catch(() => {}));
-  }
   // Sync showTray / quitOnClose to Rust on init
   import("@/utils/tauri").then((m) => {
     m.setQuitOnClose(quitOnClose.value).catch(() => {});

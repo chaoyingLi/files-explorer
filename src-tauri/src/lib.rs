@@ -283,15 +283,16 @@ pub fn run() {
             // Intercept window close: check quit_on_close flag
             if let Some(win) = app.get_webview_window("main") {
                 let w = win.clone();
+                let handle = app.handle().clone();
                 let quit_flag = app.state::<AppState>().quit_on_close.clone();
                 win.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         if quit_flag.load(Ordering::SeqCst) {
-                            // Let window close normally
                             return;
                         }
                         api.prevent_close();
                         let _ = w.hide();
+                        let _ = tray::rebuild_tray(&handle, false);
                         let _ = w.emit("tray-hide", ());
                     }
                 });

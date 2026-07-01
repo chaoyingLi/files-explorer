@@ -4,18 +4,20 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 
-pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let special = crate::drives::get_special_dirs().unwrap_or_default();
+const SHOW_TEXT: &str = "  显示主窗口";
+const HIDE_TEXT: &str = "  隐藏主窗口";
 
-    let show = MenuItemBuilder::with_id("show", "🔲 显示主窗口").build(app)?;
-    let downloads = MenuItemBuilder::with_id("downloads", "📥 下载").build(app)?;
-    let documents = MenuItemBuilder::with_id("documents", "📄 文档").build(app)?;
-    let settings = MenuItemBuilder::with_id("settings", "⚙ 设置…").build(app)?;
+fn build_menu(app: &AppHandle, is_visible: bool) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let toggle_text = if is_visible { HIDE_TEXT } else { SHOW_TEXT };
+    let toggle = MenuItemBuilder::with_id("toggle", toggle_text).build(app)?;
+    let downloads = MenuItemBuilder::with_id("downloads", "  下载").build(app)?;
+    let documents = MenuItemBuilder::with_id("documents", "  文档").build(app)?;
+    let settings = MenuItemBuilder::with_id("settings", "  设置…").build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "✕ 退出").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "  退出").build(app)?;
 
-    let menu = MenuBuilder::new(app)
-        .item(&show)
+    MenuBuilder::new(app)
+        .item(&toggle)
         .item(&separator)
         .item(&downloads)
         .item(&documents)
@@ -23,9 +25,23 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .item(&settings)
         .item(&separator)
         .item(&quit)
-        .build()?;
+        .build()
+}
 
+/// Rebuild tray menu when window visibility changes
+pub fn rebuild_tray(app: &AppHandle, is_visible: bool) -> tauri::Result<()> {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let menu = build_menu(app, is_visible)?;
+        tray.set_menu(Some(menu))?;
+    }
+    Ok(())
+}
+
+pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
+    let special = crate::drives::get_special_dirs().unwrap_or_default();
     let dirs = special;
+
+    let menu = build_menu(app, true)?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(app.default_window_icon().unwrap().clone())
@@ -36,10 +52,16 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             let path: Option<String> = match id {
                 "downloads" => Some(dirs.downloads.clone()),
                 "documents" => Some(dirs.documents.clone()),
-                "show" => {
+                "toggle" => {
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.set_focus();
+                        if w.is_visible().unwrap_or(false) {
+                            let _ = w.hide();
+                            let _ = rebuild_tray(app, false);
+                        } else {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = rebuild_tray(app, true);
+                        }
                     }
                     None
                 }
@@ -48,11 +70,11 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                     if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
+                        let _ = rebuild_tray(app, true);
                     }
                     None
                 }
                 "quit" => {
-                    // Emit to frontend to save session, then exit after brief delay
                     let _ = app.emit("tray-quit", ());
                     let handle = app.clone();
                     std::thread::spawn(move || {
@@ -70,6 +92,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                     if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
+                        let _ = rebuild_tray(app, true);
                     }
                 }
             }
@@ -83,8 +106,14 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             {
                 let app = tray.app_handle();
                 if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
+                    if w.is_visible().unwrap_or(false) {
+                        let _ = w.hide();
+                        let _ = rebuild_tray(app, false);
+                    } else {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                        let _ = rebuild_tray(app, true);
+                    }
                 }
             }
         })

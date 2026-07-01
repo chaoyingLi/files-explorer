@@ -304,7 +304,7 @@ async function handleContextAction(action: string) {
                 }
             } catch {}
             const { width, height } = await tauri.getAdaptivePreviewSize();
-            new WebviewWindow(label, {
+            const win = new WebviewWindow(label, {
                 url: `/?preview=${encodeURIComponent(path)}`,
                 title: path.split("/").pop() || path,
                 width,
@@ -315,8 +315,15 @@ async function handleContextAction(action: string) {
                 resizable: true,
                 center: true,
             });
+            // 覆盖 window-state 插件恢复的状态
+            win.once("tauri://created", async () => {
+                const { PhysicalSize } = await import("@tauri-apps/api/dpi");
+                await win.setSize(new PhysicalSize(width, height));
+                await win.center();
+                setTimeout(() => win.setFocus().catch(() => {}), 80);
+            });
+            return;
         }
-        return;
     }
     if (action === "showInExplorer") {
         const path =

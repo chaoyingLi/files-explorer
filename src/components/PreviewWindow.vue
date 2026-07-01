@@ -100,6 +100,9 @@
                     </button>
                 </div>
                 <div class="pw-tree-list" @contextmenu.prevent="onTreeCtxMenu">
+                    <div v-if="flatTree.length === 0" class="pw-tree-empty">
+                        {{ $t("properties.noPreview") }}
+                    </div>
                     <template v-for="node in flatTree" :key="node.path">
                         <div
                             class="pw-tree-item"
@@ -761,8 +764,8 @@ async function loadDirTree(dir: string, parentPath?: string) {
 
         treeNodes.value = nodes;
         treeOrder.value = order;
-    } catch {
-        /* ignore */
+    } catch (e) {
+        console.error("[PreviewWindow] loadDirTree failed:", dir, e);
     }
 }
 
@@ -1528,6 +1531,12 @@ onMounted(async () => {
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: pw-spin 0.6s linear infinite;
+}
+.pw-tree-empty {
+    padding: 16px 12px;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    text-align: center;
 }
 
 /* ── Split handle ── */

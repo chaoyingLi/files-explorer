@@ -522,6 +522,7 @@ import "@vue-office/docx/lib/index.css";
 import "@vue-office/excel/lib/index.css";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { PhysicalSize } from "@tauri-apps/api/dpi";
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
 const VIDEO_EXTS = ["mp4", "webm", "ogg", "mov", "flv", "mkv", "avi", "wmv"];
@@ -958,8 +959,11 @@ async function openPreviewWindow() {
             center: true,
             focus: true,
         });
-        // 延迟聚焦：等主窗口 click 事件完成后再前置预览窗口
-        win.once("tauri://created", () => {
+        // 覆盖 window-state 插件恢复的状态，确保预览窗口始终自适应尺寸
+        win.once("tauri://created", async () => {
+            await win.setSize(new PhysicalSize(width, height));
+            await win.center();
+            // 延迟聚焦
             setTimeout(() => {
                 win.setFocus().catch(() => {});
             }, 80);
