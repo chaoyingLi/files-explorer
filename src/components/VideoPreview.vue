@@ -10,7 +10,6 @@
             v-show="!loadError"
             :key="playerKey"
             :config="playerConfig"
-            rootStyle="height:100%;flex:1"
             @player="onPlayerReady"
         />
     </div>
@@ -34,18 +33,14 @@ const playerKey = ref(0);
 
 const isFlv = computed(() => props.src.toLowerCase().endsWith(".flv"));
 
-const playerConfig = computed(() => {
-    return {
-        id: "mse-" + playerKey.value,
-        url: props.src,
-        width: "100%",
-        height: "100%",
-        controls: true,
-        autoplay: false,
-        playsinline: true,
-        plugins: isFlv.value ? [FlvPlugin] : [],
-    };
-});
+const playerConfig = computed(() => ({
+    id: "mse-" + playerKey.value,
+    url: props.src,
+    controls: true,
+    autoplay: false,
+    playsinline: true,
+    plugins: isFlv.value ? [FlvPlugin] : [],
+}));
 
 function onPlayerReady(player: any) {
     if (player) {
@@ -71,14 +66,28 @@ watch(
     background: #000;
     position: relative;
     height: 100%;
+    min-height: 180px;
 }
 .video-root.video-minimal {
-    height: auto;
+    height: 100%;
     min-height: 160px;
+    max-height: 360px;
 }
+/* Override xgplayer inline styles so it fills the flex parent */
 .video-root .xgplayer {
-    flex: 1;
-    min-height: 0;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    background: #000;
+}
+/* Ensure the inner <video> element is visible */
+.video-root video,
+.video-root .xgplayer video {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
 }
 .video-root .xgplayer-skin-default .xgplayer-controls {
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
@@ -88,13 +97,6 @@ watch(
 }
 .video-root .xgplayer-volume-fill {
     background: var(--accent) !important;
-}
-.video-root .xgplayer-play,
-.video-root .xgplayer-fullscreen,
-.video-root .xgplayer-volume,
-.video-root .xgplayer-time,
-.video-root .xgplayer-playbackrate {
-    color: #fff !important;
 }
 .video-root.video-minimal .xgplayer-volume,
 .video-root.video-minimal .xgplayer-fullscreen,
