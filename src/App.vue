@@ -388,6 +388,21 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
+    // ── Register close handler EARLY — before any async operations ──
+    let _closeUnlisten: (() => void) | null = null;
+    try {
+        const win = getCurrentWebviewWindow();
+        _closeUnlisten = await win.onCloseRequested((event) => {
+            _saveSessionNow();
+            const s = useSettingsStore();
+            if (s.showTray && !s.quitOnClose) {
+                event.preventDefault();
+                win.hide();
+            }
+        });
+    } catch {
+        /* Tauri API may not be available */
+    }
     // ── Restore window size (three-tier fallback) ──
     let _restoredPath = "";
     let _sessionData: SessionSnapshot | null = null;
@@ -647,23 +662,6 @@ onMounted(async () => {
     window.addEventListener("beforeunload", _saveSessionNow);
 
     // Also save on Tauri window close (more reliable in Tauri)
-    let _closeUnlisten: (() => void) | null = null;
-    try {
-        const win = getCurrentWebviewWindow();
-        win.onCloseRequested(async (event) => {
-            _saveSessionNow();
-            const s = useSettingsStore();
-            if (s.showTray && !s.quitOnClose) {
-                event.preventDefault();
-                await win.hide();
-            }
-        }).then((u) => {
-            _closeUnlisten = u;
-        });
-    } catch {
-        /* Tauri API may not be available */
-    }
-
     // ── Tray event listeners ──
     let _trayNavUnlisten: (() => void) | null = null;
     let _traySettingsUnlisten: (() => void) | null = null;
