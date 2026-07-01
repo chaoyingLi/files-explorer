@@ -20,4 +20,6 @@ pub struct AppState {
     /// that old threads from previous navigations are cancelled without
     /// requiring a separate IPC call (avoiding race conditions).
     pub navigate_gen: Arc<AtomicU64>,
+    /// Whether to close window instead of hiding to tray
+    pub quit_on_close: Arc<AtomicBool>,
 }

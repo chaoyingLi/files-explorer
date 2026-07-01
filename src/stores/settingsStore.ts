@@ -94,10 +94,16 @@ export const useSettingsStore = defineStore("settings", () => {
   // Apply on init
   applyTheme(theme.value);
   applyFontSize(fontSize.value);
-  // Apply auto-start setting
   if (autoStart.value) {
     import("@/utils/tauri").then((m) => m.setAutoStart(true).catch(() => {}));
   }
+  // Sync showTray / quitOnClose to Rust on init
+  import("@/utils/tauri").then((m) => {
+    m.setQuitOnClose(quitOnClose.value).catch(() => {});
+  });
+  import("@tauri-apps/api/core").then(({ invoke }) => {
+    invoke("set_tray_visible", { visible: showTray.value }).catch(() => {});
+  });
 
   function setTheme(t: ThemeMode) {
     theme.value = t;
@@ -144,9 +150,15 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  function setQuitOnClose(v: boolean) {
+  async function setQuitOnClose(v: boolean) {
     quitOnClose.value = v;
     persist();
+    try {
+      const { setQuitOnClose } = await import("@/utils/tauri");
+      await setQuitOnClose(v);
+    } catch {
+      /* ignore */
+    }
   }
 
   const bookmarks = ref<Bookmark[]>(loadBookmarks());

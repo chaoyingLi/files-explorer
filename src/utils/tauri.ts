@@ -166,6 +166,10 @@ export async function isAutoStartEnabled(): Promise<boolean> {
   return invoke("is_auto_start_enabled");
 }
 
+export async function setQuitOnClose(enabled: boolean): Promise<void> {
+  return invoke("set_quit_on_close", { enabled });
+}
+
 export async function pathExists(path: string): Promise<boolean> {
   return invoke("path_exists", { path });
 }

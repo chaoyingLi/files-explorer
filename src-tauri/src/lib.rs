@@ -17,7 +17,7 @@ mod undo;
 
 use state::{AppState, AppStateInner};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
 use tauri::{command, AppHandle, Emitter, Manager, State};
@@ -246,6 +246,11 @@ fn set_tray_visible(visible: bool, app: AppHandle) {
     }
 }
 
+#[command]
+fn set_quit_on_close(state: State<AppState>, enabled: bool) {
+    state.quit_on_close.store(enabled, Ordering::SeqCst);
+}
+
 // ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -266,6 +271,7 @@ pub fn run() {
             }),
             search_cancel: Arc::new(AtomicBool::new(false)),
             navigate_gen: Arc::new(AtomicU64::new(0)),
+            quit_on_close: Arc::new(AtomicBool::new(false)),
         })
         .manage(Mutex::new(SetupState {
             frontend_task: false,
@@ -273,11 +279,16 @@ pub fn run() {
         }))
         .setup(|app| {
             tray::create_tray(app.handle())?;
-            // Intercept window close: hide to tray instead of closing
+            // Intercept window close: check quit_on_close flag
             if let Some(win) = app.get_webview_window("main") {
                 let w = win.clone();
+                let quit_flag = app.state::<AppState>().quit_on_close.clone();
                 win.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        if quit_flag.load(Ordering::SeqCst) {
+                            // Let window close normally
+                            return;
+                        }
                         api.prevent_close();
                         let _ = w.hide();
                         let _ = w.emit("tray-hide", ());
@@ -336,6 +347,7 @@ pub fn run() {
             set_auto_start,
             is_auto_start_enabled,
             set_tray_visible,
+            set_quit_on_close,
             set_complete,
         ])
         .run(tauri::generate_context!())
