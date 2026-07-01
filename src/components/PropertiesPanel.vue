@@ -182,7 +182,11 @@
                 </div>
                 <!-- Video -->
                 <div v-else-if="previewType === 'video'" class="preview-office">
-                    <VideoPreview :src="previewSrc" :minimalist="true" />
+                    <VideoPreview
+                        ref="videoRef"
+                        :src="previewSrc"
+                        :minimalist="true"
+                    />
                 </div>
                 <!-- PDF with zoom -->
                 <div
@@ -547,6 +551,7 @@ const imageInfo = ref<{ width: number; height: number } | null>(null);
 const imageZoom = ref(1);
 const imageRotation = ref(0);
 const pdfZoom = ref(1);
+const videoRef = ref<any>(null);
 
 // ── File icon (matches file list) ──
 const FOLDER_ICON = `<svg viewBox="0 0 32 32" fill="none"><path d="M4 6.5A1.5 1.5 0 015.5 5h6.8l2.4 3H26.5A1.5 1.5 0 0128 9.5v16a1.5 1.5 0 01-1.5 1.5H5.5A1.5 1.5 0 014 25.5V6.5z" fill="#F6C23A"/><path d="M5.5 5h6.8l2.4 3" fill="#F9D56E"/></svg>`;
@@ -925,6 +930,10 @@ async function openFileExternally() {
 
 async function openPreviewWindow() {
     if (!file.value) return;
+    // Pause & destroy embedded video player before opening standalone window
+    if (previewType.value === "video" && videoRef.value?.destroyPlayer) {
+        videoRef.value.destroyPlayer();
+    }
     const label = `preview-${file.value.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
     try {
         const existing = await WebviewWindow.getByLabel(label);
@@ -947,13 +956,13 @@ async function openPreviewWindow() {
             decorations: false,
             resizable: true,
             center: true,
+            focus: true,
         });
-        // Wait for window to be created before proceeding
-        await win.once("tauri://created", () => {
-            console.log("Preview window created:", label);
-        });
-        await win.once("tauri://error", (e: any) => {
-            console.error("Preview window error:", e);
+        // 延迟聚焦：等主窗口 click 事件完成后再前置预览窗口
+        win.once("tauri://created", () => {
+            setTimeout(() => {
+                win.setFocus().catch(() => {});
+            }, 80);
         });
     } catch (e) {
         console.error("Failed to open preview window:", e);

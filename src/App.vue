@@ -154,12 +154,6 @@ const view = useViewStore();
 const showSettings = ref(false);
 const showProperties = ref(true);
 
-// ── Window resize state (captured by onMounted closures) ──
-let _cachedWinWidth = 1200;
-let _cachedWinHeight = 800;
-let _unmaximizedWidth = 1200;
-let _unmaximizedHeight = 800;
-
 // ── Detect preview window mode ──
 const isPreviewWindow = computed(() =>
     new URLSearchParams(window.location.search).has("preview"),
@@ -388,91 +382,15 @@ function onPaneClose(pid: string) {
 }
 
 onMounted(async () => {
-    // ── Window close handled by Rust backend (api.prevent_close + hide) ──
+    // ── Window geometry handled by tauri-plugin-window-state ──
 
-    // ── Restore window size (three-tier fallback) ──
+    // ── Restore session state ──
     let _restoredPath = "";
-    let _sessionData: SessionSnapshot | null = null;
+    let _sessionLoaded = false;
     try {
-        const win = getCurrentWebviewWindow();
-        let winWidth = 0;
-        let winHeight = 0;
-
-        // Tier 1: User-adjusted size (saved on every non-maximized resize)
-        try {
-            const winSizeRaw = localStorage.getItem("app-win-size");
-            if (winSizeRaw) {
-                const parsed = JSON.parse(winSizeRaw);
-                if (parsed.width > 0 && parsed.height > 0) {
-                    winWidth = parsed.width;
-                    winHeight = parsed.height;
-                }
-            }
-        } catch {
-            /* ignore */
-        }
-
-        // Tier 2: Session snapshot window size
-        if (!winWidth || !winHeight) {
-            _sessionData = loadSession();
-            if (_sessionData?.window?.width && _sessionData?.window?.height) {
-                winWidth = _sessionData.window.width;
-                winHeight = _sessionData.window.height;
-            }
-        }
-
-        // Tier 3: Screen-adaptive default (65% × 75% of monitor, min 1024×680)
-        if (!winWidth || !winHeight) {
-            try {
-                const { currentMonitor } =
-                    await import("@tauri-apps/api/window");
-                const monitor = await currentMonitor();
-                if (monitor) {
-                    const mw = monitor.size.width;
-                    const mh = monitor.size.height;
-                    winWidth = Math.max(1024, Math.round(mw * 0.65));
-                    winHeight = Math.max(680, Math.round(mh * 0.75));
-                    // Cap at 90% of screen
-                    winWidth = Math.min(winWidth, Math.round(mw * 0.9));
-                    winHeight = Math.min(winHeight, Math.round(mh * 0.9));
-                }
-            } catch {
-                /* ignore */
-            }
-        }
-
-        // Final fallback
-        if (!winWidth || !winHeight) {
-            winWidth = 1200;
-            winHeight = 800;
-        }
-
-        // Also update unmaximized cache for future saves
-        _unmaximizedWidth = winWidth;
-        _unmaximizedHeight = winHeight;
-        const { PhysicalSize, PhysicalPosition } =
-            await import("@tauri-apps/api/dpi");
-        await win.setSize(new PhysicalSize(winWidth, winHeight));
-        // Center on current monitor
-        try {
-            const { currentMonitor } = await import("@tauri-apps/api/window");
-            const monitor = await currentMonitor();
-            if (monitor) {
-                const { width: mw, height: mh } = monitor.size;
-                const { x: mx, y: my } = monitor.position;
-                const cx = Math.round(mx + (mw - winWidth) / 2);
-                const cy = Math.round(my + (mh - winHeight) / 2);
-                await win.setPosition(
-                    new PhysicalPosition(Math.max(0, cx), Math.max(0, cy)),
-                );
-            }
-        } catch {
-            /* ignore if position API not available */
-        }
-
-        // ── Restore session state (view mode, layout, etc.) ──
-        if (!_sessionData) _sessionData = loadSession();
+        const _sessionData = loadSession();
         if (_sessionData) {
+            _sessionLoaded = true;
             // Restore view mode
             view.setViewMode(_sessionData.viewMode);
             // Restore properties panel
@@ -557,7 +475,7 @@ onMounted(async () => {
     const allPanes = tabStore.getAllPanes();
     if (allPanes.length > 0) {
         const firstPane = allPanes[0];
-        if (!_sessionData || !_restoredPath) {
+        if (!_sessionLoaded || !_restoredPath) {
             tabStore.focusPane(firstPane.id);
             nav.focusedPaneId.value = firstPane.id;
             const activeTab = firstPane.tabs.find(
@@ -571,38 +489,7 @@ onMounted(async () => {
     store.startDrivePolling();
     await store.checkUndoStatus();
 
-    // ── Track window resize ──
-    let _resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const _onResize = async () => {
-        if (_resizeTimer) clearTimeout(_resizeTimer);
-        _resizeTimer = setTimeout(async () => {
-            try {
-                const win = getCurrentWebviewWindow();
-                const maximized = await win.isMaximized();
-                const size = await win.innerSize();
-                // Always cache current size for exit save
-                _cachedWinWidth = size.width;
-                _cachedWinHeight = size.height;
-                // When NOT maximized, persist the unmaximized size
-                if (!maximized) {
-                    _unmaximizedWidth = size.width;
-                    _unmaximizedHeight = size.height;
-                    localStorage.setItem(
-                        "app-win-size",
-                        JSON.stringify({
-                            width: size.width,
-                            height: size.height,
-                        }),
-                    );
-                }
-            } catch {
-                /* ignore */
-            }
-        }, 500);
-    };
-    window.addEventListener("resize", _onResize);
-
-    // ── Helper: save a session snapshot synchronously ──
+    // ── Helper: save a session snapshot ──
     function _saveSessionNow() {
         try {
             const { layout, focusPaneIndexPath } = serializeLayout(
@@ -612,10 +499,6 @@ onMounted(async () => {
             const snapshot: SessionSnapshot = {
                 version: 1,
                 savedAt: Date.now(),
-                window: {
-                    width: _cachedWinWidth,
-                    height: _cachedWinHeight,
-                },
                 viewMode: view.viewMode,
                 propertiesOpen: showProperties.value,
                 layout,
@@ -632,14 +515,6 @@ onMounted(async () => {
                 focusPaneIndexPath,
             };
             saveSession(snapshot);
-            // Also persist unmaximized window size for next cold start
-            localStorage.setItem(
-                "app-win-size",
-                JSON.stringify({
-                    width: _unmaximizedWidth,
-                    height: _unmaximizedHeight,
-                }),
-            );
         } catch (e) {
             console.error("Failed to save session:", e);
         }
@@ -667,16 +542,14 @@ onMounted(async () => {
             showSettings.value = true;
         });
 
-        // Tray quit: save session then exit
-        _trayQuitUnlisten = await listen("tray-quit", async () => {
+        // Tray quit: save session; Rust backend will exit the app
+        _trayQuitUnlisten = await listen("tray-quit", () => {
             _saveSessionNow();
-            const { getCurrentWebviewWindow } =
-                await import("@tauri-apps/api/webviewWindow");
-            getCurrentWebviewWindow().close();
         });
 
-        // First-hide notification: show OS notification once
+        // Tray hide: save session before hiding
         _trayHideUnlisten = await listen("tray-hide", () => {
+            _saveSessionNow();
             const KEY = "app-tray-hide-notified";
             if (!localStorage.getItem(KEY)) {
                 localStorage.setItem(KEY, "1");
@@ -696,7 +569,6 @@ onMounted(async () => {
     }
 
     onUnmounted(() => {
-        window.removeEventListener("resize", _onResize);
         window.removeEventListener("beforeunload", _saveSessionNow);
         _trayNavUnlisten?.();
         _traySettingsUnlisten?.();

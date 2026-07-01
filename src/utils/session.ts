@@ -28,7 +28,6 @@ export type PersistedNode = PersistedPane | PersistedSplit;
 export interface SessionSnapshot {
   version: 1;
   savedAt: number;
-  window: { width: number; height: number };
   viewMode: "details" | "list" | "grid" | "tree" | "column";
   propertiesOpen: boolean;
   layout: PersistedNode | null;

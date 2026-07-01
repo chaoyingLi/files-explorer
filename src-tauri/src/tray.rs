@@ -52,9 +52,13 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                     None
                 }
                 "quit" => {
-                    // Emit event to frontend to save session before exit
+                    // Emit to frontend to save session, then exit after brief delay
                     let _ = app.emit("tray-quit", ());
-                    #[allow(unreachable_code)]
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(300));
+                        handle.exit(0);
+                    });
                     None
                 }
                 _ => None,
