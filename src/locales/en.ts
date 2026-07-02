@@ -121,6 +121,7 @@ export default {
     rotateRight: "Rotate Right",
     pdfLoadTimeout: "PDF load timeout, try opening externally",
     videoError: "Video load failed",
+    videoCodecUnsupported: "Video codec unsupported, try external player",
     videoLoadTimeout: "Video load timeout",
     clickToPlay: "Click to play",
     fullscreen: "Fullscreen",

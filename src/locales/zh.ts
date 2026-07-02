@@ -121,6 +121,7 @@ export default {
     rotateRight: "向右旋转",
     pdfLoadTimeout: "PDF 加载超时，可尝试外部打开",
     videoError: "视频加载失败",
+    videoCodecUnsupported: "视频编码不支持，建议使用外部播放器",
     videoLoadTimeout: "视频加载超时",
     clickToPlay: "点击播放",
     fullscreen: "全屏",

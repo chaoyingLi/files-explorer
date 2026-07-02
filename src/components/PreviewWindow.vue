@@ -1285,6 +1285,15 @@ onMounted(async () => {
     };
     window.addEventListener("keydown", onKey);
     onUnmounted(() => window.removeEventListener("keydown", onKey));
+
+    // 加载完成后强制获取焦点，避免被主窗口遮挡
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            getCurrentWebviewWindow()
+                .setFocus()
+                .catch(() => {});
+        }, 150);
+    });
 });
 </script>
 

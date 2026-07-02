@@ -64,9 +64,17 @@ function initPlayer() {
         lang: "zh-cn",
     });
 
-    // 恢复播放位置
     _dp.on("loadedmetadata", () => {
         loading.value = false;
+        // 检测视频编码是否支持（有音频但 videoWidth/Height = 0 即为编码不支持）
+        if (
+            _dp?.video &&
+            _dp.video.videoWidth === 0 &&
+            _dp.video.videoHeight === 0
+        ) {
+            loadError.value = t("properties.videoCodecUnsupported");
+            return;
+        }
         loadError.value = "";
         try {
             const v = localStorage.getItem(POS_KEY.value);
