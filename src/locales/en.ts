@@ -269,6 +269,19 @@ export default {
   },
   tray: {
     hideHint: "Minimized to system tray",
+    clearCache: "Clear cache data",
+    clearCacheBrief:
+      "This will clear the following cache data and restore defaults",
+    clearItemLayout: "Window layout and tab state",
+    clearItemSearch: "Search history",
+    clearItemVideo: "Video playback progress",
+    clearItemWindow: "Window size memory",
+    clearItemBookmarks: "Bookmark data",
+    clearCacheHint: "Only settings (theme/language/font) are preserved",
+    clearCacheWarning:
+      "This will clear all cache data, including:\n• Window layout and tab state\n• Search history\n• Video playback positions\n• Window size memory\n\nSettings and favorites are not affected.\n\nConfirm clear?",
+    cacheCleared:
+      "Cache cleared. Default state will be restored on next launch.",
   },
   settings: {
     title: "Settings",
@@ -297,6 +310,18 @@ export default {
     version: "Version",
     description:
       "A modern file explorer built with Tauri 2.0 and Vue 3. Supports file browsing, copy/paste, search, and more.",
+    pillarLightweight: "Lightweight",
+    pillarFast: "Fast",
+    pillarModern: "Modern",
+    pillarSmart: "Smart",
+    pillarLightweightTooltip:
+      "Tauri 2.0 native binary, 1/10 memory usage vs Electron",
+    pillarFastTooltip:
+      "Rust zero-cost file ops + virtual scroll + streaming, 60fps with 10k files",
+    pillarModernTooltip:
+      "7 themes × 3 icon styles, frameless window, native Splashscreen",
+    pillarSmartTooltip:
+      "50+ language highlighting, Office/PDF/video/archive preview, wildcard search",
     general: "General",
     autoStart: "Launch at startup",
     autoStartDesc: "Automatically run Files Explorer when system starts",

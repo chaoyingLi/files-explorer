@@ -86,7 +86,22 @@
             @close="actions.showRenameDialog.value = false"
             @confirm="actions.handleRename"
         />
-        <SettingsDialog v-if="showSettings" @close="showSettings = false" />
+        <SettingsDialog
+            v-if="showSettings"
+            @close="showSettings = false"
+            @clear-cache="
+                showSettings = false;
+                showClearCache = true;
+            "
+        />
+        <ClearCacheDialog
+            v-if="showClearCache"
+            @confirm="
+                showClearCache = false;
+                doClearCache();
+            "
+            @cancel="showClearCache = false"
+        />
         <div v-if="toast.messages.value.length > 0" class="toast-container">
             <div
                 v-for="msg in toast.messages.value"
@@ -131,6 +146,7 @@ import ContextMenu from "@/components/ContextMenu.vue";
 import NewItemDialog from "@/components/Dialogs/NewItemDialog.vue";
 import RenameDialog from "@/components/Dialogs/RenameDialog.vue";
 import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
+import ClearCacheDialog from "@/components/Dialogs/ClearCacheDialog.vue";
 import PropertiesPanel from "@/components/PropertiesPanel.vue";
 import PreviewWindow from "@/components/PreviewWindow.vue";
 
@@ -152,6 +168,7 @@ const tabStore = useTabStore();
 const navStore = useNavigationStore();
 const view = useViewStore();
 const showSettings = ref(false);
+const showClearCache = ref(false);
 const showProperties = ref(true);
 
 // ── Detect preview window mode ──
@@ -388,6 +405,36 @@ function onPaneClose(pid: string) {
     }
 }
 
+// ── Clear cache (called from dialog confirm) ──
+async function doClearCache() {
+    const keys = [
+        "app-session",
+        "search-history",
+        "pw-tree-width",
+        "app-tray-hide-notified",
+        "app-bookmarks",
+        "app-win-size",
+    ];
+    for (const k of keys) {
+        localStorage.removeItem(k);
+    }
+    let posCleared = 0;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith("vp-pos:") || k?.startsWith("dp-pos:")) {
+            localStorage.removeItem(k);
+            posCleared++;
+        }
+    }
+    try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("clear_window_state");
+    } catch {
+        /* */
+    }
+    toast.show(t("tray.cacheCleared"));
+}
+
 onMounted(async () => {
     // ── Window geometry handled by tauri-plugin-window-state ──
 
@@ -536,6 +583,7 @@ onMounted(async () => {
     let _traySettingsUnlisten: (() => void) | null = null;
     let _trayHideUnlisten: (() => void) | null = null;
     let _trayQuitUnlisten: (() => void) | null = null;
+    let _trayClearCacheUnlisten: (() => void) | null = null;
     try {
         const { listen } = await import("@tauri-apps/api/event");
         _trayNavUnlisten = await listen<string>("tray-navigate", (event) => {
@@ -571,6 +619,11 @@ onMounted(async () => {
                 }
             }
         });
+
+        // Tray clear cache: show confirmation dialog
+        _trayClearCacheUnlisten = await listen("tray-clear-cache", () => {
+            showClearCache.value = true;
+        });
     } catch {
         /* ignore */
     }
@@ -581,6 +634,7 @@ onMounted(async () => {
         _traySettingsUnlisten?.();
         _trayHideUnlisten?.();
         _trayQuitUnlisten?.();
+        _trayClearCacheUnlisten?.();
         store.stopDrivePolling();
     });
 

@@ -14,6 +14,7 @@ fn build_menu(app: &AppHandle, is_visible: bool) -> tauri::Result<tauri::menu::M
     let documents = MenuItemBuilder::with_id("documents", "  文档").build(app)?;
     let settings = MenuItemBuilder::with_id("settings", "  设置…").build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
+    let clear_cache = MenuItemBuilder::with_id("clear-cache", "  清理缓存数据").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "  退出").build(app)?;
 
     MenuBuilder::new(app)
@@ -21,6 +22,8 @@ fn build_menu(app: &AppHandle, is_visible: bool) -> tauri::Result<tauri::menu::M
         .item(&separator)
         .item(&downloads)
         .item(&documents)
+        .item(&separator)
+        .item(&clear_cache)
         .item(&separator)
         .item(&settings)
         .item(&separator)
@@ -74,6 +77,15 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                     }
                     None
                 }
+                "clear-cache" => {
+                    let _ = app.emit("tray-clear-cache", ());
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                        let _ = rebuild_tray(app, true);
+                    }
+                    None
+                }
                 "quit" => {
                     let _ = app.emit("tray-quit", ());
                     let handle = app.clone();
@@ -98,23 +110,38 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                let app = tray.app_handle();
-                if let Some(w) = app.get_webview_window("main") {
-                    if w.is_visible().unwrap_or(false) {
-                        let _ = w.hide();
-                        let _ = rebuild_tray(app, false);
-                    } else {
+            match event {
+                // Left single-click: toggle show/hide
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    let app = tray.app_handle();
+                    if let Some(w) = app.get_webview_window("main") {
+                        if w.is_visible().unwrap_or(false) {
+                            let _ = w.hide();
+                            let _ = rebuild_tray(app, false);
+                        } else {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = rebuild_tray(app, true);
+                        }
+                    }
+                }
+                // Double-click: always show and focus
+                TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                } => {
+                    let app = tray.app_handle();
+                    if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
                         let _ = rebuild_tray(app, true);
                     }
                 }
+                _ => {}
             }
         })
         .build(app)?;

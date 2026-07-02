@@ -258,10 +258,146 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="about-meta">
-                            <span class="meta-chip">Tauri 2.0</span>
-                            <span class="meta-chip">Vue 3</span>
-                            <span class="meta-chip">Rust</span>
+                        <button
+                            class="about-clear-btn"
+                            @click="$emit('clearCache')"
+                        >
+                            <svg
+                                viewBox="0 0 14 14"
+                                width="14"
+                                height="14"
+                                fill="none"
+                            >
+                                <circle
+                                    cx="7"
+                                    cy="7"
+                                    r="5.5"
+                                    stroke="currentColor"
+                                    stroke-width="1.2"
+                                />
+                                <path
+                                    d="M5 5l4 4M9 5l-4 4"
+                                    stroke="currentColor"
+                                    stroke-width="1.2"
+                                    stroke-linecap="round"
+                                />
+                            </svg>
+                            {{ $t("tray.clearCache") }}
+                        </button>
+                        <div class="about-pillars">
+                            <span
+                                class="pillar-chip"
+                                :title="$t('settings.pillarLightweightTooltip')"
+                            >
+                                <svg
+                                    viewBox="0 0 14 14"
+                                    width="13"
+                                    height="13"
+                                    fill="none"
+                                >
+                                    <path
+                                        d="M7 2L3 7l4 5 4-5-4-5z"
+                                        stroke="currentColor"
+                                        stroke-width="1.1"
+                                        stroke-linejoin="round"
+                                    />
+                                    <path
+                                        d="M4 7h6"
+                                        stroke="currentColor"
+                                        stroke-width="1.1"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+                                {{ $t("settings.pillarLightweight") }}
+                            </span>
+                            <span
+                                class="pillar-chip"
+                                :title="$t('settings.pillarFastTooltip')"
+                            >
+                                <svg
+                                    viewBox="0 0 14 14"
+                                    width="13"
+                                    height="13"
+                                    fill="none"
+                                >
+                                    <path
+                                        d="M6 3.5L11 7l-5 3.5v-7z"
+                                        fill="currentColor"
+                                        opacity="0.8"
+                                    />
+                                    <path
+                                        d="M3 3.5l2.5 1.75v3.5L3 10.5v-7z"
+                                        fill="currentColor"
+                                        opacity="0.3"
+                                    />
+                                </svg>
+                                {{ $t("settings.pillarFast") }}
+                            </span>
+                            <span
+                                class="pillar-chip"
+                                :title="$t('settings.pillarModernTooltip')"
+                            >
+                                <svg
+                                    viewBox="0 0 14 14"
+                                    width="13"
+                                    height="13"
+                                    fill="none"
+                                >
+                                    <circle
+                                        cx="7"
+                                        cy="7"
+                                        r="4"
+                                        stroke="currentColor"
+                                        stroke-width="1.1"
+                                    />
+                                    <circle
+                                        cx="7"
+                                        cy="7"
+                                        r="1.5"
+                                        fill="currentColor"
+                                        opacity="0.7"
+                                    />
+                                    <path
+                                        d="M7 3v1.5M7 9.5v1.5M3 7h1.5M9.5 7H11"
+                                        stroke="currentColor"
+                                        stroke-width="1"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+                                {{ $t("settings.pillarModern") }}
+                            </span>
+                            <span
+                                class="pillar-chip"
+                                :title="$t('settings.pillarSmartTooltip')"
+                            >
+                                <svg
+                                    viewBox="0 0 14 14"
+                                    width="13"
+                                    height="13"
+                                    fill="none"
+                                >
+                                    <path
+                                        d="M7 2v3M4 5l3-3 3 3"
+                                        stroke="currentColor"
+                                        stroke-width="1.1"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                    <path
+                                        d="M3 7h8l-1 5H4L3 7z"
+                                        stroke="currentColor"
+                                        stroke-width="1.1"
+                                        stroke-linejoin="round"
+                                    />
+                                    <circle
+                                        cx="7"
+                                        cy="9"
+                                        r=".7"
+                                        fill="currentColor"
+                                    />
+                                </svg>
+                                {{ $t("settings.pillarSmart") }}
+                            </span>
                         </div>
                     </div>
 
@@ -349,7 +485,7 @@ const { t, locale } = useI18n();
 const settings = useSettingsStore();
 const activeTab = ref("general");
 
-defineEmits<{ close: [] }>();
+defineEmits<{ close: []; clearCache: [] }>();
 
 const tabs = [
     {
@@ -757,19 +893,45 @@ function handleLocaleChange(l: string) {
     margin-top: 4px;
 }
 
-.about-meta {
+.about-pillars {
     display: flex;
+    justify-content: center;
     gap: 6px;
     flex-wrap: wrap;
 }
 
-.meta-chip {
-    font-size: 11px;
-    color: var(--text-muted);
-    padding: 3px 10px;
+.pillar-chip {
+    cursor: default;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    padding: 4px 12px;
     background: var(--bg-primary);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.about-clear-btn {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition:
+        color 0.15s,
+        border-color 0.15s;
+}
+.about-clear-btn:hover {
+    color: var(--danger);
+    border-color: var(--danger);
 }
 
 .icon-preview {

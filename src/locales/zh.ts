@@ -268,6 +268,17 @@ export default {
   },
   tray: {
     hideHint: "已最小化到系统托盘",
+    clearCache: "清理缓存数据",
+    clearCacheBrief: "将清除以下缓存数据，应用恢复为初始状态",
+    clearItemLayout: "窗口布局和标签页状态",
+    clearItemSearch: "搜索历史记录",
+    clearItemVideo: "视频播放进度",
+    clearItemWindow: "窗口尺寸记忆",
+    clearItemBookmarks: "收藏夹数据",
+    clearCacheHint: "仅保留设置（主题/语言/字体），其余全部重置",
+    clearCacheWarning:
+      "此操作将清除所有缓存数据，包括：\n• 窗口布局和标签页状态\n• 搜索历史\n• 视频播放位置\n• 窗口尺寸记忆\n\n设置和收藏夹不受影响。\n\n确认清除吗？",
+    cacheCleared: "缓存数据已清除，下次启动将恢复默认状态",
   },
   settings: {
     title: "设置",
@@ -296,6 +307,18 @@ export default {
     version: "版本",
     description:
       "基于 Tauri 2.0 和 Vue 3 构建的现代化文件资源管理器，支持文件浏览、复制粘贴、搜索等功能。",
+    pillarLightweight: "轻量",
+    pillarFast: "极速",
+    pillarModern: "现代",
+    pillarSmart: "智能",
+    pillarLightweightTooltip:
+      "Tauri 2.0 原生二进制，内存占用仅为 Electron 同类应用的 1/10",
+    pillarFastTooltip:
+      "Rust 后端零开销文件操作 + 虚拟滚动 + 流式加载，万级文件 60fps",
+    pillarModernTooltip:
+      "7 大主题 × 3 图标风格、无边框窗口、Tauri 原生 Splashscreen",
+    pillarSmartTooltip:
+      "50+ 语言代码高亮、Office/PDF/视频/归档预览、通配符搜索",
     general: "通用设置",
     autoStart: "随系统启动",
     autoStartDesc: "开机时自动运行 Files Explorer",

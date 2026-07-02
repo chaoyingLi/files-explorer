@@ -159,9 +159,6 @@ export const useFileStore = defineStore("file", () => {
   let _listUnlisten: (() => void) | null = null;
 
   async function navigateTo(path: string, addToHistory = true) {
-    // Normalize path separators to platform-native format
-    const normalized = path ? path.replace(/\//g, "\\") : path;
-
     loading.value = true;
     error.value = "";
 
@@ -182,7 +179,7 @@ export const useFileStore = defineStore("file", () => {
     view.resetTreeState();
 
     files.value = [];
-    currentPath.value = normalized;
+    currentPath.value = path;
 
     // Column view: prepare single-column stack for this path
     if (view.viewMode === "column") {
@@ -190,8 +187,8 @@ export const useFileStore = defineStore("file", () => {
       if (tab) {
         tab.columnStack = [
           {
-            path: normalized,
-            name: normalized.split(/[/\\]/).filter(Boolean).pop() || normalized,
+            path,
+            name: path.split(/[/\\]/).filter(Boolean).pop() || path,
             files: [],
             selectedIndex: -1,
             loading: true,
@@ -201,7 +198,7 @@ export const useFileStore = defineStore("file", () => {
     }
 
     if (addToHistory) {
-      useNavigationStore().pushHistory(normalized);
+      useNavigationStore().pushHistory(path);
     }
 
     const navId = ++navigateSeq;
@@ -255,9 +252,9 @@ export const useFileStore = defineStore("file", () => {
           }
           syncToTab();
           // Record recent
-          const parts = normalized.replace(/\\/g, "/").split("/");
-          const name = parts[parts.length - 1] || normalized;
-          addRecentItem(normalized, name, true, "");
+          const parts = path.replace(/\\/g, "/").split("/");
+          const name = parts[parts.length - 1] || path;
+          addRecentItem(path, name, true, "");
           resolve();
         }).then((u) => {
           unlistenDone = u;

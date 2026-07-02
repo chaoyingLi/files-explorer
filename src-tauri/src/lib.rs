@@ -20,7 +20,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
-use tauri::{command, AppHandle, Emitter, Manager, State};
+use tauri::{command, AppHandle, Emitter, Manager, RunEvent, State};
 
 use crate::error::FsError;
 use crate::types::{ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs};
@@ -251,6 +251,17 @@ fn set_quit_on_close(state: State<AppState>, enabled: bool) {
     state.quit_on_close.store(enabled, Ordering::SeqCst);
 }
 
+#[command]
+fn clear_window_state(app: AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+        std::fs::create_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+    }
+    Ok(())
+}
+
 // ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -351,7 +362,16 @@ pub fn run() {
             set_tray_visible,
             set_quit_on_close,
             set_complete,
+            clear_window_state,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Reopen { .. } = event {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        });
 }
