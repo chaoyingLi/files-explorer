@@ -12,6 +12,7 @@ const I = {
   cut: `<svg viewBox="0 0 14 14"><circle cx="4.5" cy="3.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="4.5" cy="10.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5.5 4.5L10 9m0-4L5.5 9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
   copy: `<svg viewBox="0 0 14 14"><rect x="3.5" y="1.5" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3.5" width="7" height="9" rx="1" fill="var(--bg-secondary)" stroke="currentColor" stroke-width="1"/></svg>`,
   paste: `<svg viewBox="0 0 14 14"><path d="M4.5 2h5a.5.5 0 01.5.5V4H4V2.5a.5.5 0 01.5-.5z" fill="none" stroke="currentColor" stroke-width="1"/><rect x="3" y="3.5" width="8" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+  copyPath: `<svg viewBox="0 0 14 14"><path d="M4 3h2l1 1.5H11a1 1 0 011 1V10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M6 7l1 1 3-2.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   delete: `<svg viewBox="0 0 14 14"><path d="M3 3.5h8M5.5 3V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5V3" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 3.5v8a1 1 0 001 1h4a1 1 0 001-1v-8" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
   rename: `<svg viewBox="0 0 14 14"><path d="M3 11l3-7.5L7.5 7l-3 4H3zm4.5-8l1.5 1.5M10 2l2 2-4 4-2.5-.5L6 4.5 10 2z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>`,
   terminal: `<svg viewBox="0 0 14 14"><rect x="1.5" y="2.5" width="11" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 5l2 2-2 2M7 9h3" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -64,25 +65,37 @@ export function useContextMenu() {
       return result;
     }
 
-    result.push(
-      {
-        label: t("contextMenu.newFolder"),
-        action: "newFolder",
-        icon: I.newFolder,
-        shortcut: sk("shortcuts.ctrlShiftN", "shortcuts.cmdShiftN"),
-      },
-      {
-        label: t("contextMenu.newFile"),
-        action: "newFile",
-        icon: I.newFile,
-        shortcut: sk("shortcuts.ctrlN", "shortcuts.cmdN"),
-      },
-      { label: "", action: "", separator: true },
-    );
-
+    // ── Open / Show / Preview / Terminal ──
     if (hasSelection) {
       result.push(
         { label: t("contextMenu.open"), action: "open", icon: I.open },
+        { label: "", action: "", separator: true },
+      );
+    }
+    result.push(
+      {
+        label: isMac
+          ? t("contextMenu.showInFinder")
+          : t("contextMenu.showInExplorer"),
+        action: "showInExplorer",
+        icon: I.showInExplorer,
+      },
+      { label: "", action: "", separator: true },
+      {
+        label: t("contextMenu.openInPreviewWindow"),
+        action: "openInPreviewWindow",
+        icon: I.showInExplorer,
+      },
+      {
+        label: t("contextMenu.openInTerminal"),
+        action: "openInTerminal",
+        icon: I.terminal,
+      },
+    );
+
+    // ── Clipboard ──
+    if (hasSelection) {
+      result.push(
         { label: "", action: "", separator: true },
         {
           label: t("contextMenu.cut"),
@@ -96,6 +109,25 @@ export function useContextMenu() {
           icon: I.copy,
           shortcut: sk("shortcuts.ctrlC", "shortcuts.cmdC"),
         },
+      );
+    }
+    result.push({
+      label: t("contextMenu.paste"),
+      action: "paste",
+      icon: I.paste,
+      shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
+    });
+    if (hasSelection) {
+      result.push({
+        label: t("contextMenu.copyPath"),
+        action: "copyPath",
+        icon: I.copyPath,
+      });
+    }
+
+    // ── Delete / Rename ──
+    if (hasSelection) {
+      result.push(
         { label: "", action: "", separator: true },
         {
           label: t("contextMenu.delete"),
@@ -111,9 +143,7 @@ export function useContextMenu() {
             },
           ],
         },
-        { label: "", action: "", separator: true },
       );
-
       if (singleSelection) {
         result.push({
           label: t("contextMenu.rename"),
@@ -121,56 +151,24 @@ export function useContextMenu() {
           icon: I.rename,
           shortcut: t("shortcuts.f2"),
         });
-        // Bookmark folder
-        const firstPath = [...sel.selectedFiles][0];
-        const file = store.files.find((f) => f.path === firstPath);
-        if (file?.is_dir) {
-          result.push(
-            { label: "", action: "", separator: true },
-            {
-              label: t("contextMenu.addToFavorites"),
-              action: "addToFavorites",
-              icon: I.newFolder,
-            },
-          );
-        }
       }
     }
 
-    if (store.currentPath) {
-      result.push(
-        { label: "", action: "", separator: true },
-        {
-          label: t("contextMenu.openInTerminal"),
-          action: "openInTerminal",
-          icon: I.terminal,
-        },
-        {
-          label: t("split.label"),
-          action: "split",
-          icon: I.split,
-          children: [
-            { label: t("split.left"), action: "splitLeft", icon: I.splitLeft },
-            {
-              label: t("split.right"),
-              action: "splitRight",
-              icon: I.splitRight,
-            },
-            { label: t("split.up"), action: "splitUp", icon: I.splitUp },
-            { label: t("split.down"), action: "splitDown", icon: I.splitDown },
-          ],
-        },
-      );
+    // ── Favorites / Compress / Extract ──
+    if (singleSelection) {
+      const firstPath = [...sel.selectedFiles][0];
+      const file = store.files.find((f) => f.path === firstPath);
+      if (file?.is_dir) {
+        result.push(
+          { label: "", action: "", separator: true },
+          {
+            label: t("contextMenu.addToFavorites"),
+            action: "addToFavorites",
+            icon: I.newFolder,
+          },
+        );
+      }
     }
-
-    result.push({
-      label: t("contextMenu.paste"),
-      action: "paste",
-      icon: I.paste,
-      shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
-    });
-
-    // Only show compress when files selected
     if (hasSelection) {
       result.push(
         { label: "", action: "", separator: true },
@@ -181,7 +179,6 @@ export function useContextMenu() {
         },
       );
     }
-    // Show extract for archive files (single selection, is a zip/tar/gz file)
     if (singleSelection) {
       const first = [...sel.selectedFiles][0];
       const archiveExts = ["zip", "tar", "gz", "tgz", "7z", "rar"];
@@ -195,25 +192,24 @@ export function useContextMenu() {
       }
     }
 
+    // ── Split ──
     result.push(
       { label: "", action: "", separator: true },
       {
-        label: t("contextMenu.openInPreviewWindow"),
-        action: "openInPreviewWindow",
-        icon: I.showInExplorer,
+        label: t("split.label"),
+        action: "split",
+        icon: I.split,
+        children: [
+          { label: t("split.left"), action: "splitLeft", icon: I.splitLeft },
+          { label: t("split.right"), action: "splitRight", icon: I.splitRight },
+          { label: t("split.up"), action: "splitUp", icon: I.splitUp },
+          { label: t("split.down"), action: "splitDown", icon: I.splitDown },
+        ],
       },
-      {
-        label: t("contextMenu.properties"),
-        action: "properties",
-        icon: I.properties,
-      },
-      {
-        label: isMac
-          ? t("contextMenu.showInFinder")
-          : t("contextMenu.showInExplorer"),
-        action: "showInExplorer",
-        icon: I.showInExplorer,
-      },
+    );
+
+    // ── Select / Refresh / New ──
+    result.push(
       { label: "", action: "", separator: true },
       {
         label: t("contextMenu.selectAll"),
@@ -228,7 +224,32 @@ export function useContextMenu() {
         icon: I.refresh,
         shortcut: t("shortcuts.f5"),
       },
+      { label: "", action: "", separator: true },
+      {
+        label: t("contextMenu.newFolder"),
+        action: "newFolder",
+        icon: I.newFolder,
+        shortcut: sk("shortcuts.ctrlShiftN", "shortcuts.cmdShiftN"),
+      },
+      {
+        label: t("contextMenu.newFile"),
+        action: "newFile",
+        icon: I.newFile,
+        shortcut: sk("shortcuts.ctrlN", "shortcuts.cmdN"),
+      },
     );
+
+    // ── Properties (last) ──
+    if (singleSelection) {
+      result.push(
+        { label: "", action: "", separator: true },
+        {
+          label: t("contextMenu.properties"),
+          action: "properties",
+          icon: I.properties,
+        },
+      );
+    }
 
     return result;
   });

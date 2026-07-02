@@ -104,6 +104,15 @@ export function useFileActions(
           toast.show(t("toast.error") + ": " + e, true);
         }
         break;
+      case "copyPath":
+        try {
+          const paths = [...sel.selectedFiles];
+          await navigator.clipboard.writeText(paths.join("\n"));
+          toast.show(t("toast.copied"));
+        } catch (e: any) {
+          toast.show(t("toast.error") + ": " + e, true);
+        }
+        break;
       case "delete":
         del.requestDelete([...sel.selectedFiles], false);
         break;
