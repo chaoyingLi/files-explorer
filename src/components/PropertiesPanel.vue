@@ -958,6 +958,13 @@ async function openPreviewWindow() {
             center: true,
             focus: true,
         });
+        // 覆盖 window-state 插件恢复的状态，确保预览窗口始终自适应尺寸
+        win.once("tauri://created", async () => {
+            const { PhysicalSize } = await import("@tauri-apps/api/dpi");
+            await win.setSize(new PhysicalSize(width, height));
+            await win.center();
+            setTimeout(() => win.setFocus().catch(() => {}), 80);
+        });
     } catch (e) {
         console.error("Failed to open preview window:", e);
     }
