@@ -55,7 +55,7 @@ const segments = computed(() => {
     let accumulated = "";
 
     if (props.path.match(/^[A-Za-z]:/)) {
-        accumulated = parts[0] + "\\";
+        accumulated = parts[0] + "/";
         result.push({ name: parts[0], path: accumulated });
         parts.shift();
     } else {
@@ -63,11 +63,7 @@ const segments = computed(() => {
     }
 
     for (const part of parts) {
-        if (
-            accumulated &&
-            !accumulated.endsWith("/") &&
-            !accumulated.endsWith("\\")
-        ) {
+        if (accumulated && !accumulated.endsWith("/")) {
             accumulated += "/";
         }
         accumulated += part;

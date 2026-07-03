@@ -37,7 +37,12 @@ function loadBookmarks(): Bookmark[] {
 }
 
 function saveBookmarks(bookmarks: Bookmark[]) {
-  localStorage.setItem("app-bookmarks", JSON.stringify(bookmarks));
+  // Normalize all paths to forward slashes for storage
+  const normalized = bookmarks.map((b) => ({
+    ...b,
+    path: b.path.replace(/\\/g, "/"),
+  }));
+  localStorage.setItem("app-bookmarks", JSON.stringify(normalized));
 }
 
 function loadSettings(): AppSettings {
@@ -161,18 +166,24 @@ export const useSettingsStore = defineStore("settings", () => {
   const bookmarks = ref<Bookmark[]>(loadBookmarks());
 
   function addBookmark(path: string, label: string) {
-    if (bookmarks.value.some((b) => b.path === path)) return;
+    const norm = path.replace(/\\/g, "/");
+    if (bookmarks.value.some((b) => b.path.replace(/\\/g, "/") === norm))
+      return;
     bookmarks.value.push({ path, label });
     saveBookmarks(bookmarks.value);
   }
 
   function removeBookmark(path: string) {
-    bookmarks.value = bookmarks.value.filter((b) => b.path !== path);
+    const norm = path.replace(/\\/g, "/");
+    bookmarks.value = bookmarks.value.filter(
+      (b) => b.path.replace(/\\/g, "/") !== norm,
+    );
     saveBookmarks(bookmarks.value);
   }
 
   function hasBookmark(path: string): boolean {
-    return bookmarks.value.some((b) => b.path === path);
+    const norm = path.replace(/\\/g, "/");
+    return bookmarks.value.some((b) => b.path.replace(/\\/g, "/") === norm);
   }
 
   function persist() {

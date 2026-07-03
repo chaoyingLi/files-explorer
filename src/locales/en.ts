@@ -82,6 +82,7 @@ export default {
     showInExplorer: "Show in Explorer",
     showInFinder: "Show in Finder",
     addToFavorites: "Add to Favorites",
+    removeFromFavorites: "Remove from Favorites",
     compress: "Compress...",
     copyPath: "Copy Path",
     openInPreviewWindow: "Open in Preview Window",

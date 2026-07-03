@@ -68,6 +68,7 @@ fn run_command_with_timeout(
 }
 
 pub fn open_in_terminal(path: String) -> Result<(), String> {
+    let path = path.replace("/", "\\");
     let p = Path::new(&path);
     let dir = if p.is_dir() {
         p
@@ -185,8 +186,9 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
     log::info!("show_in_explorer: {}", path);
     #[cfg(target_os = "windows")]
     {
+        let native = path.replace("/", "\\");
         std::process::Command::new("explorer")
-            .arg(format!("/select,{}", path))
+            .arg(format!("/select,{}", native))
             .spawn()
             .map_err(|e| format!("Failed: {}", e))?;
     }
@@ -230,6 +232,7 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
 }
 
 pub fn show_file_properties(path: String) -> Result<(), String> {
+    let path = path.replace("/", "\\");
     let p = Path::new(&path);
     if !p.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -298,6 +301,7 @@ pub fn show_file_properties(path: String) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 pub fn get_file_icon(path: String) -> Result<String, String> {
+    let path = path.replace("/", "\\");
     use base64::Engine;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
@@ -1071,6 +1075,7 @@ fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Resul
 
 // ── Print file ──
 pub fn print_file(path: String) -> Result<(), String> {
+    let path = path.replace("/", "\\");
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")

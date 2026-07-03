@@ -110,7 +110,7 @@ export const useFileStore = defineStore("file", () => {
     const view = useViewStore();
     files.value = [...(tab.files || [])];
     sel.selectedFiles = new Set(tab.selectedFiles || []);
-    currentPath.value = tab.path || "";
+    currentPath.value = (tab.path || "").replace(/\//g, "\\");
     if (tab.treeExpanded) view.treeExpanded = new Set(tab.treeExpanded);
   }
 

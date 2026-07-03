@@ -106,7 +106,9 @@ export function useFileActions(
         break;
       case "copyPath":
         try {
-          const paths = [...sel.selectedFiles];
+          const paths = [...sel.selectedFiles].map((p) =>
+            p.replace(/\//g, "\\"),
+          );
           await navigator.clipboard.writeText(paths.join("\n"));
           toast.show(t("toast.copied"));
         } catch (e: any) {

@@ -350,7 +350,11 @@ async function handleContextAction(action: string) {
         if (path) {
             try {
                 await tauri.showInExplorer(path);
-                toast.show("showInExplorer: " + path);
+                toast.show(
+                    t("contextMenu.showInExplorer") +
+                        ": " +
+                        path.replace(/\//g, "\\"),
+                );
             } catch (e: any) {
                 toast.show(t("toast.error") + ": " + e, true);
             }

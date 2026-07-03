@@ -2,6 +2,7 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import type { ContextMenuOption } from "@/types";
 
 // ── Menu icons (14x14 viewBox SVG paths) ──
@@ -159,10 +160,17 @@ export function useContextMenu() {
       const firstPath = [...sel.selectedFiles][0];
       const file = store.files.find((f) => f.path === firstPath);
       if (file?.is_dir) {
+        const settings = useSettingsStore();
+        const normPath = firstPath.replace(/\\/g, "/");
+        const isBookmarked = settings.bookmarks.some(
+          (b) => b.path.replace(/\\/g, "/") === normPath,
+        );
         result.push(
           { label: "", action: "", separator: true },
           {
-            label: t("contextMenu.addToFavorites"),
+            label: isBookmarked
+              ? t("contextMenu.removeFromFavorites")
+              : t("contextMenu.addToFavorites"),
             action: "addToFavorites",
             icon: I.newFolder,
           },

@@ -82,6 +82,7 @@ export default {
     showInExplorer: "在资源管理器显示",
     showInFinder: "在访达中显示",
     addToFavorites: "添加到收藏夹",
+    removeFromFavorites: "从收藏夹移除",
     compress: "压缩到...",
     copyPath: "复制路径",
     openInPreviewWindow: "新窗口预览",

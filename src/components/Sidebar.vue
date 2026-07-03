@@ -6,7 +6,7 @@
                 class="sidebar-item home-item"
                 :class="{ active: !store.currentPath }"
                 @click="navigateHome"
-                                @contextmenu.prevent.stop
+                @contextmenu.prevent.stop
             >
                 <svg class="sidebar-icon home-icon" viewBox="0 0 24 24">
                     <path
@@ -29,7 +29,7 @@
                 class="sidebar-item"
                 :class="{ active: isDriveActive(drive) }"
                 @click="openDrive(drive)"
-                                @contextmenu.prevent.stop
+                @contextmenu.prevent.stop
             >
                 <svg class="sidebar-icon drive-icon" viewBox="0 0 24 24">
                     <rect
@@ -69,7 +69,11 @@
                     v-for="bm in settings.bookmarks"
                     :key="bm.path"
                     class="sidebar-item"
-                    :class="{ active: store.currentPath === bm.path }"
+                    :class="{
+                        active:
+                            store.currentPath &&
+                            store.currentPath.replace(/\\/g, '/') === bm.path,
+                    }"
                     @click="emit('navigate', bm.path)"
                     @contextmenu.prevent.stop="onBookmarkContext(bm, $event)"
                 >
@@ -98,7 +102,7 @@
                 class="sidebar-item"
                 :class="{ active: isPathActive(item.path) }"
                 @click="handleQuickAccess(item.path)"
-                                @contextmenu.prevent.stop
+                @contextmenu.prevent.stop
             >
                 <svg
                     class="sidebar-icon"
@@ -120,6 +124,7 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSettingsStore, type Bookmark } from "@/stores/settingsStore";
 import type { DiskInfo } from "@/types";
+import { ask } from "@tauri-apps/plugin-dialog";
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -204,14 +209,13 @@ async function handleQuickAccess(path: string) {
     emit("navigate", path);
 }
 
-function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
+async function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
+    e.preventDefault();
     const label = bm.label;
-    if (
-        confirm(
-            t("sidebar.removeBookmark", { label }) ||
-                `Remove "${label}" from favorites?`,
-        )
-    ) {
+    const confirmed = await ask(t("sidebar.removeBookmark", { label }), {
+        kind: "warning",
+    });
+    if (confirmed) {
         settings.removeBookmark(bm.path);
     }
 }
