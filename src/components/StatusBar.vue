@@ -1,5 +1,5 @@
 <template>
-    <div class="status-bar">
+    <div class="status-bar" @contextmenu.prevent.stop>
         <div class="status-left">
             <span>{{ statusText }}</span>
         </div>

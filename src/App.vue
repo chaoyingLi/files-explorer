@@ -556,9 +556,9 @@ onMounted(async () => {
                 viewMode: view.viewMode,
                 propertiesOpen: showProperties.value,
                 layout,
-                navigationHistory: navStore.history.filter(
-                    (h): h is string => typeof h === "string",
-                ),
+                navigationHistory: navStore.history
+                    .filter((h): h is string => typeof h === "string")
+                    .map((h) => (h as string).replace(/\\/g, "/")),
                 navigationIndex: Math.max(
                     -1,
                     navStore.history.findIndex(

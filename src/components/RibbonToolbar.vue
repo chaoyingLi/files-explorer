@@ -1,5 +1,5 @@
 <template>
-    <div class="ribbon">
+    <div class="ribbon" @contextmenu.prevent.stop>
         <!-- New group -->
         <div class="ribbon-group">
             <button

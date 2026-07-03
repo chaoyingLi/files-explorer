@@ -63,19 +63,6 @@ export function usePanelNavigation(
     if (!p) return;
     const t = p.tabs.find((x: Tab) => x.id === p.activeTabId);
     if (t) {
-      if (t.isSearch && t.id === tabId) {
-        t.isSearch = false;
-        t.searchQuery = undefined;
-        t.searchDone = undefined;
-        if (t.path) {
-          await store.navigateTo(t.path, false);
-          const nt = tabStore.getFocusedTab();
-          if (nt) saveFileStateToTab(nt);
-        } else {
-          await store.navigateHome();
-        }
-        return;
-      }
       loadFileStateFromTab(t);
       if (!t.path) store.loadDrives();
     }

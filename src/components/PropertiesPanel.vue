@@ -395,7 +395,7 @@
                         </td>
                         <td
                             class="props-td-value props-td-path"
-                            :title="$t('contextMenu.showInFinder')"
+                            :title="$t('contextMenu.showInExplorer')"
                             @click.stop="showInExplorerClick"
                         >
                             {{ file.path }}
@@ -436,7 +436,7 @@
                             @click="ctxAction('showInExplorer')"
                         >
                             <span v-html="panelIcons.showInExplorer"></span
-                            >{{ $t("contextMenu.showInFinder") }}
+                            >{{ $t("contextMenu.showInExplorer") }}
                         </button>
                         <button
                             class="panel-ctx-item"
@@ -522,6 +522,7 @@ import "@vue-office/docx/lib/index.css";
 import "@vue-office/excel/lib/index.css";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { PhysicalSize } from "@tauri-apps/api/dpi";
 
 const IMG_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"];
 const VIDEO_EXTS = ["mp4", "webm", "ogg", "mov", "flv", "mkv", "avi", "wmv"];
@@ -956,14 +957,12 @@ async function openPreviewWindow() {
             decorations: false,
             resizable: true,
             center: true,
-            focus: true,
         });
         // 覆盖 window-state 插件恢复的状态，确保预览窗口始终自适应尺寸
         win.once("tauri://created", async () => {
             const { PhysicalSize } = await import("@tauri-apps/api/dpi");
             await win.setSize(new PhysicalSize(width, height));
             await win.center();
-            setTimeout(() => win.setFocus().catch(() => {}), 80);
         });
     } catch (e) {
         console.error("Failed to open preview window:", e);

@@ -523,7 +523,12 @@
                     ↗ {{ $t("contextMenu.open") }}
                 </button>
                 <button class="pw-ctx-item" @click="ctxShowInExplorer">
-                    📂 {{ $t("contextMenu.showInFinder") }}
+                    📂
+                    {{
+                        isMac
+                            ? $t("contextMenu.showInFinder")
+                            : $t("contextMenu.showInExplorer")
+                    }}
                 </button>
                 <button class="pw-ctx-item" @click="ctxOpenInTerminal">
                     ⌨ {{ $t("contextMenu.openInTerminal") }}
@@ -623,6 +628,9 @@ const ICONS = {
 };
 
 const { t } = useI18n();
+
+const isMac =
+    typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 // ── Start path ──
 const params = new URLSearchParams(window.location.search);
@@ -1259,7 +1267,7 @@ onMounted(async () => {
                 treeNodes.value = map2;
             }
         }
-        loadPreview(startPath);
+        await loadPreview(startPath);
     }
 
     // ── Keyboard shortcuts ──
@@ -1286,14 +1294,16 @@ onMounted(async () => {
     window.addEventListener("keydown", onKey);
     onUnmounted(() => window.removeEventListener("keydown", onKey));
 
-    // 加载完成后强制获取焦点，避免被主窗口遮挡
-    requestAnimationFrame(() => {
-        setTimeout(() => {
-            getCurrentWebviewWindow()
-                .setFocus()
-                .catch(() => {});
-        }, 150);
-    });
+    // 预览加载完成后强制获取焦点，避免被主窗口遮挡
+    const forceFocus = () => {
+        getCurrentWebviewWindow()
+            .setFocus()
+            .catch(() => {});
+    };
+    requestAnimationFrame(forceFocus);
+    setTimeout(forceFocus, 200);
+    setTimeout(forceFocus, 500);
+    setTimeout(forceFocus, 1000);
 });
 </script>
 

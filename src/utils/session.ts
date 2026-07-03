@@ -125,7 +125,10 @@ export function serializeLayout(
       const tabEntries: PersistedTab[] = [];
       for (const t of node.tabs || []) {
         if (t.isSearch) continue;
-        tabEntries.push({ path: t.path || "", title: t.title || "" });
+        tabEntries.push({
+          path: (t.path || "").replace(/\\/g, "/"),
+          title: t.title || "",
+        });
       }
       if (tabEntries.length === 0) return null;
       const activeIdx = Math.max(

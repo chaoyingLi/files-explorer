@@ -1,5 +1,5 @@
 <template>
-    <div class="toolbar">
+    <div class="toolbar" @contextmenu.prevent.stop>
         <div class="toolbar-left">
             <button
                 class="icon-btn"
