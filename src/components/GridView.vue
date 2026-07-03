@@ -1,10 +1,13 @@
 <template>
     <div class="grid-items">
         <div
-            v-for="file in files"
+            v-for="(file, idx) in files"
             :key="file.path"
             class="grid-card"
-            :class="{ selected: isSelected(file.path) }"
+            :class="{
+                selected: isSelected(file.path),
+                focused: idx === focusedIndex,
+            }"
             @click="$emit('fileClick', file, $event)"
             @dblclick="$emit('fileDblClick', file, $event)"
             @contextmenu.prevent="$emit('fileContextMenu', file, $event)"
@@ -130,6 +133,7 @@ defineEmits<{
 
 const props = defineProps<{
     files: FileEntry[];
+    focusedIndex?: number;
 }>();
 
 const store = useFileStore();
@@ -193,6 +197,11 @@ function isBundle(file: FileEntry): boolean {
 }
 .grid-card.selected {
     background: var(--bg-selected);
+}
+.grid-card.focused:not(.selected) {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 6px;
 }
 .grid-icon {
     width: 64px;

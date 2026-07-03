@@ -1,7 +1,7 @@
 <template>
     <div
         class="file-item"
-        :class="{ selected, cut: isCut }"
+        :class="{ selected, cut: isCut, focused }"
         @contextmenu.prevent="$emit('contextmenu', $event)"
         @click="$emit('click', $event)"
         @dblclick="$emit('dblclick', $event)"
@@ -113,6 +113,7 @@ import * as tauri from "@/utils/tauri";
 const props = defineProps<{
     file: FileEntry;
     selected: boolean;
+    focused?: boolean;
     compact?: boolean;
     isCut?: boolean;
     showPath?: boolean;
@@ -254,6 +255,10 @@ function formatDate(ts: number): string {
 }
 .file-item.selected {
     background: var(--bg-selected);
+}
+.file-item.focused:not(.selected) {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
 }
 
 .col-name {

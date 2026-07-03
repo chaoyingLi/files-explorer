@@ -4,7 +4,9 @@
         class="file-list"
         :class="{ 'drop-active': isDragOver && !!currentPath }"
         :style="colVars"
+        tabindex="-1"
         @click.self="sel.clearSelection()"
+        @keydown="onFileListKeydown"
         @contextmenu.prevent="onContextMenu"
     >
         <div v-if="isDragOver && currentPath" class="drop-indicator">
@@ -119,6 +121,7 @@
                 :files="displayFiles"
                 :compact="view.viewMode === 'list'"
                 :show-path="isSearchTab"
+                :focused-index="sel.focusedIndex"
                 @file-click="onFileClick"
                 @file-dbl-click="onFileDblClick"
                 @file-context-menu="onFileContextMenu"
@@ -143,6 +146,7 @@
             <GridView
                 v-else
                 :files="displayFiles"
+                :focused-index="sel.focusedIndex"
                 @file-click="onFileClick"
                 @file-dbl-click="onFileDblClick"
                 @file-context-menu="onFileContextMenu"
@@ -354,6 +358,12 @@ const treeVisible = computed<TreeViewItem[]>(() => {
 function onFileClick(file: FileEntry, e: MouseEvent) {
     const multi = e.ctrlKey || e.metaKey;
     sel.selectFile(file, multi);
+    // Sync focusedIndex with clicked file
+    const idx = displayFiles.value.findIndex((f) => f.path === file.path);
+    if (idx >= 0) {
+        sel.focusedIndex = idx;
+        sel.anchorIndex = idx;
+    }
 }
 
 async function onFileDblClick(file: FileEntry, _e: MouseEvent) {
@@ -367,6 +377,75 @@ function onContextMenu(e: MouseEvent) {
 function onFileContextMenu(file: FileEntry, e: MouseEvent) {
     sel.selectFile(file, e.ctrlKey || e.metaKey);
     emit("fileContextMenu", file, e);
+}
+
+// ── Keyboard navigation ──
+let _pageSize = 20;
+
+function onFileListKeydown(e: KeyboardEvent) {
+    const files = displayFiles.value;
+    if (files.length === 0) return;
+    // Input/textarea/editing: let the browser handle
+    if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+    ) {
+        return;
+    }
+    const ctrl = e.ctrlKey || e.metaKey;
+    const shift = e.shiftKey;
+    switch (e.key) {
+        case "ArrowUp":
+            e.preventDefault();
+            sel.moveFocus(-1, files, shift, ctrl);
+            break;
+        case "ArrowDown":
+            e.preventDefault();
+            sel.moveFocus(1, files, shift, ctrl);
+            break;
+        case "ArrowRight": {
+            e.preventDefault();
+            // Right arrow: enter directory
+            const fi = files[sel.focusedIndex];
+            if (fi && !ctrl && !shift) store.openSelectedFile(fi);
+            break;
+        }
+        case "ArrowLeft": {
+            e.preventDefault();
+            // Left arrow: go up
+            if (!ctrl && !shift) store.navigateUp();
+            break;
+        }
+        case "Home":
+            e.preventDefault();
+            sel.moveToEdge("first", files, shift);
+            break;
+        case "End":
+            e.preventDefault();
+            sel.moveToEdge("last", files, shift);
+            break;
+        case "PageUp":
+            e.preventDefault();
+            sel.movePage(-1, files, _pageSize, shift);
+            break;
+        case "PageDown":
+            e.preventDefault();
+            sel.movePage(1, files, _pageSize, shift);
+            break;
+        case " ": {
+            // Space: if ctrl pressed, toggle focus; else open file
+            e.preventDefault();
+            if (ctrl) {
+                sel.toggleFocusSelection(files);
+            } else if (sel.selectedFiles.size > 0) {
+                const first = [...sel.selectedFiles][0];
+                const f = files.find((x) => x.path === first);
+                if (f) store.openSelectedFile(f);
+            }
+            break;
+        }
+    }
 }
 
 // ── HTML5 Drag-and-Drop ──

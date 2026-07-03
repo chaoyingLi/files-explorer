@@ -99,7 +99,12 @@
                         ← {{ $t("toolbar.up") }}
                     </button>
                 </div>
-                <div class="pw-tree-list" @contextmenu.prevent="onTreeCtxMenu">
+                <div
+                    class="pw-tree-list"
+                    tabindex="-1"
+                    @keydown="onTreeKeydown"
+                    @contextmenu.prevent="onTreeCtxMenu"
+                >
                     <div v-if="flatTree.length === 0" class="pw-tree-empty">
                         {{ $t("properties.noPreview") }}
                     </div>
@@ -110,7 +115,10 @@
                                 'pw-tree-item--active':
                                     node.path === activePath,
                                 'pw-tree-item--dir': node.isDir,
+                                'pw-tree-focused':
+                                    flatTree.indexOf(node) === treeFocusIndex,
                             }"
+                            :data-tree-idx="flatTree.indexOf(node)"
                             :style="{ paddingLeft: 8 + node.depth * 18 + 'px' }"
                             @click="onTreeClick(node)"
                             @dblclick="onTreeDblClick(node)"
@@ -808,7 +816,86 @@ async function toggleExpand(node: TreeNode) {
 }
 
 function onTreeClick(node: TreeNode) {
+    const idx = flatTree.value.indexOf(node);
+    if (idx >= 0) treeFocusIndex.value = idx;
     if (!node.isDir) {
+        activePath.value = node.path;
+    }
+}
+
+// ── Tree keyboard navigation ──
+const treeFocusIndex = ref(0);
+
+function onTreeKeydown(e: KeyboardEvent) {
+    const tree = flatTree.value;
+    if (tree.length === 0) return;
+    const shift = e.shiftKey;
+    switch (e.key) {
+        case "ArrowUp":
+            e.preventDefault();
+            treeFocusIndex.value = Math.max(0, treeFocusIndex.value - 1);
+            syncTreePreview();
+            break;
+        case "ArrowDown":
+            e.preventDefault();
+            treeFocusIndex.value = Math.min(
+                tree.length - 1,
+                treeFocusIndex.value + 1,
+            );
+            syncTreePreview();
+            break;
+        case "ArrowRight":
+            e.preventDefault();
+            {
+                const node = tree[treeFocusIndex.value];
+                if (node && node.isDir && !node.expanded) {
+                    toggleExpand(node);
+                }
+            }
+            break;
+        case "ArrowLeft":
+            e.preventDefault();
+            {
+                const node = tree[treeFocusIndex.value];
+                if (node && node.isDir && node.expanded) {
+                    toggleExpand(node);
+                } else {
+                    goUp();
+                }
+            }
+            break;
+        case "Enter":
+        case " ":
+            e.preventDefault();
+            {
+                const node = tree[treeFocusIndex.value];
+                if (node) {
+                    if (node.isDir) toggleExpand(node);
+                    else activePath.value = node.path;
+                }
+            }
+            break;
+        case "Home":
+            e.preventDefault();
+            treeFocusIndex.value = 0;
+            syncTreePreview();
+            break;
+        case "End":
+            e.preventDefault();
+            treeFocusIndex.value = tree.length - 1;
+            syncTreePreview();
+            break;
+    }
+    // Scroll focused item into view
+    const el = document.querySelector(
+        `[data-tree-idx="${treeFocusIndex.value}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+}
+
+function syncTreePreview() {
+    const node = flatTree.value[treeFocusIndex.value];
+    if (node && !node.isDir && node.path !== activePath.value) {
         activePath.value = node.path;
     }
 }
@@ -1496,6 +1583,10 @@ onMounted(async () => {
 }
 .pw-tree-item--active:hover {
     background: var(--bg-selected) !important;
+}
+.pw-tree-focused:not(.pw-tree-item--active) {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
 }
 .pw-tree-chevron {
     width: 14px;

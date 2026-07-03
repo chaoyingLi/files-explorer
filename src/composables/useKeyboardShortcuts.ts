@@ -39,13 +39,20 @@ export function useKeyboardShortcuts(handlers: {
       store.files.length > 0 &&
       sel.selectedFiles.size > 0
     ) {
-      // Space: preview / open selected file
+    } else if (
+      e.key === " " &&
+      !ctrl &&
+      store.files.length > 0 &&
+      sel.selectedFiles.size > 0
+    ) {
+      // Space: preview / open selected file (handled by FileList for focused navigation)
+      // Keep as fallback for when FileList is not focused
       e.preventDefault();
       const first = [...sel.selectedFiles][0];
       const file = store.files.find((f) => f.path === first);
       if (file) store.openSelectedFile(file);
     } else if (ctrl && (e.key === "ArrowDown" || e.key === "ArrowRight")) {
-      // Cmd+↓ / Cmd+→ : open selected item
+      // Cmd+↓ / Cmd+→ : open selected item (keep for non-FileList focus)
       e.preventDefault();
       if (sel.selectedFiles.size > 0) {
         const first = [...sel.selectedFiles][0];

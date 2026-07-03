@@ -28,6 +28,7 @@
                     :file="props.files[row.index]"
                     :compact="compact"
                     :selected="isSelected(props.files[row.index].path)"
+                    :focused="row.index === focusedIndex"
                     :is-cut="sel.isFileCut(props.files[row.index].path)"
                     :show-path="showPath"
                     @click="
@@ -60,6 +61,7 @@ const props = defineProps<{
     files: FileEntry[];
     compact: boolean;
     showPath: boolean;
+    focusedIndex?: number;
 }>();
 
 defineEmits<{
