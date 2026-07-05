@@ -106,8 +106,9 @@ export function useFileActions(
         break;
       case "copyPath":
         try {
+          const isWin = /Win/.test(navigator.platform);
           const paths = [...sel.selectedFiles].map((p) =>
-            p.replace(/\//g, "\\"),
+            isWin ? p.replace(/\//g, "\\") : p.replace(/\\/g, "/"),
           );
           await navigator.clipboard.writeText(paths.join("\n"));
           toast.show(t("toast.copied"));

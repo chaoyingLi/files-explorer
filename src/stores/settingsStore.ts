@@ -169,7 +169,7 @@ export const useSettingsStore = defineStore("settings", () => {
     const norm = path.replace(/\\/g, "/");
     if (bookmarks.value.some((b) => b.path.replace(/\\/g, "/") === norm))
       return;
-    bookmarks.value.push({ path, label });
+    bookmarks.value.push({ path: norm, label });
     saveBookmarks(bookmarks.value);
   }
 

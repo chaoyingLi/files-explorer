@@ -353,7 +353,9 @@ async function handleContextAction(action: string) {
                 toast.show(
                     t("contextMenu.showInExplorer") +
                         ": " +
-                        path.replace(/\//g, "\\"),
+                        (/Win/.test(navigator.platform)
+                            ? path.replace(/\//g, "\\")
+                            : path.replace(/\\/g, "/")),
                 );
             } catch (e: any) {
                 toast.show(t("toast.error") + ": " + e, true);

@@ -68,7 +68,7 @@ fn run_command_with_timeout(
 }
 
 pub fn open_in_terminal(path: String) -> Result<(), String> {
-    let path = path.replace("/", "\\");
+    let path = std::path::Path::new(&path).to_string_lossy().to_string();
     let p = Path::new(&path);
     let dir = if p.is_dir() {
         p
@@ -232,7 +232,7 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
 }
 
 pub fn show_file_properties(path: String) -> Result<(), String> {
-    let path = path.replace("/", "\\");
+    let path = std::path::Path::new(&path).to_string_lossy().to_string();
     let p = Path::new(&path);
     if !p.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -1075,7 +1075,7 @@ fn extract_rar_entry(archive: &str, entry: &str, out: &std::path::Path) -> Resul
 
 // ── Print file ──
 pub fn print_file(path: String) -> Result<(), String> {
-    let path = path.replace("/", "\\");
+    let path = std::path::Path::new(&path).to_string_lossy().to_string();
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")

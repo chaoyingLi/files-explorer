@@ -491,7 +491,11 @@ function onDrop(e: DragEvent) {
                     try {
                         p = decodeURIComponent(p);
                     } catch {}
-                    return p.replace(/\//g, "\\");
+                    // URI list always uses /; convert to native on Windows
+                    if (/Win/.test(navigator.platform)) {
+                        p = p.replace(/\//g, "\\");
+                    }
+                    return p;
                 });
         }
     }
