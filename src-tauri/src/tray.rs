@@ -41,13 +41,26 @@ pub fn rebuild_tray(app: &AppHandle, is_visible: bool) -> tauri::Result<()> {
 }
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let special = crate::drives::get_special_dirs().unwrap_or_default();
-    let dirs = special;
+    let p = crate::platform::path_provider();
+    let dirs = crate::core::types::SpecialDirs {
+        home: p.home_dir().to_string_lossy().to_string(),
+        desktop: p.desktop_dir().to_string_lossy().to_string(),
+        documents: p.documents_dir().to_string_lossy().to_string(),
+        downloads: p.downloads_dir().to_string_lossy().to_string(),
+        pictures: p.pictures_dir().to_string_lossy().to_string(),
+        music: p.music_dir().to_string_lossy().to_string(),
+        videos: p.videos_dir().to_string_lossy().to_string(),
+    };
 
     let menu = build_menu(app, true)?;
 
+    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
+        tracing::warn!("Default window icon missing, tray will be invisible");
+        tauri::image::Image::new(&[], 1, 1)
+    });
+
     let _tray = TrayIconBuilder::with_id("main-tray")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .tooltip("Files Explorer")
         .on_menu_event(move |app, event| {
@@ -109,40 +122,36 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
             }
         })
-        .on_tray_icon_event(|tray, event| {
-            match event {
-                // Left single-click: toggle show/hide
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } => {
-                    let app = tray.app_handle();
-                    if let Some(w) = app.get_webview_window("main") {
-                        if w.is_visible().unwrap_or(false) {
-                            let _ = w.hide();
-                            let _ = rebuild_tray(app, false);
-                        } else {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                            let _ = rebuild_tray(app, true);
-                        }
-                    }
-                }
-                // Double-click: always show and focus
-                TrayIconEvent::DoubleClick {
-                    button: MouseButton::Left,
-                    ..
-                } => {
-                    let app = tray.app_handle();
-                    if let Some(w) = app.get_webview_window("main") {
+        .on_tray_icon_event(|tray, event| match event {
+            TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } => {
+                let app = tray.app_handle();
+                if let Some(w) = app.get_webview_window("main") {
+                    if w.is_visible().unwrap_or(false) {
+                        let _ = w.hide();
+                        let _ = rebuild_tray(app, false);
+                    } else {
                         let _ = w.show();
                         let _ = w.set_focus();
                         let _ = rebuild_tray(app, true);
                     }
                 }
-                _ => {}
             }
+            TrayIconEvent::DoubleClick {
+                button: MouseButton::Left,
+                ..
+            } => {
+                let app = tray.app_handle();
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                    let _ = rebuild_tray(app, true);
+                }
+            }
+            _ => {}
         })
         .build(app)?;
 

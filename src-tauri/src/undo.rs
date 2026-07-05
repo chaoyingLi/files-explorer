@@ -1,7 +1,7 @@
-use crate::error::{op_err, FsError, FsResult};
-use crate::operations::copy_dir_recursive;
-use crate::state::AppState;
-use crate::types::{ActionKind, FileAction};
+use crate::core::error::{op_err, FsError, FsResult};
+use crate::core::fs_helper::copy_dir_recursive;
+use crate::core::state::AppState;
+use crate::core::types::{ActionKind, FileAction};
 use std::fs;
 use std::path::Path;
 use tauri::State;

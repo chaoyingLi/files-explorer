@@ -1,5 +1,5 @@
-use crate::state::AppState;
-use crate::types::{
+use crate::core::state::AppState;
+use crate::core::types::{
     ts_from_metadata, FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS,
 };
 use std::fs;
