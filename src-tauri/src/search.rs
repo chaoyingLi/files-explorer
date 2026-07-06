@@ -1,8 +1,6 @@
 use crate::core::state::AppState;
-use crate::core::types::{
-    ts_from_metadata, FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS,
-};
-use std::fs;
+use crate::core::types::{FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS};
+use crate::platform;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
@@ -176,8 +174,17 @@ pub fn search_files(
             };
             let is_dir = entry.file_type().is_dir();
             let file_size = if is_dir { 0 } else { metadata.len() };
-            let modified = ts_from_metadata(&metadata, fs::Metadata::modified);
-            let created = ts_from_metadata(&metadata, fs::Metadata::created);
+            let fs_ext = platform::fs_ext_provider();
+            let modified = fs_ext
+                .modified_time(&metadata)
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let created = fs_ext
+                .created_time(&metadata)
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
             let extension = path
                 .extension()
                 .map(|e| e.to_string_lossy().to_string())
@@ -193,7 +200,7 @@ pub fn search_files(
             total += 1;
             batch.push(FileEntry {
                 name: file_name,
-                path: path.to_string_lossy().to_string(),
+                path: crate::core::fs_helper::path_for_frontend(&path),
                 is_dir,
                 size: file_size,
                 modified,

@@ -1,8 +1,7 @@
 use crate::core::error::{op_err, FsError, FsResult};
-use crate::core::fs_helper::copy_dir_recursive;
+use crate::core::fs_helper;
 use crate::core::state::AppState;
 use crate::core::types::{ActionKind, FileAction};
-use std::fs;
 use std::path::Path;
 use tauri::State;
 
@@ -23,22 +22,25 @@ pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
                     "Cannot undo: {new_path} no longer exists"
                 )));
             }
-            fs::rename(new_path, old_path).map_err(|e| op_err("Undo rename failed", e))?;
+            fs_helper::rename(Path::new(new_path), Path::new(old_path))
+                .map_err(|e| op_err("Undo rename failed", e))?;
             Ok(format!("Undid rename: restored {old_path}"))
         }
         ActionKind::Create { path, is_dir } => {
             if *is_dir {
                 // Safety check: only remove empty directories
-                let mut read_dir = std::fs::read_dir(path)
+                let mut read_dir = fs_helper::read_dir(Path::new(path))
                     .map_err(|e| op_err("Undo create: cannot read directory", e))?;
                 if read_dir.next().is_some() {
                     return Err(FsError::Other(format!(
                         "Cannot undo: directory is not empty: {path}"
                     )));
                 }
-                std::fs::remove_dir(path).map_err(|e| op_err("Undo create failed", e))?;
+                fs_helper::remove_dir(Path::new(path))
+                    .map_err(|e| op_err("Undo create failed", e))?;
             } else {
-                fs::remove_file(path).map_err(|e| op_err("Undo create failed", e))?;
+                fs_helper::remove_file(Path::new(path))
+                    .map_err(|e| op_err("Undo create failed", e))?;
             }
             Ok(format!("Undid create: removed {path}"))
         }
@@ -53,20 +55,22 @@ pub fn undo_last_action(state: State<AppState>) -> FsResult<String> {
                 // Bug 11 fix: cut-paste undo — restore original file at src, then remove copy
                 let src_path = Path::new(src);
                 if dest_path.is_dir() {
-                    copy_dir_recursive(dest_path, src_path)?;
-                    fs::remove_dir_all(dest_path).map_err(|e| op_err("Undo cut failed", e))?;
+                    fs_helper::copy_recursive(dest_path, src_path)?;
+                    fs_helper::remove_dir_all(dest_path)
+                        .map_err(|e| op_err("Undo cut failed", e))?;
                 } else {
-                    fs::copy(dest_path, src_path)
+                    fs_helper::copy_file(dest_path, src_path)
                         .map_err(|e| op_err("Undo cut restore failed", e))?;
-                    fs::remove_file(dest_path).map_err(|e| op_err("Undo cut failed", e))?;
+                    fs_helper::remove_file(dest_path).map_err(|e| op_err("Undo cut failed", e))?;
                 }
                 Ok(format!("Undid cut: restored {src}"))
             } else {
                 // Regular copy: just remove the copy
                 if dest_path.is_dir() {
-                    fs::remove_dir_all(dest_path).map_err(|e| op_err("Undo copy failed", e))?;
+                    fs_helper::remove_dir_all(dest_path)
+                        .map_err(|e| op_err("Undo copy failed", e))?;
                 } else {
-                    fs::remove_file(dest_path).map_err(|e| op_err("Undo copy failed", e))?;
+                    fs_helper::remove_file(dest_path).map_err(|e| op_err("Undo copy failed", e))?;
                 }
                 Ok(format!("Undid copy of {src}: removed {dest}"))
             }

@@ -14,10 +14,16 @@ use std::path::{Path, PathBuf};
 /// If `skip_hidden` is true, files considered "hidden" by the platform are omitted.
 pub fn list_directory(path: &Path, skip_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
     if !path.exists() {
-        return Err(AppError::NotFound(format!("Path not found: {}", path.display())));
+        return Err(AppError::NotFound(format!(
+            "Path not found: {}",
+            path.display()
+        )));
     }
     if !path.is_dir() {
-        return Err(AppError::InvalidPath(format!("Not a directory: {}", path.display())));
+        return Err(AppError::InvalidPath(format!(
+            "Not a directory: {}",
+            path.display()
+        )));
     }
 
     let fs_ext = platform::fs_ext_provider();
@@ -106,7 +112,10 @@ pub fn resolve_path(path: &Path) -> PathBuf {
 /// Check if a path exists and is accessible.
 pub fn check_access(path: &Path) -> Result<(), AppError> {
     if !path.exists() {
-        return Err(AppError::NotFound(format!("Path not found: {}", path.display())));
+        return Err(AppError::NotFound(format!(
+            "Path not found: {}",
+            path.display()
+        )));
     }
     fs::metadata(path).map_err(AppError::from)?;
     Ok(())
@@ -162,18 +171,13 @@ pub fn ensure_parent(path: &Path) -> Result<(), AppError> {
 /// Recursively copy a directory or file.
 pub fn copy_recursive(src: &Path, dest: &Path) -> Result<(), AppError> {
     if src.is_dir() {
-        fs::create_dir_all(dest)
-            .map_err(|e| AppError::IoError(format!("mkdir: {}", e)))?;
-        for entry in
-            fs::read_dir(src).map_err(|e| AppError::IoError(format!("read_dir: {}", e)))?
-        {
-            let entry =
-                entry.map_err(|e| AppError::IoError(format!("entry: {}", e)))?;
+        fs::create_dir_all(dest).map_err(|e| AppError::IoError(format!("mkdir: {}", e)))?;
+        for entry in fs::read_dir(src).map_err(|e| AppError::IoError(format!("read_dir: {}", e)))? {
+            let entry = entry.map_err(|e| AppError::IoError(format!("entry: {}", e)))?;
             copy_recursive(&entry.path(), &dest.join(entry.file_name()))?;
         }
     } else {
-        fs::copy(src, dest)
-            .map_err(|e| AppError::IoError(format!("copy: {}", e)))?;
+        fs::copy(src, dest).map_err(|e| AppError::IoError(format!("copy: {}", e)))?;
     }
     Ok(())
 }
@@ -218,5 +222,66 @@ pub fn resolve_paste_conflict(path: &Path) -> PathBuf {
     parent.join(format!("{}_{}.{}", stem, ts, ext))
 }
 
+// ══════════════════════════════════════════════════════════════
+// Wrappers for common std::fs operations — route all external IO
+// through these so errors are uniformly converted to AppError.
+// ══════════════════════════════════════════════════════════════
+
+/// Open a file for reading (used by archive libs that need a raw File handle).
+pub fn file_open(path: &Path) -> Result<std::fs::File, AppError> {
+    std::fs::File::open(path).map_err(AppError::from)
+}
+
+/// Create or truncate a file for writing.
+pub fn file_create(path: &Path) -> Result<std::fs::File, AppError> {
+    std::fs::File::create(path).map_err(AppError::from)
+}
+
+/// Write bytes to a file (creates or truncates).
+pub fn write_file(path: &Path, contents: &[u8]) -> Result<(), AppError> {
+    std::fs::write(path, contents).map_err(AppError::from)
+}
+
+/// Copy a single file (not recursive — use `copy_recursive` for directories).
+pub fn copy_file(src: &Path, dest: &Path) -> Result<u64, AppError> {
+    std::fs::copy(src, dest).map_err(AppError::from)
+}
+
+/// Remove a single file.
+pub fn remove_file(path: &Path) -> Result<(), AppError> {
+    std::fs::remove_file(path).map_err(AppError::from)
+}
+
+/// Remove a directory and all its contents.
+pub fn remove_dir_all(path: &Path) -> Result<(), AppError> {
+    std::fs::remove_dir_all(path).map_err(AppError::from)
+}
+
+/// Create a directory and all parent directories.
+pub fn create_dir_all(path: &Path) -> Result<(), AppError> {
+    std::fs::create_dir_all(path).map_err(AppError::from)
+}
+
+/// Remove a directory (must be empty — use `remove_dir_all` for non-empty).
+pub fn remove_dir(path: &Path) -> Result<(), AppError> {
+    std::fs::remove_dir(path).map_err(AppError::from)
+}
+
+/// Rename or move a file or directory.
+pub fn rename(src: &Path, dest: &Path) -> Result<(), AppError> {
+    std::fs::rename(src, dest).map_err(AppError::from)
+}
+
+/// Read a directory, returning an iterator over entries.
+pub fn read_dir(path: &Path) -> Result<std::fs::ReadDir, AppError> {
+    std::fs::read_dir(path).map_err(AppError::from)
+}
+
+/// Get file metadata.
+pub fn metadata(path: &Path) -> Result<std::fs::Metadata, AppError> {
+    std::fs::metadata(path).map_err(AppError::from)
+}
+
 // Backward-compatible aliases
-pub use copy_recursive as copy_dir_recursive;
+// (kept for reference; direct `fs_helper::copy_recursive` preferred)
+// pub use copy_recursive as copy_dir_recursive;

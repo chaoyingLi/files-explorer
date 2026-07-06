@@ -68,7 +68,7 @@ export const useFileStore = defineStore("file", () => {
     let accumulated = "";
 
     if (currentPath.value.match(/^[A-Za-z]:/)) {
-      accumulated = parts[0] + "\\";
+      accumulated = parts[0] + "/";
       segments.push({ name: parts[0], path: accumulated });
       parts.shift();
     } else {
@@ -426,7 +426,7 @@ export const useFileStore = defineStore("file", () => {
     const sep = oldPath.includes("/") ? "/" : "\\";
     const lastSep = oldPath.lastIndexOf(sep);
     const parent = lastSep >= 0 ? oldPath.substring(0, lastSep) : "";
-    const newPath = parent + sep + newName;
+    const newPath = tauri.joinPath(parent, newName);
     await tauri.renameItem(oldPath, newPath);
     await refresh();
   }

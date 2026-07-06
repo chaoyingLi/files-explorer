@@ -14,14 +14,15 @@ impl PlatformSystem for SystemImpl {
 
     fn open_terminal(&self, dir: &Path) -> Result<(), String> {
         // Prefer Windows Terminal; fall back to cmd.exe
+        let native = dir.to_string_lossy().replace("/", "\\");
         let wt = std::process::Command::new("wt")
             .args(["-d"])
-            .arg(dir.as_os_str())
+            .arg(&native)
             .spawn();
         if wt.is_err() {
             std::process::Command::new("cmd")
                 .args(["/K", "pushd"])
-                .arg(dir.as_os_str())
+                .arg(&native)
                 .spawn()
                 .map_err(|e| format!("Failed to open terminal: {}", e))?;
         }
@@ -62,8 +63,9 @@ impl PlatformSystem for SystemImpl {
     }
 
     fn print_file(&self, path: &Path) -> Result<(), String> {
+        let native = path.to_string_lossy().replace("/", "\\");
         std::process::Command::new("print")
-            .arg(path.as_os_str())
+            .arg(&native)
             .spawn()
             .map_err(|e| format!("Print: {}", e))?;
         Ok(())
@@ -171,6 +173,7 @@ fn get_windows_icon_png(path: &Path) -> Result<Vec<u8>, String> {
     const SHGFI_USEFILEATTRIBUTES: u32 = 0x000000010;
     const ICON_SIZE: i32 = 32;
 
+    #[allow(non_snake_case)]
     #[repr(C)]
     struct SHFILEINFOW {
         hIcon: *mut std::ffi::c_void,
@@ -180,6 +183,7 @@ fn get_windows_icon_png(path: &Path) -> Result<Vec<u8>, String> {
         szTypeName: [u16; 80],
     }
 
+    #[allow(non_snake_case)]
     #[repr(C)]
     struct BITMAPINFOHEADER {
         biSize: u32,
@@ -466,7 +470,7 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
     struct OleGuard;
     impl OleGuard {
         fn init() -> Result<Self, String> {
-            if OleInitialize(std::ptr::null_mut()) >= 0 {
+            if unsafe { OleInitialize(std::ptr::null_mut()) } >= 0 {
                 Ok(OleGuard)
             } else {
                 Err("OleInit failed".into())
@@ -475,7 +479,9 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
     }
     impl Drop for OleGuard {
         fn drop(&mut self) {
-            OleUninitialize();
+            unsafe {
+                OleUninitialize();
+            }
         }
     }
 

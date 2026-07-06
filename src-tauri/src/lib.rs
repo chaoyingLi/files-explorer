@@ -14,13 +14,14 @@ mod undo;
 pub mod tauri_setup;
 
 use core::error::FsError;
-use core::state::{AppState, AppStateInner};
+use core::fs_helper;
+use core::state::AppState;
 use core::types::{ClipboardInfo, DiskInfo, FileAction, FileEntry, SpecialDirs};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
-use tauri::{command, AppHandle, Emitter, Manager, RunEvent, State};
+use tauri::{command, AppHandle, Manager, State};
 
 use tauri_setup::SetupState;
 
@@ -231,12 +232,10 @@ fn extract_archive_entry(
 #[command]
 fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
     use base64::Engine;
-    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
-    const MAX: usize = 2 * 1024 * 1024;
-    if bytes.len() > MAX {
-        return Err("File too large for preview".to_string());
-    }
-    let ext = std::path::Path::new(&path)
+    let p = std::path::Path::new(&path);
+    let bytes = fs_helper::read_file_limited(p, 2 * 1024 * 1024)
+        .map_err(|e| format!("Read failed: {}", e))?;
+    let ext = p
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
@@ -259,13 +258,15 @@ fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
 #[command]
 fn read_file_bytes(path: String) -> Result<String, String> {
     use base64::Engine;
-    let m = std::fs::metadata(&path).map_err(|e| format!("Stat: {}", e))?;
+    let p = std::path::Path::new(&path);
+    let m = fs_helper::metadata(p).map_err(|e| format!("Stat: {}", e))?;
     const MAX: u64 = 20 * 1024 * 1024;
     if m.len() > MAX {
         return Err("File too large".to_string());
     }
-    Ok(base64::engine::general_purpose::STANDARD
-        .encode(&std::fs::read(&path).map_err(|e| format!("Read: {}", e))?))
+    Ok(base64::engine::general_purpose::STANDARD.encode(
+        &fs_helper::read_file_limited(p, MAX as usize).map_err(|e| format!("Read: {}", e))?,
+    ))
 }
 
 #[command]
@@ -273,7 +274,8 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
     use crate::utils::encoding::{
         is_known_binary_ext, is_known_text_ext, is_probably_text, truncate_to_chars,
     };
-    let ext = std::path::Path::new(&path)
+    let p = std::path::Path::new(&path);
+    let ext = p
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
@@ -283,11 +285,11 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
     }
     const MAX: usize = 512 * 1024;
     const CHARS: usize = 10000;
-    let m = std::fs::metadata(&path).map_err(|e| format!("Stat: {}", e))?;
+    let m = fs_helper::metadata(p).map_err(|e| format!("Stat: {}", e))?;
     if m.len() > MAX as u64 {
         return Err("File too large".into());
     }
-    let bytes = std::fs::read(&path).map_err(|e| format!("Read: {}", e))?;
+    let bytes = fs_helper::read_file_limited(p, MAX).map_err(|e| format!("Read: {}", e))?;
     if !is_known_text_ext(&ext) && !is_probably_text(&bytes) {
         return Err("Binary file".into());
     }
@@ -301,13 +303,15 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
 
 #[command]
 fn copy_file_as(src: String, dest: String) -> Result<(), String> {
-    std::fs::copy(&src, &dest).map_err(|e| format!("Copy: {}", e))?;
+    fs_helper::copy_file(std::path::Path::new(&src), std::path::Path::new(&dest))
+        .map_err(|e| format!("Copy: {}", e))?;
     Ok(())
 }
 
 #[command]
 fn save_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, &content).map_err(|e| format!("Save: {}", e))
+    fs_helper::write_file(std::path::Path::new(&path), content.as_bytes())
+        .map_err(|e| format!("Save: {}", e))
 }
 
 // ── Undo ──
@@ -337,8 +341,8 @@ fn clear_window_state(app: AppHandle) -> Result<(), String> {
     use tauri::Manager;
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     if dir.exists() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
-        std::fs::create_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+        fs_helper::remove_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+        fs_helper::create_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
     }
     Ok(())
 }

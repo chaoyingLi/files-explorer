@@ -3,7 +3,7 @@
 use crate::core::state::AppState;
 use crate::tauri_setup::SetupState;
 use std::sync::{atomic::Ordering, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 pub async fn set_complete(
     app: AppHandle,

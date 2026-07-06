@@ -142,10 +142,11 @@ fn setup_window_close(app: &tauri::AppHandle) {
 }
 
 /// Run-event callback for platform-specific behaviour (e.g. macOS Dock Reopen).
-pub fn run_callback(app_handle: &tauri::AppHandle, event: RunEvent) {
+pub fn run_callback(_app_handle: &tauri::AppHandle, event: RunEvent) {
     // Platform-specific lifecycle hooks via the platform trait.
     // The Reopen event is the only one that differs across platforms.
     match event {
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => {
             if let Some(w) = app_handle.get_webview_window("main") {
                 let _ = w.show();

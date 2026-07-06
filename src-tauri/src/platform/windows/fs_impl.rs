@@ -104,9 +104,13 @@ fn resolve_lnk_via_com(lnk_path: &Path) -> Option<PathBuf> {
         // CLSID_ShellLink = {00021401-0000-0000-C000-000000000046}
         // IID_IShellLinkW  = {000214F9-0000-0000-C000-000000000046}
         // IID_IPersistFile = {0000010B-0000-0000-C000-000000000046}
-        let clsid_shelllink: [u32; 4] = [0x00021401, 0x0000, 0x0000, 0x46000000000000C0];
-        let iid_ishelllink: [u32; 4] = [0x000214F9, 0x0000, 0x0000, 0x46000000000000C0];
-        let iid_ipersistfile: [u32; 4] = [0x0000010B, 0x0000, 0x0000, 0x46000000000000C0];
+        // GUIDs as [u32; 4] (little-endian byte layout):
+        // {00021401-0000-0000-C000-000000000046}
+        let clsid_shelllink: [u32; 4] = [0x00021401, 0x0000, 0x000000C0, 0x46000000];
+        // {000214F9-0000-0000-C000-000000000046}
+        let iid_ishelllink: [u32; 4] = [0x000214F9, 0x0000, 0x000000C0, 0x46000000];
+        // {0000010B-0000-0000-C000-000000000046}
+        let iid_ipersistfile: [u32; 4] = [0x0000010B, 0x0000, 0x000000C0, 0x46000000];
 
         extern "system" {
             fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> i32;
@@ -151,14 +155,14 @@ fn resolve_lnk_via_com(lnk_path: &Path) -> Option<PathBuf> {
         let mut persist_file: *mut c_void = std::ptr::null_mut();
         let vtable = *(shell_link as *const *const c_void);
         let qi: unsafe extern "system" fn(*mut c_void, *const [u32; 4], *mut *mut c_void) -> i32 =
-            std::mem::transmute(*vtable);
+            std::mem::transmute(*((vtable as *const *const c_void).add(0)));
         let hr = qi(shell_link, &iid_ipersistfile, &mut persist_file);
 
         if hr < 0 || persist_file.is_null() {
             // Release IShellLinkW (IUnknown::Release = vtable[2])
             let vtable = *(shell_link as *const *const c_void);
             let release: unsafe extern "system" fn(*mut c_void) -> u32 =
-                std::mem::transmute(*vtable.add(2));
+                std::mem::transmute(*((vtable as *const *const c_void).add(2)));
             release(shell_link);
             CoUninitialize();
             return None;
@@ -172,18 +176,18 @@ fn resolve_lnk_via_com(lnk_path: &Path) -> Option<PathBuf> {
         // So Load is vtable[5]
         let pf_vtable = *(persist_file as *const *const c_void);
         let load: unsafe extern "system" fn(*mut c_void, *const u16, u32) -> i32 =
-            std::mem::transmute(*pf_vtable.add(5));
+            std::mem::transmute(*((pf_vtable as *const *const c_void).add(5)));
 
         let hr = load(persist_file, wide_path.as_ptr(), 0);
 
         if hr < 0 {
             // Release IPersistFile + IShellLinkW
             let pf_release: unsafe extern "system" fn(*mut c_void) -> u32 =
-                std::mem::transmute(*pf_vtable.add(2));
+                std::mem::transmute(*((pf_vtable as *const *const c_void).add(2)));
             pf_release(persist_file);
             let sl_vtable = *(shell_link as *const *const c_void);
             let sl_release: unsafe extern "system" fn(*mut c_void) -> u32 =
-                std::mem::transmute(*sl_vtable.add(2));
+                std::mem::transmute(*((sl_vtable as *const *const c_void).add(2)));
             sl_release(shell_link);
             CoUninitialize();
             return None;
@@ -198,7 +202,7 @@ fn resolve_lnk_via_com(lnk_path: &Path) -> Option<PathBuf> {
             i32,
             *mut c_void,
             u32,
-        ) -> i32 = std::mem::transmute(*sl_vtable.add(6));
+        ) -> i32 = std::mem::transmute(*((sl_vtable as *const *const c_void).add(6)));
 
         let mut buf = vec![0u16; 260]; // MAX_PATH
         let hr = get_path(
@@ -211,10 +215,10 @@ fn resolve_lnk_via_com(lnk_path: &Path) -> Option<PathBuf> {
 
         // Release both COM objects
         let pf_release: unsafe extern "system" fn(*mut c_void) -> u32 =
-            std::mem::transmute(*pf_vtable.add(2));
+            std::mem::transmute(*((pf_vtable as *const *const c_void).add(2)));
         pf_release(persist_file);
         let sl_release: unsafe extern "system" fn(*mut c_void) -> u32 =
-            std::mem::transmute(*sl_vtable.add(2));
+            std::mem::transmute(*((sl_vtable as *const *const c_void).add(2)));
         sl_release(shell_link);
         CoUninitialize();
 

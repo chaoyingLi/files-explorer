@@ -1,7 +1,7 @@
 // utils/time.rs
 // Time helpers — platform-independent.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Run a command with a timeout, returning its output.
 pub fn run_command_with_timeout(

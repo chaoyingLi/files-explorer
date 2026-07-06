@@ -1,5 +1,5 @@
 use crate::core::error::{FsError, FsResult};
-use std::fs;
+use crate::core::fs_helper;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -52,7 +52,7 @@ pub fn compress_zip(
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
     let dest_path = Path::new(&dest);
-    let file = fs::File::create(dest_path)
+    let file = fs_helper::file_create(dest_path)
         .map_err(|e| FsError::IoError(format!("Cannot create archive: {}", e)))?;
     let mut zip_writer = zip::ZipWriter::new(file);
     let options = zip::write::SimpleFileOptions::default()
@@ -91,7 +91,7 @@ pub fn compress_zip(
 
 fn count_files(path: &Path, count: &mut u64) {
     if path.is_dir() {
-        if let Ok(entries) = fs::read_dir(path) {
+        if let Ok(entries) = fs_helper::read_dir(path) {
             for e in entries.flatten() {
                 count_files(&e.path(), count);
             }
@@ -120,7 +120,7 @@ fn add_to_zip<W: Write + std::io::Seek>(
         let dir_name = relative.to_string_lossy().to_string() + "/";
         zip.add_directory(&dir_name, options)
             .map_err(|e| FsError::IoError(format!("Add dir: {}", e)))?;
-        if let Ok(entries) = fs::read_dir(src) {
+        if let Ok(entries) = fs_helper::read_dir(src) {
             for e in entries.flatten() {
                 add_to_zip(
                     zip,
@@ -138,7 +138,8 @@ fn add_to_zip<W: Write + std::io::Seek>(
         let name = relative.to_string_lossy().to_string();
         zip.start_file(&name, options)
             .map_err(|e| FsError::IoError(format!("Start file: {}", e)))?;
-        let mut f = fs::File::open(src).map_err(|e| FsError::IoError(format!("Open: {}", e)))?;
+        let mut f =
+            fs_helper::file_open(src).map_err(|e| FsError::IoError(format!("Open: {}", e)))?;
         let mut buf = [0u8; 8192];
         loop {
             let n = f
@@ -194,7 +195,8 @@ fn extract_zip(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs_helper::file_open(Path::new(archive))
+        .map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let mut zip =
         zip::ZipArchive::new(file).map_err(|e| FsError::IoError(format!("Open zip: {}", e)))?;
     let total = zip.len() as u64;
@@ -211,10 +213,10 @@ fn extract_zip(
         let safe_name = sanitize_archive_path(entry.name())?;
         let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.is_dir() {
-            fs::create_dir_all(&out_path).ok();
+            fs_helper::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent).ok();
+                fs_helper::create_dir_all(parent).ok();
             }
             // Check total size limit
             if entry.size() > EXTRACT_TOTAL_MAX
@@ -225,7 +227,7 @@ fn extract_zip(
                 ));
             }
             total_extracted += entry.size();
-            let mut out = fs::File::create(&out_path)
+            let mut out = fs_helper::file_create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)
                 .map_err(|e| FsError::IoError(format!("Extract: {}", e)))?;
@@ -249,7 +251,8 @@ fn extract_tar(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs_helper::file_open(Path::new(archive))
+        .map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let mut tar = tar::Archive::new(file);
     let entries: Vec<_> = tar
         .entries()
@@ -272,10 +275,10 @@ fn extract_tar(
         let safe_name = sanitize_archive_path(&raw_path)?;
         let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.header().entry_type().is_dir() {
-            fs::create_dir_all(&out_path).ok();
+            fs_helper::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent).ok();
+                fs_helper::create_dir_all(parent).ok();
             }
             if total_extracted + entry.size() > EXTRACT_TOTAL_MAX {
                 return Err(FsError::Other(
@@ -283,7 +286,7 @@ fn extract_tar(
                 ));
             }
             total_extracted += entry.size();
-            let mut out = fs::File::create(&out_path)
+            let mut out = fs_helper::file_create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)
                 .map_err(|e| FsError::IoError(format!("Extract: {}", e)))?;
@@ -307,7 +310,8 @@ fn extract_tar_gz(
     dest_dir: &str,
     cancel: Arc<AtomicBool>,
 ) -> FsResult<()> {
-    let file = fs::File::open(archive).map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
+    let file = fs_helper::file_open(Path::new(archive))
+        .map_err(|e| FsError::NotFound(format!("Archive: {}", e)))?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut tar = tar::Archive::new(decoder);
     let entries: Vec<_> = tar
@@ -331,10 +335,10 @@ fn extract_tar_gz(
         let safe_name = sanitize_archive_path(&raw_path)?;
         let out_path = Path::new(dest_dir).join(&safe_name);
         if entry.header().entry_type().is_dir() {
-            fs::create_dir_all(&out_path).ok();
+            fs_helper::create_dir_all(&out_path).ok();
         } else {
             if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent).ok();
+                fs_helper::create_dir_all(parent).ok();
             }
             if total_extracted + entry.size() > EXTRACT_TOTAL_MAX {
                 return Err(FsError::Other(
@@ -342,7 +346,7 @@ fn extract_tar_gz(
                 ));
             }
             total_extracted += entry.size();
-            let mut out = fs::File::create(&out_path)
+            let mut out = fs_helper::file_create(&out_path)
                 .map_err(|e| FsError::IoError(format!("Create: {}", e)))?;
             std::io::copy(&mut entry, &mut out)
                 .map_err(|e| FsError::IoError(format!("Extract: {}", e)))?;
@@ -399,7 +403,7 @@ pub fn list_archive_contents(path: String) -> Result<Vec<ArchiveEntry>, String> 
 }
 
 fn list_zip(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let file = fs_helper::file_open(Path::new(path)).map_err(|e| format!("Open: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Zip: {}", e))?;
     let mut result = Vec::new();
     for i in 0..archive.len() {
@@ -445,24 +449,24 @@ fn list_tar_entries<R: std::io::Read>(
 }
 
 fn list_tar_archive(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let file = fs_helper::file_open(Path::new(path)).map_err(|e| format!("Open: {}", e))?;
     let mut a = tar::Archive::new(file);
     list_tar_entries(&mut a)
 }
 fn list_tar_gz_list(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let file = fs_helper::file_open(Path::new(path)).map_err(|e| format!("Open: {}", e))?;
     let gz = flate2::read::GzDecoder::new(file);
     let mut a = tar::Archive::new(gz);
     list_tar_entries(&mut a)
 }
 fn list_tar_bz2_list(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let file = fs_helper::file_open(Path::new(path)).map_err(|e| format!("Open: {}", e))?;
     let bz2 = bzip2::read::BzDecoder::new(file);
     let mut a = tar::Archive::new(bz2);
     list_tar_entries(&mut a)
 }
 fn list_tar_xz_list(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Open: {}", e))?;
+    let file = fs_helper::file_open(Path::new(path)).map_err(|e| format!("Open: {}", e))?;
     let xz = xz2::read::XzDecoder::new(file);
     let mut a = tar::Archive::new(xz);
     list_tar_entries(&mut a)
@@ -599,7 +603,7 @@ pub fn extract_archive_entry(
     let tmp = crate::platform::path_provider().temp_dir();
     let out = tmp.join(&safe);
     if let Some(p) = out.parent() {
-        std::fs::create_dir_all(p).map_err(|e| format!("{}", e))?;
+        fs_helper::create_dir_all(p).map_err(|e| format!("{}", e))?;
     }
     match ext.as_str() {
         "zip" => ext_zip(&archive_path, &entry_path, &out),
@@ -628,7 +632,7 @@ pub fn extract_archive_entry(
 }
 
 fn ext_zip(a: &str, entry: &str, out: &Path) -> Result<(), String> {
-    let f = std::fs::File::open(a).map_err(|x| format!("{}", x))?;
+    let f = fs_helper::file_open(Path::new(a)).map_err(|x| format!("{}", x))?;
     let mut za = zip::ZipArchive::new(f).map_err(|x| format!("{}", x))?;
     let idx = (0..za.len())
         .find(|i| {
@@ -644,14 +648,14 @@ fn ext_zip(a: &str, entry: &str, out: &Path) -> Result<(), String> {
     if ze.size() > EXTRACT_MAX_SIZE {
         return Err("File too large".into());
     }
-    let mut of = std::fs::File::create(out).map_err(|x| format!("{}", x))?;
+    let mut of = fs_helper::file_create(out).map_err(|x| format!("{}", x))?;
     std::io::copy(&mut ze, &mut of).map_err(|x| format!("{}", x))?;
     Ok(())
 }
 
 fn ext_tar(a: &str, e: &str, out: &Path, comp: Option<&str>) -> Result<(), String> {
     use std::io::Read;
-    let f = std::fs::File::open(a).map_err(|x| format!("{}", x))?;
+    let f = fs_helper::file_open(Path::new(a)).map_err(|x| format!("{}", x))?;
     let mut t: tar::Archive<Box<dyn Read>> = match comp {
         Some("gz") => tar::Archive::new(Box::new(flate2::read::GzDecoder::new(f))),
         Some("bz2") => tar::Archive::new(Box::new(bzip2::read::BzDecoder::new(f))),
@@ -666,7 +670,7 @@ fn ext_tar(a: &str, e: &str, out: &Path, comp: Option<&str>) -> Result<(), Strin
             if entry.size() > EXTRACT_MAX_SIZE {
                 return Err("File too large".into());
             }
-            let mut of = std::fs::File::create(out).map_err(|x| format!("{}", x))?;
+            let mut of = fs_helper::file_create(out).map_err(|x| format!("{}", x))?;
             std::io::copy(&mut entry, &mut of).map_err(|x| format!("{}", x))?;
             return Ok(());
         }
@@ -690,7 +694,7 @@ fn ext_7z(a: &str, e: &str, out: &Path) -> Result<(), String> {
                     "too large",
                 )));
             }
-            let mut of = std::fs::File::create(out)
+            let mut of = fs_helper::file_create(out)
                 .map_err(|_| sevenz_rust::Error::Other(std::borrow::Cow::Borrowed("io")))?;
             std::io::copy(reader, &mut of).ok();
         }

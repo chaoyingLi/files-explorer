@@ -1,7 +1,7 @@
 // utils/encoding.rs
 // Encoding helpers (base64, text detection, charset).
 
-use std::path::Path;
+
 
 /// Known text/code extensions — always preview as text.
 pub fn is_known_text_ext(ext: &str) -> bool {

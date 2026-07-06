@@ -34,8 +34,9 @@ impl PlatformPath for PathImpl {
         std::env::var("USERPROFILE")
             .map(PathBuf::from)
             .or_else(|_| {
-                std::env::var("HOMEDRIVE")
-                    .and_then(|d| std::env::var("HOMEPATH").map(|p| PathBuf::from(d + &p)))
+                std::env::var("HOMEDRIVE").and_then(|d| {
+                    std::env::var("HOMEPATH").map(|p| PathBuf::from(format!("{d}{p}")))
+                })
             })
             .unwrap_or_else(|_| PathBuf::from("."))
     }
@@ -86,7 +87,7 @@ fn home() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|_| {
             std::env::var("HOMEDRIVE")
-                .and_then(|d| std::env::var("HOMEPATH").map(|p| PathBuf::from(d + &p)))
+                .and_then(|d| std::env::var("HOMEPATH").map(|p| PathBuf::from(format!("{d}{p}"))))
         })
         .unwrap_or_else(|_| PathBuf::from("."))
 }

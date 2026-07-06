@@ -8,8 +8,8 @@
 //   - File     → JSON, daily rotation, 10 MB cap, auto‑clean 15‑day‑old logs
 //   - Panic    → captured via std::panic::set_hook, written as tracing::error!
 
+use crate::core::fs_helper;
 use crate::platform;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
@@ -28,7 +28,7 @@ pub fn init() {
     let log_dir = platform::path_provider().app_log_dir();
 
     // Ensure directory exists (best-effort; if it fails we still have console).
-    let _ = fs::create_dir_all(&log_dir);
+    let _ = fs_helper::create_dir_all(&log_dir);
 
     // Clean up logs older than 15 days before opening the appender.
     cleanup_old_logs(&log_dir, 15);
@@ -98,7 +98,7 @@ fn cleanup_old_logs(log_dir: &PathBuf, max_age_days: u64) {
         .as_secs()
         .saturating_sub(max_age_days * 86400);
 
-    if let Ok(entries) = fs::read_dir(log_dir) {
+    if let Ok(entries) = fs_helper::read_dir(log_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("log") {
@@ -108,7 +108,7 @@ fn cleanup_old_logs(log_dir: &PathBuf, max_age_days: u64) {
                 if let Ok(mtime) = meta.modified() {
                     if let Ok(secs) = mtime.duration_since(std::time::UNIX_EPOCH) {
                         if secs.as_secs() < cutoff {
-                            let _ = fs::remove_file(&path);
+                            let _ = fs_helper::remove_file(&path);
                         }
                     }
                 }

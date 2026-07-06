@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 
 /// Extract a timestamp from file metadata using the given getter.
+///
+/// # Deprecated
+/// Use `platform::fs_ext_provider().modified_time()` / `created_time()` instead.
+#[deprecated(note = "Use platform::fs_ext_provider().modified_time() / created_time()")]
 pub fn ts_from_metadata(
     metadata: &fs::Metadata,
     getter: fn(&fs::Metadata) -> Result<std::time::SystemTime, std::io::Error>,

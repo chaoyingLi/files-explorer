@@ -6,8 +6,6 @@ use crate::core::fs_helper;
 use crate::core::state::AppState;
 use crate::core::types::{ActionKind, ClipboardInfo, FileAction, MAX_UNDO_HISTORY};
 use crate::platform;
-use log;
-use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
@@ -75,12 +73,13 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
                     if src.is_dir() {
                         fs_helper::copy_recursive(src, &dp)?;
                         if is_cut {
-                            fs::remove_dir_all(src).map_err(|e| op_err("Remove failed", e))?;
+                            fs_helper::remove_dir_all(src)
+                                .map_err(|e| op_err("Remove failed", e))?;
                         }
                     } else {
-                        fs::copy(src, &dp).map_err(|e| op_err("Copy failed", e))?;
+                        fs_helper::copy_file(src, &dp).map_err(|e| op_err("Copy failed", e))?;
                         if is_cut {
-                            fs::remove_file(src).map_err(|e| op_err("Remove failed", e))?;
+                            fs_helper::remove_file(src).map_err(|e| op_err("Remove failed", e))?;
                         }
                     }
                     let mut inner = state
@@ -129,12 +128,14 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
             if src_path.is_dir() {
                 fs_helper::copy_recursive(src_path, &dest_path)?;
                 if is_cut {
-                    fs::remove_dir_all(src_path).map_err(|e| op_err("Failed to remove", e))?;
+                    fs_helper::remove_dir_all(src_path)
+                        .map_err(|e| op_err("Failed to remove", e))?;
                 }
             } else {
-                fs::copy(src_path, &dest_path).map_err(|e| op_err("Failed to copy", e))?;
+                fs_helper::copy_file(src_path, &dest_path)
+                    .map_err(|e| op_err("Failed to copy", e))?;
                 if is_cut {
-                    fs::remove_file(src_path).map_err(|e| op_err("Failed to remove", e))?;
+                    fs_helper::remove_file(src_path).map_err(|e| op_err("Failed to remove", e))?;
                 }
             }
             if !is_cut {
