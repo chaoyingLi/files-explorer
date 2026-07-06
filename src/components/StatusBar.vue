@@ -1,15 +1,61 @@
 <template>
     <div class="status-bar" @contextmenu.prevent.stop>
         <div class="status-left">
-            <span>{{ statusText }}</span>
+            <button
+                v-if="terminalMaximized"
+                class="status-indicator"
+                :title="$t('terminal.restore')"
+                @click="$emit('restoreTerminal')"
+            >
+                <span class="indicator-dot" />
+                {{ $t("terminal.maximized") }}
+            </button>
+            <span v-else>{{ statusText }}</span>
         </div>
         <div class="status-right">
+            <button
+                class="status-btn"
+                :title="$t('statusBar.terminal') + ' (Ctrl+`)'"
+                @click="$emit('toggleTerminal')"
+            >
+                <svg
+                    viewBox="0 0 16 16"
+                    width="12"
+                    height="12"
+                    fill="currentColor"
+                >
+                    <path
+                        d="M1.5 2.5l4 3-4 3M6.5 10h3"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+            </button>
             <button
                 class="status-btn"
                 :title="$t('properties.title')"
                 @click="$emit('toggleProperties')"
             >
-                ⓘ
+                <svg
+                    viewBox="0 0 16 16"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                >
+                    <rect x="2" y="2" width="8" height="12" rx="1" />
+                    <line
+                        x1="11.5"
+                        y1="2"
+                        x2="11.5"
+                        y2="14"
+                        stroke-linecap="round"
+                    />
+                </svg>
             </button>
             <span v-if="store.loading" class="loading-indicator">
                 <div
@@ -28,7 +74,15 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { displayPath } from "@/utils/platform";
 
-defineEmits<{ toggleProperties: [] }>();
+const props = defineProps<{
+    terminalMaximized?: boolean;
+}>();
+
+defineEmits<{
+    toggleProperties: [];
+    toggleTerminal: [];
+    restoreTerminal: [];
+}>();
 
 const { t } = useI18n();
 const store = useFileStore();
@@ -104,5 +158,29 @@ const itemCount = computed(() => {
 .status-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--accent);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+.status-indicator:hover {
+    background: var(--bg-hover);
+}
+
+.indicator-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
 }
 </style>

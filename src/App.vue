@@ -65,7 +65,19 @@
             @confirm="actions.handleDeleteConfirm"
             @cancel="del.cancelDelete()"
         />
-        <StatusBar @toggle-properties="toggleProperties" />
+        <TerminalPanel
+            :visible="showTerminal"
+            :height="terminalHeight"
+            @close="showTerminal = false"
+            @update:height="terminalHeight = $event"
+            @update:maximized="terminalMaximized = $event"
+        />
+        <StatusBar
+            :terminal-maximized="terminalMaximized"
+            @toggle-properties="toggleProperties"
+            @toggle-terminal="showTerminal = !showTerminal"
+            @restore-terminal="terminalMaximized = false"
+        />
         <ContextMenu
             v-if="ctx.showContextMenu.value"
             :x="ctx.contextMenuPos.value.x"
@@ -149,6 +161,7 @@ import SettingsDialog from "@/components/Dialogs/SettingsDialog.vue";
 import ClearCacheDialog from "@/components/Dialogs/ClearCacheDialog.vue";
 import PropertiesPanel from "@/components/PropertiesPanel.vue";
 import PreviewWindow from "@/components/PreviewWindow.vue";
+import TerminalPanel from "@/components/TerminalPanel.vue";
 
 import { useToast } from "@/composables/useToast";
 import { useContextMenu } from "@/composables/useContextMenu";
@@ -170,6 +183,9 @@ const view = useViewStore();
 const showSettings = ref(false);
 const showClearCache = ref(false);
 const showProperties = ref(true);
+const showTerminal = ref(false);
+const terminalHeight = ref(250);
+const terminalMaximized = ref(false);
 
 // ── Detect preview window mode ──
 const isPreviewWindow = computed(() =>
@@ -530,6 +546,18 @@ onMounted(async () => {
     onUnmounted(() => {
         _ndu?.();
     });
+
+    // ── Terminal toggle shortcut (Ctrl+`) ──
+    const onTerminalKey = (e: KeyboardEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === "`" || e.code === "Backquote") {
+                e.preventDefault();
+                showTerminal.value = !showTerminal.value;
+            }
+        }
+    };
+    window.addEventListener("keydown", onTerminalKey);
+    onUnmounted(() => window.removeEventListener("keydown", onTerminalKey));
 
     // ── Initialization (only if no session restored) ──
     const allPanes = tabStore.getAllPanes();

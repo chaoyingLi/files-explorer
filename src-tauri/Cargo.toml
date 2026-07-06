@@ -62,6 +62,9 @@ sevenz-rust = "0.6"
 # Clipboard fallback (used on Linux; macOS/Windows have native impls)
 arboard = "3"
 
+# Cross-platform PTY (terminal)
+portable-pty = "0.8"
+
 # ══════════════════════════════════════════════════════════════
 # Windows only — .lnk resolution + GDI→PNG icon extraction
 # ══════════════════════════════════════════════════════════════
