@@ -66,7 +66,7 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-## 开发 files-explorer（Tauri2+Rust 文件管理器），严格遵守项目重构后开发约束，生成代码必须满足以下全部规则，违规代码不予采用：
+## 5.开发 files-explorer（Tauri2+Rust 文件管理器），严格遵守项目重构后开发约束，生成代码必须满足以下全部规则，违规代码不予采用：
 ### Rust后端约束
 1. 所有 #[cfg(target_os)] 仅允许放在 src-tauri/src/platform/，commands/fs/search/preview/core 禁止任何平台判断；
 2. 系统目录统一调用 crate::platform::paths()，禁止硬编码 %APPDATA / ~/Library / ~/.config、手动拼接 / \；
