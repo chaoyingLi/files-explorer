@@ -229,7 +229,7 @@ export function useFileActions(
                 .split("/")
                 .pop()
                 ?.replace(/\.[^.]+$/, "") || "extracted";
-            const destDir = base + "/" + name;
+            const destDir = tauri.joinPath(base, name);
             await tauri.extractArchive(archivePath, destDir);
             toast.show(t("toast.extracted"));
             await store.refresh();

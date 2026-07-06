@@ -326,6 +326,15 @@ npm run tauri build
 
 ## 📜 更新日志
 
+### v0.2.0
+
+- 🏗️ **平台抽象重构** — `#[cfg(target_os)]` 全部收敛至 `platform/` 层，消除 `tauri_setup.rs` 中的平台泄漏
+- 🎯 **统一错误类型** — 所有 Tauri Command 返回 `Result<T, AppError>`，替代散落的 `Result<T, String>`，结构化错误 + 自动 tracing 日志
+- ⭐ **收藏夹增强** — 右键书签菜单：移除收藏（确认对话框）+ 重命名（输入框），`settingsStore` 新增 `renameBookmark`
+- 🧭 **路径标准化** — `normalizePath()` 统一前端→后端路径格式，`displayPath()` 适配 Windows 原生 `\` 显示
+- 📍 **地址栏/状态栏/标题栏** — 路径显示按平台自适应分隔符
+- 🔧 **内部清理** — `clear_window_state` 路径统一使用 `platform::path_provider()`，消除 `commands/` 模块中的重复实现
+
 ### v0.1.5
 
 - 🎬 视频播放器：xgplayer → DPlayer（更轻量、全屏可靠、内置截图/热键）

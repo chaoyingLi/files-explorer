@@ -1,10 +1,17 @@
+// core/types.rs
+// Shared types used across core, commands, and the frontend.
+
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::time::SystemTime;
 
+/// Extract a timestamp from file metadata using the given getter.
+///
+/// # Deprecated
+/// Use `platform::fs_ext_provider().modified_time()` / `created_time()` instead.
+#[deprecated(note = "Use platform::fs_ext_provider().modified_time() / created_time()")]
 pub fn ts_from_metadata(
     metadata: &fs::Metadata,
-    getter: fn(&fs::Metadata) -> Result<SystemTime, std::io::Error>,
+    getter: fn(&fs::Metadata) -> Result<std::time::SystemTime, std::io::Error>,
 ) -> i64 {
     getter(metadata)
         .ok()

@@ -75,7 +75,7 @@
         </div>
         <div class="titlebar-center">
             <span class="titlebar-path" v-if="store.currentPath">{{
-                store.currentPath
+                displayPath(store.currentPath)
             }}</span>
         </div>
         <!-- Settings gear + window controls (platform-specific) -->
@@ -200,6 +200,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { displayPath } from "@/utils/platform";
 import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
 import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 

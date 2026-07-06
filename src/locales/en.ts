@@ -33,6 +33,8 @@ export default {
     addToFavorites: "Added to favorites",
     dropToBookmark: "Drop folders here to bookmark",
     removeBookmark: 'Remove "{label}" from favorites?',
+    renameBookmark: "Rename bookmark",
+    renamePrompt: "Enter new name",
   },
   search: {
     resultsTabTitle: 'Results of "{query}" in {folder}',

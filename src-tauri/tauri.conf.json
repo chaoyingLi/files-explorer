@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicepkg/vscode-tauri/main/schemas/config.schema.json",
   "productName": "Files Explorer",
-  "version": "0.1.5",
-  "identifier": "com.files-explorer.desktop",
+  "version": "0.2.0",
+    "identifier": "com.files-explorer.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420",
@@ -41,7 +41,9 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
@@ -51,11 +53,27 @@
     }
   },
   "bundle": {
-    "icon": ["icons/icon.png", "icons/icon.ico"],
     "active": true,
     "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "copyright": "",
+    "category": "Utility",
+    "shortDescription": "Cross-platform file manager",
+    "longDescription": "Files Explorer \u2014 a modern, cross-platform file manager built with Tauri.",
     "windows": {
-      "wix": null
-    }
+      "wix": null,
+      "nsis": null
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {}
   }
 }

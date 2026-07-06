@@ -1,6 +1,6 @@
 [package]
 name = "files-explorer"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -14,35 +14,68 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# ══════════════════════════════════════════════════════════════
+# Shared — all platforms need these at both compile and runtime
+# ══════════════════════════════════════════════════════════════
 [dependencies]
+# Tauri core + plugins
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2.4.1"
+
+# Serialisation
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# File-system walker (search)
 walkdir = "2"
-chrono = { version = "0.4", features = ["serde"] }
+
+# Trash / recycle bin
 trash = "3"
+
+# Cross-platform file opener
 opener = "0.7"
+
+# Logging + error handling
 log = "0.4"
-simplelog = "0.12"
-arboard = "3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time"] }
+tracing-appender = "0.2"
+thiserror = "1"
+
+# System directories (Desktop, Documents, Downloads, etc.)
 dirs = "6"
+
+# Base64 encoding (file previews, icons)
 base64 = "0.22"
+
+# Archive handling
 zip = "2"
 tar = "0.4"
 flate2 = "1"
 bzip2 = "0.4"
 xz2 = "0.1"
 sevenz-rust = "0.6"
+
+# Clipboard fallback (used on Linux; macOS/Windows have native impls)
+arboard = "3"
+
+# ══════════════════════════════════════════════════════════════
+# Windows only — .lnk resolution + GDI→PNG icon extraction
+# ══════════════════════════════════════════════════════════════
+[target.'cfg(target_os = "windows")'.dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 
+# ══════════════════════════════════════════════════════════════
+# macOS only — NSPasteboard (clipboard), NSWorkspace (icon)
+# ══════════════════════════════════════════════════════════════
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 
+# ══════════════════════════════════════════════════════════════
+# Unix (macOS + Linux) — libc for statvfs/statfs drive enumeration
+# ══════════════════════════════════════════════════════════════
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
-tauri-plugin-window-state = "2.4.1"
