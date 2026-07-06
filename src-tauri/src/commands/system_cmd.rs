@@ -1,6 +1,8 @@
 // commands/system_cmd.rs
 // System-related Tauri commands — delegate to platform trait.
 
+use crate::core::error::AppResult;
+use crate::core::fs_helper;
 use crate::core::types::{DiskInfo, SpecialDirs};
 use crate::platform;
 
@@ -72,11 +74,11 @@ pub fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, String> {
     platform::system_provider().start_native_drag(&paths)
 }
 
-pub fn clear_window_state(_app: tauri::AppHandle) -> Result<(), String> {
+pub fn clear_window_state() -> AppResult<()> {
     let dir = crate::platform::path_provider().app_data_dir();
     if dir.exists() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
-        std::fs::create_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+        fs_helper::remove_dir_all(&dir)?;
+        fs_helper::create_dir_all(&dir)?;
     }
     Ok(())
 }

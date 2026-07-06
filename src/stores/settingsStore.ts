@@ -186,6 +186,15 @@ export const useSettingsStore = defineStore("settings", () => {
     return bookmarks.value.some((b) => b.path.replace(/\\/g, "/") === norm);
   }
 
+  function renameBookmark(path: string, newLabel: string) {
+    const norm = path.replace(/\\/g, "/");
+    const bm = bookmarks.value.find((b) => b.path.replace(/\\/g, "/") === norm);
+    if (bm) {
+      bm.label = newLabel;
+      saveBookmarks(bookmarks.value);
+    }
+  }
+
   function persist() {
     saveSettings({
       theme: theme.value,
@@ -210,6 +219,7 @@ export const useSettingsStore = defineStore("settings", () => {
     bookmarks,
     addBookmark,
     removeBookmark,
+    renameBookmark,
     hasBookmark,
     setTheme,
     setLocale,

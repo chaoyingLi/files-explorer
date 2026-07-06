@@ -26,6 +26,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
+import { displayPath } from "@/utils/platform";
 
 defineEmits<{ toggleProperties: [] }>();
 
@@ -34,7 +35,7 @@ const store = useFileStore();
 
 const statusText = computed(() => {
     if (!store.currentPath) return t("statusBar.thisPc");
-    return store.currentPath;
+    return displayPath(store.currentPath);
 });
 
 const itemCount = computed(() => {

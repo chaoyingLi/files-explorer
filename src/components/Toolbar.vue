@@ -230,6 +230,7 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { displayPath } from "@/utils/platform";
 
 const { t, locale } = useI18n();
 const store = useFileStore();
@@ -325,7 +326,7 @@ const selectedIdx = ref(0);
 watch(
     () => store.currentPath,
     (p) => {
-        if (p) addressValue.value = p;
+        if (p) addressValue.value = displayPath(p);
     },
     { immediate: true },
 );

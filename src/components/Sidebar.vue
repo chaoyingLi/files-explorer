@@ -1,5 +1,9 @@
 <template>
-    <div class="sidebar" :style="{ width: width + 'px' }">
+    <div
+        class="sidebar"
+        :style="{ width: width + 'px' }"
+        @click="closeBookmarkMenu"
+    >
         <!-- Home / This PC -->
         <div class="sidebar-list">
             <div
@@ -115,20 +119,60 @@
 
         <!-- Resize handle -->
         <div class="sidebar-resize-handle" @mousedown.stop="onResizeStart" />
+
+        <ContextMenu
+            v-if="showBookmarkMenu"
+            :x="bookmarkMenuPos.x"
+            :y="bookmarkMenuPos.y"
+            :items="bookmarkMenuItems"
+            @close="closeBookmarkMenu"
+            @action="onBookmarkMenuAction"
+        />
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSettingsStore, type Bookmark } from "@/stores/settingsStore";
 import type { DiskInfo } from "@/types";
+import type { ContextMenuOption } from "@/types";
 import { ask } from "@tauri-apps/plugin-dialog";
+import ContextMenu from "./ContextMenu.vue";
 
 const { t } = useI18n();
 const store = useFileStore();
 const settings = useSettingsStore();
+
+// ── Bookmark context menu state ──
+const showBookmarkMenu = ref(false);
+const bookmarkMenuPos = ref({ x: 0, y: 0 });
+const selectedBookmark = ref<Bookmark | null>(null);
+
+// Menu icons (14x14 SVG paths, from useContextMenu)
+const I = {
+    delete: `<svg viewBox="0 0 14 14"><path d="M3 3.5h8M5.5 3V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5V3" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 3.5v8a1 1 0 001 1h4a1 1 0 001-1v-8" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
+    rename: `<svg viewBox="0 0 14 14"><path d="M3 11l3-7.5L7.5 7l-3 4H3zm4.5-8l1.5 1.5M10 2l2 2-4 4-2.5-.5L6 4.5 10 2z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>`,
+};
+
+const bookmarkMenuItems = computed<ContextMenuOption[]>(() => [
+    {
+        label: t("contextMenu.removeFromFavorites"),
+        action: "removeBookmark",
+        icon: I.delete,
+    },
+    {
+        label: t("sidebar.renameBookmark"),
+        action: "renameBookmark",
+        icon: I.rename,
+    },
+]);
+
+function closeBookmarkMenu() {
+    showBookmarkMenu.value = false;
+    selectedBookmark.value = null;
+}
 
 const props = defineProps<{ width: number }>();
 const emit = defineEmits<{
@@ -211,13 +255,32 @@ async function handleQuickAccess(path: string) {
 
 async function onBookmarkContext(bm: Bookmark, e: MouseEvent) {
     e.preventDefault();
-    const label = bm.label;
-    const confirmed = await ask(t("sidebar.removeBookmark", { label }), {
-        kind: "warning",
-    });
-    if (confirmed) {
-        settings.removeBookmark(bm.path);
+    e.stopPropagation();
+    selectedBookmark.value = bm;
+    bookmarkMenuPos.value = { x: e.clientX, y: e.clientY };
+    showBookmarkMenu.value = true;
+}
+
+async function onBookmarkMenuAction(action: string) {
+    const bm = selectedBookmark.value;
+    if (!bm) return;
+    closeBookmarkMenu();
+
+    if (action === "removeBookmark") {
+        const label = bm.label;
+        const confirmed = await ask(t("sidebar.removeBookmark", { label }), {
+            kind: "warning",
+        });
+        if (confirmed) {
+            settings.removeBookmark(bm.path);
+        }
+    } else if (action === "renameBookmark") {
+        const newLabel = prompt(t("sidebar.renamePrompt"), bm.label);
+        if (newLabel && newLabel.trim() && newLabel.trim() !== bm.label) {
+            settings.renameBookmark(bm.path, newLabel.trim());
+        }
     }
+    selectedBookmark.value = null;
 }
 
 function onResizeStart(e: MouseEvent) {

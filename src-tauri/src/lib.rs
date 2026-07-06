@@ -30,12 +30,12 @@ async fn set_complete(
     app: AppHandle,
     state: State<'_, Mutex<SetupState>>,
     task: String,
-) -> Result<(), String> {
-    let mut state_lock = state.lock().map_err(|e| e.to_string())?;
+) -> Result<(), FsError> {
+    let mut state_lock = state.lock().map_err(|e| FsError::Other(e.to_string()))?;
     match task.as_str() {
         "frontend" => state_lock.frontend_task = true,
         "backend" => state_lock.backend_task = true,
-        _ => return Err("invalid task".into()),
+        _ => return Err(FsError::Other("invalid task".into())),
     }
     if state_lock.backend_task && state_lock.frontend_task {
         if let Some(splash) = app.get_webview_window("splashscreen") {
@@ -51,22 +51,22 @@ async fn set_complete(
 
 // ── Files ──
 #[command]
-fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
+fn list_directory(path: String) -> Result<Vec<FileEntry>, FsError> {
     use std::path::Path;
-    crate::core::fs_helper::list_directory(Path::new(&path), false).map_err(|e| e.to_string())
+    crate::core::fs_helper::list_directory(Path::new(&path), false)
 }
 #[command]
 fn list_directory_streamed(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-) -> Result<(), String> {
+) -> Result<(), FsError> {
     crate::commands::file_cmd::list_directory_streamed(app, state, path)
+        .map_err(|e| FsError::Other(e))
 }
 #[command]
-fn get_file_info(path: String) -> Result<FileEntry, String> {
+fn get_file_info(path: String) -> Result<FileEntry, FsError> {
     crate::core::fs_helper::file_entry_from_path(std::path::Path::new(&path))
-        .map_err(|e| e.to_string())
 }
 #[command]
 fn path_exists(path: String) -> bool {
@@ -75,11 +75,11 @@ fn path_exists(path: String) -> bool {
 
 // ── Drives ──
 #[command]
-fn get_drives() -> Result<Vec<DiskInfo>, String> {
+fn get_drives() -> Result<Vec<DiskInfo>, FsError> {
     Ok(crate::platform::system_provider().get_drives())
 }
 #[command]
-fn get_special_dirs() -> Result<SpecialDirs, String> {
+fn get_special_dirs() -> Result<SpecialDirs, FsError> {
     let p = crate::platform::path_provider();
     Ok(SpecialDirs {
         home: p.home_dir().to_string_lossy().to_string(),
@@ -147,56 +147,72 @@ fn search_files(
     state: State<AppState>,
     directory: String,
     query: String,
-) -> Result<(), String> {
+) -> Result<(), FsError> {
     search::search_files(app, state, directory, query)
 }
 #[command]
-fn cancel_search(state: State<AppState>) -> Result<(), String> {
+fn cancel_search(state: State<AppState>) -> Result<(), FsError> {
     search::cancel_search(state)
 }
 
 // ── System (delegated to platform trait) ──
 #[command]
-fn open_file(path: String) -> Result<(), String> {
-    crate::platform::system_provider().open_file(std::path::Path::new(&path))
+fn open_file(path: String) -> Result<(), FsError> {
+    crate::platform::system_provider()
+        .open_file(std::path::Path::new(&path))
+        .map_err(FsError::Other)
 }
 #[command]
-fn open_in_terminal(path: String) -> Result<(), String> {
+fn open_in_terminal(path: String) -> Result<(), FsError> {
     let p = std::path::Path::new(&path);
     let dir = if p.is_dir() {
         p
     } else {
         p.parent().unwrap_or(p)
     };
-    crate::platform::system_provider().open_terminal(dir)
+    crate::platform::system_provider()
+        .open_terminal(dir)
+        .map_err(FsError::Other)
 }
 #[command]
-fn show_in_explorer(path: String) -> Result<(), String> {
-    crate::platform::system_provider().show_in_file_manager(std::path::Path::new(&path))
+fn show_in_explorer(path: String) -> Result<(), FsError> {
+    crate::platform::system_provider()
+        .show_in_file_manager(std::path::Path::new(&path))
+        .map_err(FsError::Other)
 }
 #[command]
-fn show_file_properties(path: String) -> Result<(), String> {
-    crate::platform::system_provider().show_properties(std::path::Path::new(&path))
+fn show_file_properties(path: String) -> Result<(), FsError> {
+    crate::platform::system_provider()
+        .show_properties(std::path::Path::new(&path))
+        .map_err(FsError::Other)
 }
 #[command]
-fn print_file(path: String) -> Result<(), String> {
-    crate::platform::system_provider().print_file(std::path::Path::new(&path))
+fn print_file(path: String) -> Result<(), FsError> {
+    crate::platform::system_provider()
+        .print_file(std::path::Path::new(&path))
+        .map_err(FsError::Other)
 }
 #[command]
-fn get_file_icon(path: String) -> Result<String, String> {
+fn get_file_icon(path: String) -> Result<String, FsError> {
     use base64::Engine;
-    let png = crate::platform::system_provider().get_file_icon(std::path::Path::new(&path))?;
+    let png = crate::platform::system_provider()
+        .get_file_icon(std::path::Path::new(&path))
+        .map_err(FsError::Other)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(&png))
 }
 #[command]
-fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, String> {
-    crate::platform::system_provider().start_native_drag(&paths)
+fn start_native_drag_cmd(paths: Vec<String>) -> Result<String, FsError> {
+    crate::platform::system_provider()
+        .start_native_drag(&paths)
+        .map_err(FsError::Other)
 }
 
 // ── Auto-start ──
 #[command]
-fn set_auto_start(enabled: bool) -> Result<(), String> {
-    crate::platform::system_provider().set_auto_start(enabled)
+fn set_auto_start(enabled: bool) -> Result<(), FsError> {
+    crate::platform::system_provider()
+        .set_auto_start(enabled)
+        .map_err(FsError::Other)
 }
 #[command]
 fn is_auto_start_enabled() -> bool {
@@ -217,24 +233,24 @@ fn extract_archive_cmd(app: AppHandle, archive: String, dest_dir: String) -> Res
 
 // ── Archive browsing (from compress) ──
 #[command]
-fn list_archive_contents(path: String) -> Result<Vec<compress::ArchiveEntry>, String> {
-    compress::list_archive_contents(path)
+fn list_archive_contents(path: String) -> Result<Vec<compress::ArchiveEntry>, FsError> {
+    compress::list_archive_contents(path).map_err(FsError::Other)
 }
 #[command]
 fn extract_archive_entry(
     archive_path: String,
     entry_path: String,
-) -> Result<compress::ExtractResult, String> {
-    compress::extract_archive_entry(archive_path, entry_path)
+) -> Result<compress::ExtractResult, FsError> {
+    compress::extract_archive_entry(archive_path, entry_path).map_err(FsError::Other)
 }
 
 // ── File preview ──
 #[command]
-fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
+fn get_file_base64(path: String) -> Result<serde_json::Value, FsError> {
     use base64::Engine;
     let p = std::path::Path::new(&path);
     let bytes = fs_helper::read_file_limited(p, 2 * 1024 * 1024)
-        .map_err(|e| format!("Read failed: {}", e))?;
+        .map_err(|e| FsError::IoError(format!("Read failed: {}", e)))?;
     let ext = p
         .extension()
         .and_then(|e| e.to_str())
@@ -256,21 +272,22 @@ fn get_file_base64(path: String) -> Result<serde_json::Value, String> {
 }
 
 #[command]
-fn read_file_bytes(path: String) -> Result<String, String> {
+fn read_file_bytes(path: String) -> Result<String, FsError> {
     use base64::Engine;
     let p = std::path::Path::new(&path);
-    let m = fs_helper::metadata(p).map_err(|e| format!("Stat: {}", e))?;
+    let m = fs_helper::metadata(p).map_err(|e| FsError::IoError(format!("Stat: {}", e)))?;
     const MAX: u64 = 20 * 1024 * 1024;
     if m.len() > MAX {
-        return Err("File too large".to_string());
+        return Err(FsError::Other("File too large".to_string()));
     }
     Ok(base64::engine::general_purpose::STANDARD.encode(
-        &fs_helper::read_file_limited(p, MAX as usize).map_err(|e| format!("Read: {}", e))?,
+        &fs_helper::read_file_limited(p, MAX as usize)
+            .map_err(|e| FsError::IoError(format!("Read: {}", e)))?,
     ))
 }
 
 #[command]
-fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
+fn get_file_preview(path: String) -> Result<serde_json::Value, FsError> {
     use crate::utils::encoding::{
         is_known_binary_ext, is_known_text_ext, is_probably_text, truncate_to_chars,
     };
@@ -281,17 +298,18 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
         .unwrap_or("")
         .to_lowercase();
     if is_known_binary_ext(&ext) {
-        return Err("Binary file".into());
+        return Err(FsError::Other("Binary file".into()));
     }
     const MAX: usize = 512 * 1024;
     const CHARS: usize = 10000;
-    let m = fs_helper::metadata(p).map_err(|e| format!("Stat: {}", e))?;
+    let m = fs_helper::metadata(p).map_err(|e| FsError::IoError(format!("Stat: {}", e)))?;
     if m.len() > MAX as u64 {
-        return Err("File too large".into());
+        return Err(FsError::Other("File too large".into()));
     }
-    let bytes = fs_helper::read_file_limited(p, MAX).map_err(|e| format!("Read: {}", e))?;
+    let bytes = fs_helper::read_file_limited(p, MAX)
+        .map_err(|e| FsError::IoError(format!("Read: {}", e)))?;
     if !is_known_text_ext(&ext) && !is_probably_text(&bytes) {
-        return Err("Binary file".into());
+        return Err(FsError::Other("Binary file".into()));
     }
     let content = String::from_utf8_lossy(&bytes);
     let preview = truncate_to_chars(&content, CHARS).to_string();
@@ -302,16 +320,16 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, String> {
 }
 
 #[command]
-fn copy_file_as(src: String, dest: String) -> Result<(), String> {
+fn copy_file_as(src: String, dest: String) -> Result<(), FsError> {
     fs_helper::copy_file(std::path::Path::new(&src), std::path::Path::new(&dest))
-        .map_err(|e| format!("Copy: {}", e))?;
+        .map_err(|e| FsError::IoError(format!("Copy: {}", e)))?;
     Ok(())
 }
 
 #[command]
-fn save_text_file(path: String, content: String) -> Result<(), String> {
+fn save_text_file(path: String, content: String) -> Result<(), FsError> {
     fs_helper::write_file(std::path::Path::new(&path), content.as_bytes())
-        .map_err(|e| format!("Save: {}", e))
+        .map_err(|e| FsError::IoError(format!("Save: {}", e)))
 }
 
 // ── Undo ──
@@ -337,12 +355,11 @@ fn set_quit_on_close(state: State<AppState>, enabled: bool) {
 }
 
 #[command]
-fn clear_window_state(app: AppHandle) -> Result<(), String> {
-    use tauri::Manager;
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+fn clear_window_state() -> Result<(), FsError> {
+    let dir = crate::platform::path_provider().app_data_dir();
     if dir.exists() {
-        fs_helper::remove_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
-        fs_helper::create_dir_all(&dir).map_err(|e| format!("Failed: {}", e))?;
+        fs_helper::remove_dir_all(&dir)?;
+        fs_helper::create_dir_all(&dir)?;
     }
     Ok(())
 }

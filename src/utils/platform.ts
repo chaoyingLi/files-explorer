@@ -266,6 +266,25 @@ export function platformIs(...kinds: PlatformKind[]): boolean {
   return kinds.includes(getPlatform());
 }
 
+/**
+ * Normalize a file path to use forward slashes.
+ * Safe to call on all platforms; no-op on macOS/Linux.
+ * Call before sending paths to the Rust backend.
+ */
+export function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+/**
+ * Convert a path for display to the user.
+ * On Windows, forward slashes are converted back to backslashes.
+ * On macOS/Linux, the path is returned as-is.
+ */
+export function displayPath(path: string): string {
+  if (!path) return path;
+  return isWindows ? path.replace(/\//g, "\\") : path;
+}
+
 /** Run different logic per platform. */
 export function platformSwitch<T>(
   handlers: Partial<Record<PlatformKind, () => T>> & { default: () => T },

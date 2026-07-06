@@ -33,6 +33,8 @@ export default {
     addToFavorites: "已添加到收藏夹",
     dropToBookmark: "拖放文件夹到此处收藏",
     removeBookmark: "从收藏夹移除 {label} ?",
+    renameBookmark: "重命名收藏",
+    renamePrompt: "输入新名称",
   },
   search: {
     resultsTabTitle: "在 {folder} 搜索 {query} 的结果",

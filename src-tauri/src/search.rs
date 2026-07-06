@@ -1,3 +1,4 @@
+use crate::core::error::AppResult;
 use crate::core::state::AppState;
 use crate::core::types::{FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS};
 use crate::platform;
@@ -85,7 +86,7 @@ pub fn search_files(
     state: State<AppState>,
     directory: String,
     query: String,
-) -> Result<(), String> {
+) -> AppResult<()> {
     // Reset cancel flag
     state.search_cancel.store(false, Ordering::SeqCst);
     let cancel = state.search_cancel.clone();
@@ -237,7 +238,7 @@ pub fn search_files(
     Ok(())
 }
 
-pub fn cancel_search(state: State<AppState>) -> Result<(), String> {
+pub fn cancel_search(state: State<AppState>) -> AppResult<()> {
     state.search_cancel.store(true, Ordering::SeqCst);
     Ok(())
 }

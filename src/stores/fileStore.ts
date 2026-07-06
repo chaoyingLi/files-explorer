@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { FileEntry, DiskInfo, SpecialDirs } from "@/types";
 import * as tauri from "@/utils/tauri";
+import { normalizePath } from "@/utils/platform";
 import { useTabStore } from "@/stores/tabStore";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useSelectionStore } from "@/stores/selectionStore";
@@ -111,9 +112,7 @@ export const useFileStore = defineStore("file", () => {
     files.value = [...(tab.files || [])];
     sel.selectedFiles = new Set(tab.selectedFiles || []);
     const raw = tab.path || "";
-    currentPath.value = /Win/.test(navigator.platform)
-      ? raw.replace(/\//g, "\\")
-      : raw.replace(/\\/g, "/");
+    currentPath.value = normalizePath(raw);
     if (tab.treeExpanded) view.treeExpanded = new Set(tab.treeExpanded);
   }
 
@@ -182,7 +181,7 @@ export const useFileStore = defineStore("file", () => {
     view.resetTreeState();
 
     files.value = [];
-    currentPath.value = path;
+    currentPath.value = normalizePath(path);
 
     // Column view: prepare single-column stack for this path
     if (view.viewMode === "column") {
@@ -309,7 +308,7 @@ export const useFileStore = defineStore("file", () => {
       await navigateTo(target, false);
     } else {
       // Column snapshot
-      currentPath.value = target.path;
+      currentPath.value = normalizePath(target.path);
       const tab = getTabStore().getFocusedTab();
       if (tab) {
         tab.columnStack = target.stack.map((c) => ({
@@ -331,7 +330,7 @@ export const useFileStore = defineStore("file", () => {
       await navigateTo(target, false);
     } else {
       const snap = target;
-      currentPath.value = snap.path;
+      currentPath.value = normalizePath(snap.path);
       const tab = getTabStore().getFocusedTab();
       if (tab) {
         tab.columnStack = snap.stack.map((c) => ({

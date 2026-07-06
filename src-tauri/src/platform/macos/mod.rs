@@ -16,9 +16,16 @@ pub struct WindowImpl;
 
 impl PlatformWindow for WindowImpl {
     fn install_lifecycle_hooks(&self, _app: &AppHandle) {
-        // macOS lifecycle hooks (Dock click → Reopen) are handled in
-        // tauri_setup.rs::run_callback via the RunEvent dispatcher,
-        // keeping the platform layer free of Tauri runtime details.
+        // macOS: no-op, Dock-click Reopen is handled in handle_run_event.
+    }
+
+    fn handle_run_event(&self, app: &AppHandle, event: &tauri::RunEvent) {
+        if let tauri::RunEvent::Reopen { .. } = event {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
     }
 }
 
