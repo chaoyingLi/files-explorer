@@ -3,7 +3,6 @@
 
 use crate::core::error::AppError;
 use crate::platform::PlatformFsExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

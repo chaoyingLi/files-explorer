@@ -60,6 +60,7 @@ const segments = computed(() => {
         parts.shift();
     } else {
         result.push({ name: "/", path: "/" });
+        accumulated = "/";
     }
 
     for (const part of parts) {

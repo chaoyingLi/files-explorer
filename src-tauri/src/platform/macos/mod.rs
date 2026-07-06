@@ -10,7 +10,7 @@ pub use path_impl::PathImpl;
 pub use system_impl::SystemImpl;
 
 use crate::platform::PlatformWindow;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 pub struct WindowImpl;
 
