@@ -8,6 +8,7 @@ mod utils;
 mod clipboard;
 mod compress;
 mod search;
+mod terminal;
 mod tray;
 mod undo;
 
@@ -242,6 +243,34 @@ fn extract_archive_entry(
     entry_path: String,
 ) -> Result<compress::ExtractResult, FsError> {
     compress::extract_archive_entry(archive_path, entry_path).map_err(FsError::Other)
+}
+
+// ── Terminal ──
+#[command]
+fn terminal_spawn(app: AppHandle, cwd: String) -> Result<(), FsError> {
+    terminal::terminal_state()
+        .spawn(app, std::path::Path::new(&cwd))
+        .map_err(|e| e)
+}
+#[command]
+fn terminal_write(data: String) -> Result<(), FsError> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data)
+        .map_err(|e| FsError::Other(format!("Decode: {}", e)))?;
+    terminal::terminal_state().write(&bytes).map_err(|e| e)
+}
+#[command]
+fn terminal_resize(rows: u16, cols: u16) -> Result<(), FsError> {
+    terminal::terminal_state().resize(rows, cols).map_err(|e| e)
+}
+#[command]
+fn terminal_kill() {
+    terminal::terminal_state().kill();
+}
+#[command]
+fn get_default_shell() -> String {
+    platform::system_provider().default_shell()
 }
 
 // ── File preview ──

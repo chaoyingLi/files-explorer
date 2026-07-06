@@ -174,6 +174,17 @@ export default {
     thisPc: "此电脑",
     drives: "个驱动器",
     items: "{count} 个项目",
+    terminal: "终端",
+  },
+  terminal: {
+    maximize: "最大化终端",
+    restore: "还原终端",
+    restart: "重启终端",
+    close: "关闭终端",
+    starting: "启动中…",
+    exited: "已退出",
+    exitedHint: "进程已退出",
+    maximized: "终端已最大化",
   },
   thisPc: {
     recentFiles: "最近访问",

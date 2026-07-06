@@ -121,6 +121,10 @@ impl PlatformSystem for SystemImpl {
         get_macos_drives()
     }
 
+    fn default_shell(&self) -> String {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into())
+    }
+
     fn is_tray_supported(&self) -> bool {
         true // macOS menu bar extras always work
     }
@@ -314,10 +318,8 @@ fn get_macos_icon_png(path: &std::path::Path) -> Result<Vec<u8>, String> {
             msg_send![class!(NSString), stringWithUTF8String: c_path.as_ptr()];
 
         // NSWorkspace.sharedWorkspace.iconForFile:
-        let ws: *mut objc2::runtime::AnyObject =
-            msg_send![class!(NSWorkspace), sharedWorkspace];
-        let icon: *mut objc2::runtime::AnyObject =
-            msg_send![ws, iconForFile: ns_path];
+        let ws: *mut objc2::runtime::AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let icon: *mut objc2::runtime::AnyObject = msg_send![ws, iconForFile: ns_path];
 
         if icon.is_null() {
             return Err("Failed to get icon".into());
@@ -337,8 +339,7 @@ fn get_macos_icon_png(path: &std::path::Path) -> Result<Vec<u8>, String> {
         }
 
         // Convert to PNG
-        let props: *mut objc2::runtime::AnyObject =
-            msg_send![class!(NSDictionary), dictionary];
+        let props: *mut objc2::runtime::AnyObject = msg_send![class!(NSDictionary), dictionary];
         let png_data: *mut objc2::runtime::AnyObject = msg_send![
             rep,
             representationUsingType: 4u64, // NSPNGFileType = 4

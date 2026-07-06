@@ -175,6 +175,17 @@ export default {
     thisPc: "This PC",
     drives: "drives",
     items: "{count} items",
+    terminal: "Terminal",
+  },
+  terminal: {
+    maximize: "Maximize Terminal",
+    restore: "Restore Terminal",
+    restart: "Restart Terminal",
+    close: "Close Terminal",
+    starting: "Starting…",
+    exited: "Exited",
+    exitedHint: "Process exited",
+    maximized: "Terminal maximized",
   },
   thisPc: {
     recentFiles: "Recent",

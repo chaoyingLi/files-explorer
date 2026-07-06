@@ -7,9 +7,9 @@
                 :disabled="!nav.canGoBack"
                 @click="$emit('navigateBack')"
             >
-                <svg viewBox="0 0 20 20" fill="none">
+                <svg viewBox="0 0 16 16" fill="none">
                     <path
-                        d="M12.5 4.5L7 10l5.5 5.5"
+                        d="M10 3L5 8l5 5"
                         stroke="currentColor"
                         stroke-width="1.5"
                         stroke-linecap="round"
@@ -23,9 +23,9 @@
                 :disabled="!nav.canGoForward"
                 @click="$emit('navigateForward')"
             >
-                <svg viewBox="0 0 20 20" fill="none">
+                <svg viewBox="0 0 16 16" fill="none">
                     <path
-                        d="M7.5 4.5L13 10l-5.5 5.5"
+                        d="M6 3l5 5-5 5"
                         stroke="currentColor"
                         stroke-width="1.5"
                         stroke-linecap="round"
@@ -38,8 +38,32 @@
                 :title="t('toolbar.up')"
                 @click="$emit('navigateUp')"
             >
-                <svg viewBox="0 0 20 20" fill="none">
-                    <path d="M10 4l-5 6h3v5h4v-5h3l-5-6z" fill="currentColor" />
+                <svg viewBox="0 0 16 16" fill="none">
+                    <path
+                        d="M3 8l5-5 5 5"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                    <line
+                        x1="8"
+                        y1="3"
+                        x2="8"
+                        y2="14"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                    />
+                    <line
+                        x1="5"
+                        y1="13"
+                        x2="13"
+                        y2="13"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                    />
                 </svg>
             </button>
             <button
@@ -47,15 +71,15 @@
                 :title="t('toolbar.refresh')"
                 @click="$emit('refresh')"
             >
-                <svg viewBox="0 0 20 20" fill="none">
+                <svg viewBox="0 0 16 16" fill="none">
                     <path
-                        d="M3 10a7 7 0 0113.9-1M17 10a7 7 0 01-13.9 1"
+                        d="M2 8a6 6 0 0111.5-2M14 8a6 6 0 01-11.5 2"
                         stroke="currentColor"
                         stroke-width="1.5"
                         stroke-linecap="round"
                     />
-                    <path
-                        d="M14 2.5L17 8.5h-5M6 17.5L3 11.5h5"
+                    <polyline
+                        points="12,1.5 13.5,6 8.5,6"
                         stroke="currentColor"
                         stroke-width="1.5"
                         stroke-linecap="round"

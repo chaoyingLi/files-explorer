@@ -49,6 +49,11 @@ pub trait PlatformSystem: Send + Sync {
 
     fn get_drives(&self) -> Vec<DiskInfo>;
 
+    // ── Terminal / shell ──
+
+    /// Return the path to the default system shell.
+    fn default_shell(&self) -> String;
+
     // ── System tray support ──
 
     /// Whether the system tray is reliably available.

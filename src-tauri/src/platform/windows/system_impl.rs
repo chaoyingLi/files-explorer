@@ -135,6 +135,11 @@ impl PlatformSystem for SystemImpl {
         get_windows_drives()
     }
 
+    fn default_shell(&self) -> String {
+        // Prefer PowerShell Core, fall back to Windows PowerShell, then cmd
+        std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".into())
+    }
+
     fn is_tray_supported(&self) -> bool {
         true // Windows system tray always works
     }

@@ -180,6 +180,10 @@ impl PlatformSystem for SystemImpl {
         get_linux_drives()
     }
 
+    fn default_shell(&self) -> String {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into())
+    }
+
     fn is_tray_supported(&self) -> bool {
         // Wayland compositors may not support legacy X11 tray protocol.
         // Check XDG_SESSION_TYPE; if wayland, tray may fail.

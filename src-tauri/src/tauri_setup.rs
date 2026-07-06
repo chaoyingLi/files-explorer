@@ -93,6 +93,11 @@ pub fn build_app() -> tauri::App {
             crate::set_quit_on_close,
             crate::set_complete,
             crate::clear_window_state,
+            crate::terminal_spawn,
+            crate::terminal_write,
+            crate::terminal_resize,
+            crate::terminal_kill,
+            crate::get_default_shell,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
