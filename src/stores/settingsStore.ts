@@ -11,6 +11,8 @@ export type ThemeMode =
   | "solarized-light";
 export type FontSize = "small" | "medium" | "large";
 export type IconTheme = "fluent" | "material" | "material-full";
+export type TermEmulation =
+  "xterm-256color" | "xterm" | "xterm-direct" | "vt100" | "linux";
 
 export interface Bookmark {
   path: string;
@@ -26,6 +28,7 @@ export interface AppSettings {
   showTray: boolean;
   quitOnClose: boolean;
   bookmarks: Bookmark[];
+  termEmulation: TermEmulation;
 }
 
 function loadBookmarks(): Bookmark[] {
@@ -59,6 +62,7 @@ function loadSettings(): AppSettings {
         showTray: parsed.showTray ?? true,
         quitOnClose: parsed.quitOnClose ?? false,
         bookmarks: loadBookmarks(),
+        termEmulation: parsed.termEmulation || "xterm-256color",
       };
     }
   } catch {}
@@ -71,6 +75,7 @@ function loadSettings(): AppSettings {
     showTray: true,
     quitOnClose: false,
     bookmarks: loadBookmarks(),
+    termEmulation: "xterm-256color",
   };
 }
 
@@ -95,6 +100,9 @@ export const useSettingsStore = defineStore("settings", () => {
   const autoStart = ref<boolean>(initial.autoStart ?? true);
   const showTray = ref<boolean>(initial.showTray ?? true);
   const quitOnClose = ref<boolean>(initial.quitOnClose ?? false);
+  const termEmulation = ref<TermEmulation>(
+    initial.termEmulation || "xterm-256color",
+  );
 
   // Apply on init
   applyTheme(theme.value);
@@ -195,6 +203,11 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
+  function setTermEmulation(v: TermEmulation) {
+    termEmulation.value = v;
+    persist();
+  }
+
   function persist() {
     saveSettings({
       theme: theme.value,
@@ -205,6 +218,7 @@ export const useSettingsStore = defineStore("settings", () => {
       showTray: showTray.value,
       quitOnClose: quitOnClose.value,
       bookmarks: bookmarks.value,
+      termEmulation: termEmulation.value,
     });
   }
 
@@ -228,5 +242,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setAutoStart,
     setShowTray,
     setQuitOnClose,
+    termEmulation,
+    setTermEmulation,
   };
 });

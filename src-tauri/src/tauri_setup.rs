@@ -97,6 +97,7 @@ pub fn build_app() -> tauri::App {
             crate::terminal_write,
             crate::terminal_resize,
             crate::terminal_kill,
+            crate::terminal_kill_all,
             crate::get_default_shell,
         ])
         .build(tauri::generate_context!())

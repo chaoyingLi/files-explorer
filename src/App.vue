@@ -16,7 +16,7 @@
             @search-submit="(q: string) => search.submitSearch(q)"
         />
         <RibbonToolbar @action="(a: string) => actions.executeAction(a)" />
-        <div class="main-content">
+        <div class="main-content" v-show="!terminalMaximized">
             <Sidebar
                 :width="sidebarWidth"
                 @navigate="nav.sidebarNavigate"

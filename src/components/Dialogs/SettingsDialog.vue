@@ -193,6 +193,34 @@
                         </div>
                     </div>
 
+                    <!-- Terminal -->
+                    <div v-if="activeTab === 'terminal'" class="tab-panel">
+                        <div class="setting-group">
+                            <div class="group-title">
+                                {{ t("settings.termType") }}
+                            </div>
+                            <div class="term-options">
+                                <button
+                                    v-for="opt in termOptions"
+                                    :key="opt.value"
+                                    class="term-card"
+                                    :class="{
+                                        active:
+                                            settings.termEmulation ===
+                                            opt.value,
+                                    }"
+                                    @click="
+                                        settings.setTermEmulation(opt.value)
+                                    "
+                                >
+                                    <div class="term-label">
+                                        {{ t(opt.labelKey) }}
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Language -->
                     <div v-if="activeTab === 'language'" class="tab-panel">
                         <div class="setting-group">
@@ -479,7 +507,11 @@ import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
-import type { ThemeMode, FontSize } from "@/stores/settingsStore";
+import type {
+    ThemeMode,
+    FontSize,
+    TermEmulation,
+} from "@/stores/settingsStore";
 
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
@@ -497,6 +529,11 @@ const tabs = [
         id: "appearance",
         labelKey: "settings.tabAppearance",
         icon: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.3"/><path d="M8 3a5 5 0 000 10V3z" fill="currentColor" opacity="0.3"/></svg>`,
+    },
+    {
+        id: "terminal",
+        labelKey: "settings.tabTerminal",
+        icon: `<svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 6l2.5 2-2.5 2M8 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     },
     {
         id: "language",
@@ -565,6 +602,14 @@ const fontSizeOptions: {
     { value: "small", labelKey: "settings.small", sampleSize: "14px" },
     { value: "medium", labelKey: "settings.medium", sampleSize: "18px" },
     { value: "large", labelKey: "settings.large", sampleSize: "24px" },
+];
+
+const termOptions: { value: TermEmulation; labelKey: string }[] = [
+    { value: "xterm-256color", labelKey: "settings.xterm256" },
+    { value: "xterm", labelKey: "settings.xterm" },
+    { value: "xterm-direct", labelKey: "settings.xtermDirect" },
+    { value: "vt100", labelKey: "settings.vt100" },
+    { value: "linux", labelKey: "settings.linux" },
 ];
 
 function handleLocaleChange(l: string) {
@@ -827,6 +872,38 @@ function handleLocaleChange(l: string) {
     background: var(--bg-hover);
 }
 
+.term-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.term-card {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.term-card:hover {
+    border-color: var(--text-muted);
+}
+.term-card.active {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+}
+.term-label {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+}
+
+.lang-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 .lang-flag {
     font-size: 24px;
 }

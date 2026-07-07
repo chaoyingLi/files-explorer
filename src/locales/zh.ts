@@ -185,6 +185,12 @@ export default {
     exited: "已退出",
     exitedHint: "进程已退出",
     maximized: "终端已最大化",
+    newTerminal: "新建终端",
+    copy: "复制",
+    paste: "粘贴",
+    selectAll: "全选",
+    clear: "清除",
+    closeTab: "关闭此终端标签",
   },
   thisPc: {
     recentFiles: "最近访问",
@@ -297,6 +303,7 @@ export default {
   settings: {
     title: "设置",
     tabAppearance: "外观",
+    tabTerminal: "终端",
     tabLanguage: "语言",
     tabAbout: "关于",
     tabGeneral: "通用",
@@ -325,6 +332,12 @@ export default {
     pillarFast: "极速",
     pillarModern: "现代",
     pillarSmart: "智能",
+    termType: "终端仿真类型",
+    xterm256: "xterm-256color（推荐）",
+    xterm: "xterm",
+    xtermDirect: "xterm-direct（真彩色）",
+    vt100: "vt100（极简）",
+    linux: "linux",
     pillarLightweightTooltip:
       "Tauri 2.0 原生二进制，内存占用仅为 Electron 同类应用的 1/10",
     pillarFastTooltip:

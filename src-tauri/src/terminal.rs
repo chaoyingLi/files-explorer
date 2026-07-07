@@ -1,5 +1,5 @@
 // terminal.rs
-// Cross-platform PTY (pseudo-terminal) manager.
+// Cross-platform PTY (pseudo-terminal) manager — multi-session.
 // Zero #[cfg(target_os)] — platform shell path via platform::system_provider().
 //
 // Lifecycle:
@@ -13,52 +13,42 @@
 use crate::core::error::{AppError, AppResult};
 use crate::platform;
 use portable_pty::{CommandBuilder, MasterPty, PtySize};
+use serde::Serialize;
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
+/// Serialisable event payload sent to the frontend.
+#[derive(Clone, Serialize)]
+struct TermEvent {
+    id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<String>,
+}
+
 /// Internal PTY session.
-struct Inner {
+struct Session {
     writer: Option<Box<dyn Write + Send>>,
     master: Option<Box<dyn MasterPty + Send>>,
     child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     cancel: Arc<AtomicBool>,
 }
 
-pub struct TerminalState {
-    inner: Mutex<Inner>,
+pub struct TerminalManager {
+    sessions: Mutex<HashMap<u32, Session>>,
 }
 
-impl TerminalState {
+impl TerminalManager {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(Inner {
-                writer: None,
-                master: None,
-                child: None,
-                cancel: Arc::new(AtomicBool::new(false)),
-            }),
+            sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Spawn a shell in the given directory.
-    pub fn spawn(&self, app: AppHandle, cwd: &Path) -> AppResult<()> {
-        // Kill any existing session
-        {
-            let mut guard = self
-                .inner
-                .lock()
-                .map_err(|e| AppError::Other(e.to_string()))?;
-            if guard.child.is_some() {
-                guard.cancel.store(true, Ordering::SeqCst);
-                let _ = guard.child.take();
-            }
-            guard.writer = None;
-            guard.master = None;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
+    /// Spawn a shell in the given directory for the given session id.
+    pub fn spawn(&self, id: u32, app: AppHandle, cwd: &Path, term_type: &str) -> AppResult<()> {
         let shell = platform::system_provider().default_shell();
 
         if !cwd.exists() {
@@ -80,6 +70,7 @@ impl TerminalState {
 
         let mut cmd = CommandBuilder::new(&shell);
         cmd.cwd(cwd);
+        cmd.env("TERM", term_type);
 
         let child = pair
             .slave
@@ -98,15 +89,22 @@ impl TerminalState {
 
         let cancel = Arc::new(AtomicBool::new(false));
 
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|e| AppError::Other(e.to_string()))?;
-        guard.writer = Some(writer);
-        guard.master = Some(pair.master);
-        guard.child = Some(child);
-        guard.cancel = cancel.clone();
-        drop(guard);
+        // Insert session
+        {
+            let mut guard = self
+                .sessions
+                .lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
+            guard.insert(
+                id,
+                Session {
+                    writer: Some(writer),
+                    master: Some(pair.master),
+                    child: Some(child),
+                    cancel: cancel.clone(),
+                },
+            );
+        }
 
         // Spawn reader thread
         let app_reader = app.clone();
@@ -121,70 +119,97 @@ impl TerminalState {
                     Ok(n) => {
                         use base64::Engine;
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&buf[..n]);
-                        let _ = app_reader.emit("terminal-output", b64);
+                        let _ = app_reader.emit(
+                            "terminal-output",
+                            TermEvent {
+                                id,
+                                data: Some(b64),
+                            },
+                        );
                     }
                     Err(_) => break,
                 }
             }
-            let _ = app_reader.emit("terminal-exit", ());
+            let _ = app_reader.emit("terminal-exit", TermEvent { id, data: None });
         });
 
-        let _ = app.emit("terminal-ready", ());
+        let _ = app.emit("terminal-ready", TermEvent { id, data: None });
         Ok(())
     }
 
-    /// Write input bytes to the PTY.
-    pub fn write(&self, data: &[u8]) -> AppResult<()> {
+    /// Write input bytes to a specific session.
+    pub fn write(&self, id: u32, data: &[u8]) -> AppResult<()> {
         let mut guard = self
-            .inner
+            .sessions
             .lock()
             .map_err(|e| AppError::Other(e.to_string()))?;
-        if let Some(w) = guard.writer.as_mut() {
-            w.write_all(data)
-                .map_err(|e| AppError::IoError(format!("PTY write: {}", e)))?;
-            w.flush()
-                .map_err(|e| AppError::IoError(format!("PTY flush: {}", e)))?;
-        }
-        Ok(())
-    }
-
-    /// Resize the PTY.
-    pub fn resize(&self, rows: u16, cols: u16) -> AppResult<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|e| AppError::Other(e.to_string()))?;
-        if let Some(master) = guard.master.as_deref_mut() {
-            master
-                .resize(PtySize {
-                    rows,
-                    cols,
-                    pixel_width: 0,
-                    pixel_height: 0,
-                })
-                .map_err(|e| AppError::IoError(format!("PTY resize: {}", e)))?;
-        }
-        Ok(())
-    }
-
-    /// Kill the child process and clean up.
-    pub fn kill(&self) {
-        let mut guard = self.inner.lock().ok();
-        if let Some(guard) = guard.as_mut() {
-            guard.cancel.store(true, Ordering::SeqCst);
-            if let Some(mut child) = guard.child.take() {
-                let _ = child.kill();
+        if let Some(session) = guard.get_mut(&id) {
+            if let Some(w) = session.writer.as_mut() {
+                w.write_all(data)
+                    .map_err(|e| AppError::IoError(format!("PTY write: {}", e)))?;
+                w.flush()
+                    .map_err(|e| AppError::IoError(format!("PTY flush: {}", e)))?;
             }
-            guard.writer = None;
-            guard.master = None;
+        }
+        Ok(())
+    }
+
+    /// Resize a specific session's PTY.
+    pub fn resize(&self, id: u32, rows: u16, cols: u16) -> AppResult<()> {
+        let mut guard = self
+            .sessions
+            .lock()
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        if let Some(session) = guard.get_mut(&id) {
+            if let Some(master) = session.master.as_deref_mut() {
+                master
+                    .resize(PtySize {
+                        rows,
+                        cols,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    })
+                    .map_err(|e| AppError::IoError(format!("PTY resize: {}", e)))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Kill a specific session.
+    pub fn kill(&self, id: u32) {
+        let mut guard = self.sessions.lock().ok();
+        if let Some(guard) = guard.as_mut() {
+            if let Some(mut session) = guard.remove(&id) {
+                session.cancel.store(true, Ordering::SeqCst);
+                if let Some(mut child) = session.child.take() {
+                    let _ = child.kill();
+                }
+                session.writer = None;
+                session.master = None;
+            }
+        }
+    }
+
+    /// Kill all sessions.
+    pub fn kill_all(&self) {
+        let mut guard = self.sessions.lock().ok();
+        if let Some(guard) = guard.as_mut() {
+            for (_, mut session) in guard.drain() {
+                session.cancel.store(true, Ordering::SeqCst);
+                if let Some(mut child) = session.child.take() {
+                    let _ = child.kill();
+                }
+                session.writer = None;
+                session.master = None;
+            }
         }
     }
 }
 
 /// Global singleton.
 use std::sync::OnceLock;
-static TERMINAL: OnceLock<TerminalState> = OnceLock::new();
+static TERMINAL: OnceLock<TerminalManager> = OnceLock::new();
 
-pub fn terminal_state() -> &'static TerminalState {
-    TERMINAL.get_or_init(TerminalState::new)
+pub fn terminal_state() -> &'static TerminalManager {
+    TERMINAL.get_or_init(TerminalManager::new)
 }

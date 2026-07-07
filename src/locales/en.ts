@@ -186,6 +186,12 @@ export default {
     exited: "Exited",
     exitedHint: "Process exited",
     maximized: "Terminal maximized",
+    newTerminal: "New Terminal",
+    copy: "Copy",
+    paste: "Paste",
+    selectAll: "Select All",
+    clear: "Clear",
+    closeTab: "Close this terminal tab",
   },
   thisPc: {
     recentFiles: "Recent",
@@ -300,6 +306,7 @@ export default {
   settings: {
     title: "Settings",
     tabAppearance: "Appearance",
+    tabTerminal: "Terminal",
     tabLanguage: "Language",
     tabAbout: "About",
     tabGeneral: "General",
@@ -328,6 +335,12 @@ export default {
     pillarFast: "Fast",
     pillarModern: "Modern",
     pillarSmart: "Smart",
+    termType: "Terminal emulation type",
+    xterm256: "xterm-256color (recommended)",
+    xterm: "xterm",
+    xtermDirect: "xterm-direct (true color)",
+    vt100: "vt100 (minimal)",
+    linux: "linux",
     pillarLightweightTooltip:
       "Tauri 2.0 native binary, 1/10 memory usage vs Electron",
     pillarFastTooltip:
