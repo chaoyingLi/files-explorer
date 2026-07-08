@@ -2,7 +2,25 @@
     <div class="dialog-overlay" @click.self="$emit('close')">
         <div class="settings-dialog">
             <div class="settings-header">
-                <h2>⚙ {{ t("settings.title") }}</h2>
+                <h2>
+                    <svg
+                        viewBox="0 0 18 18"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="vertical-align: middle; margin-right: 6px"
+                    >
+                        <circle cx="9" cy="9" r="2.5" />
+                        <path
+                            d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.3 3.3l1.4 1.4M13.3 13.3l1.4 1.4M3.3 14.7l1.4-1.4M13.3 4.7l1.4-1.4"
+                        />
+                    </svg>
+                    {{ t("settings.title") }}
+                </h2>
                 <button class="icon-btn close-btn" @click="$emit('close')">
                     <svg viewBox="0 0 20 20" fill="none">
                         <path
@@ -199,24 +217,294 @@
                             <div class="group-title">
                                 {{ t("settings.termType") }}
                             </div>
-                            <div class="term-options">
+                            <div class="term-select-wrapper">
                                 <button
-                                    v-for="opt in termOptions"
-                                    :key="opt.value"
-                                    class="term-card"
-                                    :class="{
-                                        active:
-                                            settings.termEmulation ===
-                                            opt.value,
-                                    }"
+                                    class="term-select-trigger"
+                                    :class="{ open: termDropdownOpen }"
                                     @click="
-                                        settings.setTermEmulation(opt.value)
+                                        termDropdownOpen = !termDropdownOpen
                                     "
                                 >
-                                    <div class="term-label">
-                                        {{ t(opt.labelKey) }}
-                                    </div>
+                                    <span class="term-select-icon">
+                                        <svg
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.3"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <rect
+                                                x="1.5"
+                                                y="2.5"
+                                                width="13"
+                                                height="11"
+                                                rx="1.2"
+                                            />
+                                            <path
+                                                d="M4.5 6l2.5 2-2.5 2M8 10h3.5"
+                                            />
+                                        </svg>
+                                    </span>
+                                    <span class="term-select-label">{{
+                                        t(currentTermLabelKey)
+                                    }}</span>
+                                    <svg
+                                        class="term-select-arrow"
+                                        viewBox="0 0 12 12"
+                                        width="10"
+                                        height="10"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M3 4.5l3 3 3-3" />
+                                    </svg>
                                 </button>
+                                <div
+                                    v-if="termDropdownOpen"
+                                    class="term-select-dropdown"
+                                >
+                                    <button
+                                        v-for="opt in termOptions"
+                                        :key="opt.value"
+                                        class="term-select-item"
+                                        :class="{
+                                            active:
+                                                settings.termEmulation ===
+                                                opt.value,
+                                        }"
+                                        @mousedown.prevent="
+                                            settings.setTermEmulation(
+                                                opt.value,
+                                            );
+                                            termDropdownOpen = false;
+                                        "
+                                    >
+                                        <span class="term-select-item-icon">
+                                            <svg
+                                                viewBox="0 0 16 16"
+                                                width="14"
+                                                height="14"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.3"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <rect
+                                                    x="1.5"
+                                                    y="2.5"
+                                                    width="13"
+                                                    height="11"
+                                                    rx="1.2"
+                                                />
+                                                <path
+                                                    d="M4.5 6l2.5 2-2.5 2M8 10h3.5"
+                                                />
+                                            </svg>
+                                        </span>
+                                        <span class="term-select-item-label">{{
+                                            t(opt.labelKey)
+                                        }}</span>
+                                        <svg
+                                            v-if="
+                                                settings.termEmulation ===
+                                                opt.value
+                                            "
+                                            class="term-select-item-check"
+                                            viewBox="0 0 14 14"
+                                            width="12"
+                                            height="12"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                        >
+                                            <path d="M2 7l3.5 3.5L12 3" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Font family -->
+                        <div class="setting-group">
+                            <div class="group-title">
+                                {{ t("settings.termFontFamily") }}
+                            </div>
+                            <div class="term-select-wrapper">
+                                <button
+                                    class="term-select-trigger"
+                                    :class="{ open: fontFamilyOpen }"
+                                    @click="fontFamilyOpen = !fontFamilyOpen"
+                                >
+                                    <span class="term-select-label">{{
+                                        t(
+                                            termFontLabels[
+                                                settings.termFontFamily
+                                            ],
+                                        )
+                                    }}</span>
+                                    <svg
+                                        class="term-select-arrow"
+                                        viewBox="0 0 12 12"
+                                        width="10"
+                                        height="10"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M3 4.5l3 3 3-3" />
+                                    </svg>
+                                </button>
+                                <div
+                                    v-if="fontFamilyOpen"
+                                    class="term-select-dropdown"
+                                >
+                                    <button
+                                        v-for="(
+                                            labelKey, key
+                                        ) in termFontLabels"
+                                        :key="key"
+                                        class="term-select-item"
+                                        :class="{
+                                            active:
+                                                settings.termFontFamily === key,
+                                        }"
+                                        @mousedown.prevent="
+                                            settings.setTermFontFamily(
+                                                key as any,
+                                            );
+                                            fontFamilyOpen = false;
+                                        "
+                                    >
+                                        <span class="term-select-item-label">{{
+                                            t(labelKey)
+                                        }}</span>
+                                        <svg
+                                            v-if="
+                                                settings.termFontFamily === key
+                                            "
+                                            class="term-select-item-check"
+                                            viewBox="0 0 14 14"
+                                            width="12"
+                                            height="12"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                        >
+                                            <path d="M2 7l3.5 3.5L12 3" />
+                                        </svg>
+                                    </button>
+                                    <div class="term-select-sep"></div>
+                                    <button
+                                        class="term-select-item"
+                                        :class="{
+                                            active:
+                                                settings.termFontFamily ===
+                                                'custom',
+                                        }"
+                                        @mousedown.prevent="
+                                            settings.setTermFontFamily(
+                                                'custom',
+                                            );
+                                            fontFamilyOpen = false;
+                                        "
+                                    >
+                                        <span class="term-select-item-label"
+                                            >✏️
+                                            {{ t("settings.customFont") }}</span
+                                        >
+                                    </button>
+                                </div>
+                            </div>
+                            <div
+                                v-if="settings.termFontFamily === 'custom'"
+                                class="term-custom-input"
+                            >
+                                <input
+                                    class="term-input"
+                                    :value="settings.termFontCustom"
+                                    @input="
+                                        (e) =>
+                                            settings.setTermFontCustom(
+                                                (e.target as HTMLInputElement)
+                                                    .value,
+                                            )
+                                    "
+                                    placeholder="'Fira Code', Consolas, monospace"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Font size -->
+                        <div class="setting-group">
+                            <div class="group-title">
+                                {{ t("settings.termFontSize") }}
+                            </div>
+                            <div class="term-select-wrapper">
+                                <button
+                                    class="term-select-trigger"
+                                    :class="{ open: fontSizeOpen }"
+                                    @click="fontSizeOpen = !fontSizeOpen"
+                                >
+                                    <span class="term-select-label"
+                                        >{{ settings.termFontSize }}px</span
+                                    >
+                                    <svg
+                                        class="term-select-arrow"
+                                        viewBox="0 0 12 12"
+                                        width="10"
+                                        height="10"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M3 4.5l3 3 3-3" />
+                                    </svg>
+                                </button>
+                                <div
+                                    v-if="fontSizeOpen"
+                                    class="term-select-dropdown"
+                                >
+                                    <button
+                                        v-for="opt in fontSizes"
+                                        :key="opt"
+                                        class="term-select-item"
+                                        :class="{
+                                            active:
+                                                settings.termFontSize === opt,
+                                        }"
+                                        @mousedown.prevent="
+                                            settings.setTermFontSize(opt);
+                                            fontSizeOpen = false;
+                                        "
+                                    >
+                                        <span class="term-select-item-label"
+                                            >{{ opt }}px</span
+                                        >
+                                        <svg
+                                            v-if="settings.termFontSize === opt"
+                                            class="term-select-item-check"
+                                            viewBox="0 0 14 14"
+                                            width="12"
+                                            height="12"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                        >
+                                            <path d="M2 7l3.5 3.5L12 3" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -503,7 +791,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
@@ -511,11 +799,16 @@ import type {
     ThemeMode,
     FontSize,
     TermEmulation,
+    TermFontSize,
+    TermFontFamily,
 } from "@/stores/settingsStore";
 
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
 const activeTab = ref("general");
+const termDropdownOpen = ref(false);
+const fontSizeOpen = ref(false);
+const fontFamilyOpen = ref(false);
 
 defineEmits<{ close: []; clearCache: [] }>();
 
@@ -611,6 +904,32 @@ const termOptions: { value: TermEmulation; labelKey: string }[] = [
     { value: "vt100", labelKey: "settings.vt100" },
     { value: "linux", labelKey: "settings.linux" },
 ];
+
+const currentTermLabelKey = computed(
+    () =>
+        termOptions.find((o) => o.value === settings.termEmulation)?.labelKey ||
+        "settings.xterm256",
+);
+
+const fontSizes: TermFontSize[] = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
+
+const termFontLabels: Record<TermFontFamily, string> = {
+    system: "settings.systemDefault",
+    "jetbrains-mono": "settings.jetbrainsMono",
+    "cascadia-code": "settings.cascadiaCode",
+    "fira-code": "settings.firaCode",
+    "source-code-pro": "settings.sourceCodePro",
+    hack: "settings.hack",
+    "sf-mono": "settings.sfMono",
+    menlo: "settings.menlo",
+    consolas: "settings.consolas",
+    "dejavu-mono": "settings.dejavuMono",
+    "courier-new": "settings.courierNew",
+    "ibm-plex-mono": "settings.ibmPlexMono",
+    iosevka: "settings.iosevka",
+    monaco: "settings.monaco",
+    custom: "settings.custom",
+};
 
 function handleLocaleChange(l: string) {
     settings.setLocale(l);
@@ -872,31 +1191,96 @@ function handleLocaleChange(l: string) {
     background: var(--bg-hover);
 }
 
-.term-options {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.term-select-wrapper {
+    position: relative;
 }
-.term-card {
+
+.term-select-trigger {
     display: flex;
     align-items: center;
-    padding: 10px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-primary);
+    gap: 8px;
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
     cursor: pointer;
-    transition: all 0.15s;
+    text-align: left;
+    transition: border-color 0.15s;
 }
-.term-card:hover {
-    border-color: var(--text-muted);
-}
-.term-card.active {
+.term-select-trigger:hover,
+.term-select-trigger.open {
     border-color: var(--accent);
+}
+.term-select-icon {
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+.term-select-label {
+    flex: 1;
+}
+.term-select-arrow {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+.term-select-trigger.open .term-select-arrow {
+    transform: rotate(180deg);
+}
+.term-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 10;
+    box-shadow: 0 8px 32px var(--shadow);
+}
+.term-select-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+}
+.term-select-item:hover {
     background: var(--bg-hover);
 }
-.term-label {
-    font-size: var(--font-size-base);
-    font-weight: 500;
+.term-select-item.active {
+    color: var(--accent);
+}
+.term-select-item-icon {
+    display: flex;
+    align-items: center;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+.term-select-item.active .term-select-item-icon {
+    opacity: 1;
+    color: var(--accent);
+}
+.term-select-item-label {
+    flex: 1;
+}
+.term-select-item-check {
+    flex-shrink: 0;
 }
 
 .lang-options {

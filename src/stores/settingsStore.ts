@@ -13,6 +13,41 @@ export type FontSize = "small" | "medium" | "large";
 export type IconTheme = "fluent" | "material" | "material-full";
 export type TermEmulation =
   "xterm-256color" | "xterm" | "xterm-direct" | "vt100" | "linux";
+export type TermFontSize = 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 20 | 22 | 24;
+export type TermFontFamily =
+  | "system"
+  | "jetbrains-mono"
+  | "cascadia-code"
+  | "fira-code"
+  | "source-code-pro"
+  | "hack"
+  | "sf-mono"
+  | "menlo"
+  | "consolas"
+  | "dejavu-mono"
+  | "courier-new"
+  | "ibm-plex-mono"
+  | "iosevka"
+  | "monaco"
+  | "custom";
+
+export const FONT_FAMILY_MAP: Record<TermFontFamily, string> = {
+  system: "Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+  "jetbrains-mono": "'JetBrains Mono', Consolas, monospace",
+  "cascadia-code": "'Cascadia Code', Consolas, monospace",
+  "fira-code": "'Fira Code', Consolas, monospace",
+  "source-code-pro": "'Source Code Pro', Consolas, monospace",
+  hack: "Hack, Consolas, monospace",
+  "sf-mono": "'SF Mono', Consolas, monospace",
+  menlo: "Menlo, Consolas, monospace",
+  consolas: "Consolas, monospace",
+  "dejavu-mono": "'DejaVu Sans Mono', Consolas, monospace",
+  "courier-new": "'Courier New', Consolas, monospace",
+  "ibm-plex-mono": "'IBM Plex Mono', Consolas, monospace",
+  iosevka: "Iosevka, Consolas, monospace",
+  monaco: "Monaco, Consolas, monospace",
+  custom: "'JetBrains Mono', Consolas, monospace",
+};
 
 export interface Bookmark {
   path: string;
@@ -29,6 +64,9 @@ export interface AppSettings {
   quitOnClose: boolean;
   bookmarks: Bookmark[];
   termEmulation: TermEmulation;
+  termFontSize: TermFontSize;
+  termFontFamily: TermFontFamily;
+  termFontCustom: string;
 }
 
 function loadBookmarks(): Bookmark[] {
@@ -63,6 +101,9 @@ function loadSettings(): AppSettings {
         quitOnClose: parsed.quitOnClose ?? false,
         bookmarks: loadBookmarks(),
         termEmulation: parsed.termEmulation || "xterm-256color",
+        termFontSize: parsed.termFontSize || 13,
+        termFontFamily: parsed.termFontFamily || "jetbrains-mono",
+        termFontCustom: parsed.termFontCustom || "",
       };
     }
   } catch {}
@@ -76,6 +117,9 @@ function loadSettings(): AppSettings {
     quitOnClose: false,
     bookmarks: loadBookmarks(),
     termEmulation: "xterm-256color",
+    termFontSize: 13,
+    termFontFamily: "jetbrains-mono",
+    termFontCustom: "",
   };
 }
 
@@ -103,6 +147,11 @@ export const useSettingsStore = defineStore("settings", () => {
   const termEmulation = ref<TermEmulation>(
     initial.termEmulation || "xterm-256color",
   );
+  const termFontSize = ref<TermFontSize>(initial.termFontSize || 13);
+  const termFontFamily = ref<TermFontFamily>(
+    initial.termFontFamily || "jetbrains-mono",
+  );
+  const termFontCustom = ref<string>(initial.termFontCustom || "");
 
   // Apply on init
   applyTheme(theme.value);
@@ -208,6 +257,26 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  function setTermFontSize(v: TermFontSize) {
+    termFontSize.value = v;
+    persist();
+  }
+
+  function setTermFontFamily(v: TermFontFamily) {
+    termFontFamily.value = v;
+    // If not custom, clear custom value
+    if (v !== "custom") {
+      termFontCustom.value = "";
+    }
+    persist();
+  }
+
+  function setTermFontCustom(v: string) {
+    termFontFamily.value = "custom";
+    termFontCustom.value = v;
+    persist();
+  }
+
   function persist() {
     saveSettings({
       theme: theme.value,
@@ -219,6 +288,9 @@ export const useSettingsStore = defineStore("settings", () => {
       quitOnClose: quitOnClose.value,
       bookmarks: bookmarks.value,
       termEmulation: termEmulation.value,
+      termFontSize: termFontSize.value,
+      termFontFamily: termFontFamily.value,
+      termFontCustom: termFontCustom.value,
     });
   }
 
@@ -244,5 +316,11 @@ export const useSettingsStore = defineStore("settings", () => {
     setQuitOnClose,
     termEmulation,
     setTermEmulation,
+    termFontSize,
+    termFontFamily,
+    termFontCustom,
+    setTermFontSize,
+    setTermFontFamily,
+    setTermFontCustom,
   };
 });

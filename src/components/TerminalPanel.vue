@@ -177,7 +177,11 @@
 import { ref, watch, onUnmounted, nextTick, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
-import { useSettingsStore, type ThemeMode } from "@/stores/settingsStore";
+import {
+    useSettingsStore,
+    type ThemeMode,
+    FONT_FAMILY_MAP,
+} from "@/stores/settingsStore";
 import type { ContextMenuOption } from "@/types";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -212,7 +216,7 @@ const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<number | null>(null);
 const nextTabId = ref(1);
 const isMaximized = ref(false);
-const fontSize = ref(13);
+const fontSize = ref<number>(settings.termFontSize);
 const _savedHeight = ref(250);
 const fontSizeChanged = ref(false);
 const maximizeStyle = ref<Record<string, string>>({});
@@ -321,8 +325,8 @@ function initTerminal(tab: TerminalTab) {
     const th = currentTermTheme();
     const term = new Terminal({
         cursorBlink: true,
-        fontSize: fontSize.value,
-        fontFamily: 'Menlo, "DejaVu Sans Mono", Consolas, monospace',
+        fontSize: settings.termFontSize,
+        fontFamily: FONT_FAMILY_MAP[settings.termFontFamily],
         theme: th as any,
         allowProposedApi: true,
     });
@@ -672,6 +676,53 @@ watch(
     },
 );
 
+watch(
+    () => settings.termFontSize,
+    (v) => {
+        for (const tab of tabs.value) {
+            if (tab.term) {
+                tab.term.options.fontSize = v;
+            }
+        }
+        nextTick(() => {
+            for (const tab of tabs.value) {
+                if (tab.fit)
+                    try {
+                        tab.fit.fit();
+                    } catch {}
+            }
+        });
+    },
+);
+
+watch(
+    () => settings.termFontFamily,
+    (v) => {
+        const ff = FONT_FAMILY_MAP[v];
+        for (const tab of tabs.value) {
+            if (tab.term) {
+                tab.term.options.fontFamily = ff;
+            }
+        }
+        nextTick(() => {
+            for (const tab of tabs.value) {
+                if (tab.fit)
+                    try {
+                        tab.fit.fit();
+                    } catch {}
+            }
+        });
+    },
+);
+
+// Sync fontSize label with settings
+watch(
+    () => settings.termFontSize,
+    (v) => {
+        fontSize.value = v;
+    },
+);
+
 // ── Encoding helper ──
 
 function encodeBase64(bytes: Uint8Array): string {
@@ -685,15 +736,18 @@ function encodeBase64(bytes: Uint8Array): string {
 // ── Zoom ──
 
 function zoomIn() {
-    fontSize.value = Math.min(24, fontSize.value + 1);
+    fontSize.value = Math.min(24, fontSize.value + 1) as any;
+    settings.setTermFontSize(fontSize.value as any);
     applyFontSize();
 }
 function zoomOut() {
-    fontSize.value = Math.max(8, fontSize.value - 1);
+    fontSize.value = Math.max(8, fontSize.value - 1) as any;
+    settings.setTermFontSize(fontSize.value as any);
     applyFontSize();
 }
 function resetZoom() {
-    fontSize.value = 13;
+    fontSize.value = 13 as any;
+    settings.setTermFontSize(13);
     applyFontSize();
 }
 
