@@ -86,20 +86,16 @@
                 :title="t('settings.title')"
                 @click="$emit('openSettings')"
             >
-                <svg viewBox="0 0 18 18" fill="none">
-                    <circle
-                        cx="9"
-                        cy="9"
-                        r="2.5"
-                        stroke="currentColor"
-                        stroke-width="1.3"
-                    />
-                    <path
-                        d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.3 3.3l1.4 1.4M13.3 13.3l1.4 1.4M3.3 14.7l1.4-1.4M13.3 4.7l1.4-1.4"
-                        stroke="currentColor"
-                        stroke-width="1.3"
-                        stroke-linecap="round"
-                    />
+                <svg
+                    viewBox="0 0 18 18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                >
+                    <line x1="2" y1="4" x2="16" y2="4" />
+                    <line x1="2" y1="9" x2="16" y2="9" />
+                    <line x1="2" y1="14" x2="16" y2="14" />
                 </svg>
             </button>
         </div>
@@ -110,20 +106,16 @@
                 :title="t('settings.title')"
                 @click="$emit('openSettings')"
             >
-                <svg viewBox="0 0 18 18" fill="none">
-                    <circle
-                        cx="9"
-                        cy="9"
-                        r="2.5"
-                        stroke="currentColor"
-                        stroke-width="1.3"
-                    />
-                    <path
-                        d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.3 3.3l1.4 1.4M13.3 13.3l1.4 1.4M3.3 14.7l1.4-1.4M13.3 4.7l1.4-1.4"
-                        stroke="currentColor"
-                        stroke-width="1.3"
-                        stroke-linecap="round"
-                    />
+                <svg
+                    viewBox="0 0 18 18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                >
+                    <line x1="2" y1="4" x2="16" y2="4" />
+                    <line x1="2" y1="9" x2="16" y2="9" />
+                    <line x1="2" y1="14" x2="16" y2="14" />
                 </svg>
             </button>
             <button

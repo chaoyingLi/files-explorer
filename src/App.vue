@@ -15,7 +15,10 @@
             @navigate-address="nav.toolbarAddress"
             @search-submit="(q: string) => search.submitSearch(q)"
         />
-        <RibbonToolbar @action="(a: string) => actions.executeAction(a)" />
+        <RibbonToolbar
+            @action="(a: string) => actions.executeAction(a)"
+            @toggle-terminal="showTerminal = !showTerminal"
+        />
         <div class="main-content" v-show="!terminalMaximized">
             <Sidebar
                 :width="sidebarWidth"
