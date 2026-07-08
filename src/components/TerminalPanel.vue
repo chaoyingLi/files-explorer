@@ -249,6 +249,8 @@ async function addTab() {
     await nextTick();
     initTerminal(tab);
     await spawnTerminal(tab);
+    await nextTick();
+    resizeTerminal(id);
 }
 
 function closeTab(id: number) {
@@ -708,10 +710,7 @@ function toggleMaximize() {
     emit("update:maximized", isMaximized.value);
     nextTick(() => {
         for (const tab of tabs.value) {
-            if (tab.fit)
-                try {
-                    tab.fit.fit();
-                } catch {}
+            resizeTerminal(tab.id);
         }
     });
 }
@@ -748,10 +747,8 @@ function onResizeEnd() {
     document.removeEventListener("mouseup", onResizeEnd);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-    if (activeTab.value?.fit) {
-        try {
-            activeTab.value.fit.fit();
-        } catch {}
+    if (activeTabId.value !== null) {
+        resizeTerminal(activeTabId.value);
     }
 }
 
