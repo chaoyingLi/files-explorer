@@ -185,6 +185,7 @@ export default {
     exited: "已退出",
     exitedHint: "进程已退出",
     maximized: "终端已最大化",
+    spawnFailed: "启动失败",
     newTerminal: "新建终端",
     copy: "复制",
     paste: "粘贴",

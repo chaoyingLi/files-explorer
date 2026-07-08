@@ -186,6 +186,7 @@ export default {
     exited: "Exited",
     exitedHint: "Process exited",
     maximized: "Terminal maximized",
+    spawnFailed: "Failed to start",
     newTerminal: "New Terminal",
     copy: "Copy",
     paste: "Paste",

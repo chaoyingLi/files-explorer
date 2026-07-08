@@ -36,7 +36,7 @@
                         <rect x="1.5" y="2.5" width="13" height="11" rx="1.2" />
                         <path d="M4.5 6l2.5 2-2.5 2M8 10h3.5" />
                     </svg>
-                    <span>{{ tab.shellName }}</span>
+                    <span>{{ tabDisplayName(tab) }}</span>
                     <span class="tab-close" @click.stop="closeTab(tab.id)"
                         >&times;</span
                     >
@@ -146,6 +146,15 @@
                         {{ $t("terminal.restart") }}
                     </button>
                 </div>
+                <div v-else-if="tab.spawnError" class="terminal-overlay">
+                    <span>{{ $t("terminal.spawnFailed") }}</span>
+                    <button
+                        class="overlay-btn"
+                        @click="restartTerminal(tab.id)"
+                    >
+                        {{ $t("terminal.restart") }}
+                    </button>
+                </div>
                 <div
                     :ref="(el) => setTabContainer(tab.id, el)"
                     class="terminal-body"
@@ -183,6 +192,7 @@ interface TerminalTab {
     cwd: string;
     terminalReady: boolean;
     exited: boolean;
+    spawnError: boolean;
     term: Terminal | null;
     fit: FitAddon | null;
 }
@@ -218,6 +228,15 @@ const activeTab = computed(
     () => tabs.value.find((t) => t.id === activeTabId.value) || null,
 );
 
+function tabDisplayName(tab: TerminalTab): string {
+    const sameName = tabs.value.filter((t) => t.shellName === tab.shellName);
+    if (sameName.length > 1) {
+        const idx = sameName.indexOf(tab) + 1;
+        return `${tab.shellName} #${idx}`;
+    }
+    return tab.shellName;
+}
+
 // ── Tab management ──
 
 async function addTab() {
@@ -232,7 +251,8 @@ async function addTab() {
     } catch {
         shellName = "";
     }
-    const sh = shellName.split("/").pop() || shellName || "sh";
+    const sh =
+        shellName.replace(/\\/g, "/").split("/").pop() || shellName || "sh";
 
     const tab: TerminalTab = {
         id,
@@ -240,6 +260,7 @@ async function addTab() {
         cwd: dirName,
         terminalReady: false,
         exited: false,
+        spawnError: false,
         term: null,
         fit: null,
     };
@@ -380,13 +401,23 @@ function initTerminal(tab: TerminalTab) {
 }
 
 async function spawnTerminal(tab: TerminalTab) {
+    tab.spawnError = false;
     try {
+        const timeout = setTimeout(() => {
+            const t = tabs.value.find((t) => t.id === tab.id);
+            if (t && !t.terminalReady && !t.exited) {
+                t.spawnError = true;
+            }
+        }, 10000);
         await invoke("terminal_spawn", {
             id: tab.id,
             cwd: store.currentPath || "/",
             termType: settings.termEmulation,
         });
+        clearTimeout(timeout);
     } catch (e) {
+        const t = tabs.value.find((t) => t.id === tab.id);
+        if (t) t.spawnError = true;
         console.error(e);
     }
 }
@@ -430,6 +461,7 @@ async function setupGlobalListeners() {
         if (tab) {
             tab.terminalReady = true;
             tab.exited = false;
+            tab.spawnError = false;
         }
     });
     const u3 = await listen<TermPayload>("terminal-exit", (event) => {
@@ -846,16 +878,7 @@ watch(
     },
 );
 
-watch(
-    () => store.currentPath,
-    async (newPath, oldPath) => {
-        if (!props.visible || !newPath || newPath === oldPath) return;
-        // Only restart the active tab with the new directory
-        if (activeTabId.value !== null) {
-            await restartTerminal(activeTabId.value);
-        }
-    },
-);
+// 终端不跟随目录导航，每个终端独立，cd 到哪里就保持在哪里
 
 onMounted(() => {});
 onUnmounted(() => {
