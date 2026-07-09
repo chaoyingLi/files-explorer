@@ -85,6 +85,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 同步版本号至 tauri.conf.json
+        run: |
+          jq --arg v "${{ needs.get-version.outputs.version }}" \
+            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
+            && mv tmp.json src-tauri/tauri.conf.json
+
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -150,6 +156,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 同步版本号至 tauri.conf.json
+        run: |
+          jq --arg v "${{ needs.get-version.outputs.version }}" \
+            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
+            && mv tmp.json src-tauri/tauri.conf.json
+
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -214,6 +226,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: 同步版本号至 tauri.conf.json
+        shell: pwsh
+        run: |
+          $v = "${{ needs.get-version.outputs.version }}"
+          $cfg = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $cfg.version = $v
+          $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -281,6 +301,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: 同步版本号至 tauri.conf.json
+        run: |
+          jq --arg v "${{ needs.get-version.outputs.version }}" \
+            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
+            && mv tmp.json src-tauri/tauri.conf.json
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -393,11 +419,11 @@ jobs:
             "platforms": {
               "darwin-x86_64": {
                 "signature": "${SIG_X64:-}",
-                "url": "${BASE_URL}/Files Explorer_x64.dmg"
+                "url": "${BASE_URL}/Files Explorer_${VERSION}_x64.dmg"
               },
               "darwin-aarch64": {
                 "signature": "${SIG_ARM64:-}",
-                "url": "${BASE_URL}/Files Explorer_aarch64.dmg"
+                "url": "${BASE_URL}/Files Explorer_${VERSION}_aarch64.dmg"
               },
               "windows-x86_64": {
                 "signature": "${SIG_WIN:-}",
