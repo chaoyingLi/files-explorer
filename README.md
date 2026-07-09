@@ -35,13 +35,13 @@
   <br/>
   <em>亮色主题界面 (Catppuccin Latte)</em>
   <br/><br/>
-  <img src="screenshots/dark1.png" alt="文件浏览界面" width="90%" />
+  <img src="screenshots/dark1.png" alt="文件、视频浏览界面" width="90%" />
   <br/>
-  <em>文件浏览与预览面板</em>
+  <em>文件、视频预览面板</em>
   <br/><br/>
-  <img src="screenshots/dark2.png" alt="内置终端界面" width="90%" />
+  <img src="screenshots/dark2.png" alt="独立预览窗口" width="90%" />
   <br/>
-  <em>内置终端</em>
+  <em>独立预览窗口</em>
 </div>
 
 ---
