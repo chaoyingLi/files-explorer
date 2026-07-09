@@ -178,10 +178,26 @@ export function useFileActions(
       case "compress":
         if (sel.selectedFiles.size > 0) {
           const paths = [...sel.selectedFiles];
+          // 推导默认 ZIP 文件名
+          const firstPath = paths[0];
+          const normPath = firstPath.replace(/\\/g, "/");
+          let defaultZipName: string;
+          if (paths.length === 1) {
+            // 单选：文件名去掉扩展名
+            const rawName = normPath.split("/").pop() || "";
+            const dot = rawName.lastIndexOf(".");
+            const stem = dot > 0 ? rawName.substring(0, dot) : rawName;
+            defaultZipName = stem ? stem + ".zip" : "archive.zip";
+          } else {
+            // 多选：第一个选中项的父目录名
+            const parentPath = normPath.replace(/\/[^/]+$/, "");
+            const dirName = parentPath.split("/").pop() || "";
+            defaultZipName = dirName ? dirName + ".zip" : "archive.zip";
+          }
           try {
             const { save } = await import("@tauri-apps/plugin-dialog");
             const filePath = await save({
-              defaultPath: "archive.zip",
+              defaultPath: defaultZipName,
               filters: [{ name: "Zip Archive", extensions: ["zip"] }],
             });
             if (filePath) {

@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import type { ContextMenuOption } from "@/types";
 
 const props = defineProps<{
@@ -68,6 +68,15 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; action: [action: string] }>();
 const menuRef = ref<HTMLElement | null>(null);
 const subId = ref<number | null>(null);
+
+// ── Esc 关闭菜单 ──
+function onKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+        emit("close");
+    }
+}
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 const adjX = computed(() => Math.min(props.x, window.innerWidth - 240));
 const adjY = computed(() =>

@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { getClipboardInfo } from "@/utils/tauri";
 import type { ContextMenuOption } from "@/types";
 
 // ── Menu icons (14x14 viewBox SVG paths) ──
@@ -26,6 +27,10 @@ const I = {
   showInExplorer: `<svg viewBox="0 0 14 14"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   selectAll: `<svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/><path d="M4.5 7l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   refresh: `<svg viewBox="0 0 14 14"><path d="M2 7a5 5 0 015-5 4.9 4.9 0 013.5 1.5M12 7a5 5 0 01-5 5 4.9 4.9 0 01-3.5-1.5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M9.5 2V4.5H12M4.5 12V9.5H2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  // Issue 4: 独立图标
+  preview: `<svg viewBox="0 0 14 14"><circle cx="5.5" cy="5.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8l4.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+  compress: `<svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="10" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5 4h4M5 6h4M7 8v3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
+  extract: `<svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="10" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><path d="M7 2v5M5.5 5.5L7 7l1.5-1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
 export function useContextMenu() {
@@ -40,10 +45,19 @@ export function useContextMenu() {
   const contextMenuPos = ref({ x: 0, y: 0 });
   const sidebarContextPath = ref("");
   const rightClickedPath = ref("");
+  // Issue 6: 剪贴板内容检测
+  const hasClipboardContent = ref(false);
 
-  function openContextMenu(x: number, y: number) {
+  async function openContextMenu(x: number, y: number) {
     contextMenuPos.value = { x, y };
     showContextMenu.value = true;
+    // 检查剪贴板是否包含文件
+    try {
+      const info = await getClipboardInfo();
+      hasClipboardContent.value = info.paths.length > 0;
+    } catch {
+      hasClipboardContent.value = false;
+    }
   }
 
   function closeContextMenu() {
@@ -85,7 +99,7 @@ export function useContextMenu() {
       {
         label: t("contextMenu.openInPreviewWindow"),
         action: "openInPreviewWindow",
-        icon: I.showInExplorer,
+        icon: I.preview,
       },
       {
         label: t("contextMenu.openInTerminal"),
@@ -117,6 +131,7 @@ export function useContextMenu() {
       action: "paste",
       icon: I.paste,
       shortcut: sk("shortcuts.ctrlV", "shortcuts.cmdV"),
+      disabled: !hasClipboardContent.value,
     });
     if (hasSelection) {
       result.push({
@@ -183,19 +198,21 @@ export function useContextMenu() {
         {
           label: t("contextMenu.compress"),
           action: "compress",
-          icon: I.copy,
+          icon: I.compress,
         },
       );
     }
-    if (singleSelection) {
-      const first = [...sel.selectedFiles][0];
+    if (hasSelection) {
       const archiveExts = ["zip", "tar", "gz", "tgz", "7z", "rar"];
-      const ext = first.split(".").pop()?.toLowerCase() || "";
-      if (archiveExts.includes(ext)) {
+      const allArchive = [...sel.selectedFiles].every((p) => {
+        const ext = p.split(".").pop()?.toLowerCase() || "";
+        return archiveExts.includes(ext);
+      });
+      if (allArchive) {
         result.push({
           label: t("contextMenu.extract"),
           action: "extract",
-          icon: I.copy,
+          icon: I.extract,
         });
       }
     }

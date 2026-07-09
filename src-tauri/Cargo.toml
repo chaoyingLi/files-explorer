@@ -51,6 +51,10 @@ dirs = "6"
 # Base64 encoding (file previews, icons)
 base64 = "0.22"
 
+# Encoding detection & conversion (non-UTF-8 text preview)
+encoding_rs = "0.8"
+chardetng = "0.1"
+
 # Archive handling
 zip = "2"
 tar = "0.4"

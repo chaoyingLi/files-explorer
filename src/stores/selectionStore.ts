@@ -114,6 +114,17 @@ export const useSelectionStore = defineStore("selection", () => {
     }
   }
 
+  /** Shift+Click 范围选择: 从 anchor 到 target 全选 */
+  function selectRange(files: FileEntry[], fromIdx: number, toIdx: number) {
+    const start = Math.min(fromIdx, toIdx);
+    const end = Math.max(fromIdx, toIdx);
+    const newSet = new Set<string>();
+    for (let i = start; i <= end; i++) {
+      if (files[i]) newSet.add(files[i].path);
+    }
+    selectedFiles.value = newSet;
+  }
+
   function selectAll(files: FileEntry[]) {
     selectedFiles.value = new Set(files.map((f) => f.path));
   }
@@ -177,6 +188,7 @@ export const useSelectionStore = defineStore("selection", () => {
     anchorIndex,
     toggleSelectFile,
     selectFile,
+    selectRange,
     selectAll,
     clearSelection,
     isSelected,
