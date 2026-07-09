@@ -243,7 +243,7 @@ fn get_linux_drives() -> Vec<DiskInfo> {
 }
 
 fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
-    use std::ffi::{CStr, CString};
+    use std::ffi::CString;
     let cpath = CString::new(path).map_err(|e| e.to_string())?;
     unsafe {
         let mut stat: libc::statvfs = std::mem::zeroed();
@@ -252,14 +252,7 @@ fn get_unix_disk_info(path: &str) -> Result<DiskInfo, String> {
         }
         let total = stat.f_frsize as u64 * stat.f_blocks as u64;
         let free = stat.f_frsize as u64 * stat.f_bavail as u64;
-        let mut sfs: libc::statfs = std::mem::zeroed();
-        let file_system = if libc::statfs(cpath.as_ptr(), &mut sfs) == 0 {
-            CStr::from_ptr(sfs.f_fstypename.as_ptr())
-                .to_string_lossy()
-                .to_string()
-        } else {
-            String::from("unknown")
-        };
+        let file_system = String::from("unknown");
         Ok(DiskInfo {
             name: path.to_string(),
             mount_point: path.to_string(),

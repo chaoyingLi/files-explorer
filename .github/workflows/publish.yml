@@ -11,6 +11,10 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+    - "v*"
+
 # 安全：将以下 Secrets 添加到 GitHub 仓库 Settings → Secrets and variables → Actions
 # 必须配置：
 #   TAURI_PRIVATE_KEY    — Tauri 签名私钥内容（cat ~/.tauri/updater.key）
