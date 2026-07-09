@@ -388,4 +388,15 @@ export default {
     quitOnCloseDesc:
       "Exit application when closing window (uncheck to hide to tray)",
   },
+  updater: {
+    available: "New version v{version} available",
+    updateDialogDescription: "Download and install now?",
+    updateLater: "Later",
+    updateNow: "Update now",
+    updating: "Downloading...",
+    restartPromptTitle: "Update ready",
+    restartPromptDescription: "Update installed. Restart to apply.",
+    restartLater: "Restart later",
+    restartNow: "Restart now",
+  },
 };
