@@ -380,6 +380,7 @@ jobs:
           if-no-files-found: ignore
 
   # ── 步骤 4：更新 updater.json 并推送 ──
+  # 只要有任一平台构建成功，就生成 updater.json（失败的平台签名留空）
   update-updater-json:
     needs:
       - get-version
@@ -387,12 +388,15 @@ jobs:
       - build-macos-aarch64
       - build-windows
       - build-linux
+    # 即使部分平台失败也继续（被取消则跳过）
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: 下载所有签名文件
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: sig-*
           path: sig-files
@@ -403,6 +407,11 @@ jobs:
           TAG: ${{ needs.get-version.outputs.tag }}
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
+          # 若没有任何签名文件则跳过
+          if [ ! -d sig-files ] || [ -z "$(ls -A sig-files 2>/dev/null)" ]; then
+            echo "⚠️ 没有找到任何签名文件，跳过 updater.json 生成"
+            exit 0
+          fi
           # 读取各平台签名（不存在则留空）
           SIG_X64=$(cat sig-files/*x86_64*.sig sig-files/*x64*.sig 2>/dev/null | head -1 || echo "")
           SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
@@ -444,6 +453,10 @@ jobs:
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
+          if [ ! -f updater.json ]; then
+            echo "⚠️ updater.json 未生成，跳过推送"
+            exit 0
+          fi
           git config user.name "发布机器人"
           git config user.email "bot@files-explorer.dev"
           git add updater.json
@@ -452,10 +465,13 @@ jobs:
 
       - name: 提交并推送到 GitHub
         run: |
+          if [ ! -f updater.json ]; then
+            echo "⚠️ updater.json 未生成，跳过推送"
+            exit 0
+          fi
           git config user.name "发布机器人"
           git config user.email "bot@files-explorer.dev"
           git add updater.json
-          # 如果 Gitee 推送已 commit，这里无需再次 commit
           if git diff --cached --quiet; then
             echo "updater.json 已提交，直接推送"
           else
