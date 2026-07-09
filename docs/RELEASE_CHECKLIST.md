@@ -1,6 +1,91 @@
 # 发布检查清单
 
-> 纯手动发布流程（方案 C），每次发布新版本逐项执行。
+> 提供两套发布方式，任选其一：
+> - **A. CI 自动发布**（推荐）— 推送 tag，GitHub Actions 自动构建 + 上传 + 更新元数据
+> - **B. 纯手动发布**（备用）— 本地构建，手动上传
+
+---
+
+## 发布方式选择
+
+- [ ] 确定本次发布方式：**A. CI 自动** / **B. 纯手动**
+  - CI 自动：只需跑 [A 流程](#a-ci-自动发布推荐)
+  - 纯手动：需跑 [B 流程](#b-纯手动发布)
+
+---
+
+## 通用 — 发布前准备
+
+- [ ] 确认 `~/.tauri/updater.key` 密钥存在且有效
+- [ ] 确认公钥已填入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`
+
+---
+
+# A. CI 自动发布（推荐）
+
+## A1 — 更新版本号
+
+**三处同步修改：**
+
+| 文件 | 当前值示例 | 改为 |
+|---|---|---|
+| `src-tauri/Cargo.toml` | `version = "0.2.0"` | `version = "0.3.0"` |
+| `src-tauri/tauri.conf.json` | `"version": "0.2.0"` | `"version": "0.3.0"` |
+| `package.json` | `"version": "0.2.0"` | `"version": "0.3.0"` |
+
+- [ ] `Cargo.toml` 版本号已更新
+- [ ] `tauri.conf.json` 版本号已更新
+- [ ] `package.json` 版本号已更新
+
+## A2 — 提交并推送 Tag
+
+```bash
+git add src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json
+git commit -m "chore: bump version to v0.3.0"
+git tag v0.3.0
+# 推送 tag 到 Gitee（GitHub 会自动同步）
+git push origin master --tags
+```
+
+- [ ] 版本号已提交
+- [ ] Tag 已推送
+
+## A3 — 等待 CI 完成
+
+推送 tag 后，GitHub Actions 自动执行：
+
+1. 打开 https://github.com/hhyd/files-explorer/actions 查看进度
+2. CI 会依次：
+   - 创建 Gitee Release
+   - 构建 macOS Intel / macOS ARM / Windows / Linux 四个平台的安装包
+   - 上传安装包到 Gitee Releases + GitHub Releases
+   - 收集签名 → 更新 `updater.json` → 提交到 Gitee
+3. 全部完成约需 **15–25 分钟**
+
+- [ ] 四平台构建全部绿色（✅）
+- [ ] Gitee Releases 已有安装包
+- [ ] GitHub Releases 已有安装包
+- [ ] `updater.json` 已自动更新
+
+## A4 — 验证
+
+- [ ] 打开旧版本，触发检查更新
+- [ ] 确认弹出 v0.3.0 更新提示
+- [ ] 确认更新内容正确
+- [ ] 确认安装后新版本正常运行
+
+> ✅ **CI 发布完成，无需手动上传。**
+
+---
+
+# B. 纯手动发布（备用）
+
+> 当 CI 不可用或需要特殊处理时使用。
+
+## 发布前准备
+
+- [ ] 确认所有要发布的代码已合并到 `main` 分支
+- [ ] 确认本地 `main` 分支是最新的：`git pull origin master`
 
 ---
 
@@ -211,3 +296,17 @@ git push origin main
 - [ ] 确认 `pubkey`（公钥）已填写到 `tauri.conf.json`
 
 > ⚠️ **密钥丢失 = 无法向所有旧版本推送更新。** 每次发版前确认密钥还在。
+
+---
+
+## CI 相关 Secrets 配置
+
+以下 Secrets 需要在 GitHub 仓库设置中配置（Settings → Secrets and variables → Actions）：
+
+| Secret | 说明 | 获取方式 |
+|--------|------|---------|
+| `TAURI_PRIVATE_KEY` | Tauri 签名私钥内容 | `cat ~/.tauri/updater.key` 复制全文 |
+| `TAURI_KEY_PASSWORD` | 私钥密码（如有） | 创建密钥时设置的密码 |
+| `GITEE_TOKEN` | Gitee 个人访问令牌 | Gitee → 设置 → 私人令牌 → 创建（勾选 repo） |
+
+> 配置完成后，每次发布只需`git tag v0.x.x && git push origin master --tags`，CI 自动处理后续全部流程。
