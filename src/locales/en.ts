@@ -288,6 +288,18 @@ export default {
     en: "English",
     zh: "中文",
   },
+  updater: {
+    available: "New version {version} available",
+    updateNow: "Update Now",
+    updateLater: "Remind Later",
+    updating: "Updating...",
+    updateDialogDescription: "A new version is ready. Update now?",
+    restartNow: "Restart Now",
+    restartLater: "Restart Later",
+    restartPromptTitle: "Restart Application",
+    restartPromptDescription: "Update installed. Restart to apply changes.",
+    updateFailed: "Update failed",
+  },
   tray: {
     hideHint: "Minimized to system tray",
     clearCache: "Clear cache data",

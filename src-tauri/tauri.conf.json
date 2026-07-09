@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicepkg/vscode-tauri/main/schemas/config.schema.json",
   "productName": "Files Explorer",
   "version": "0.2.0",
-    "identifier": "com.files-explorer.desktop",
+  "identifier": "com.files-explorer.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420",
@@ -41,15 +41,20 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "**"
-        ]
+        "scope": ["**"]
       }
     }
   },
   "plugins": {
     "shell": {
       "open": true
+    },
+    "updater": {
+      "endpoints": [
+        "https://gitee.com/hhyd/files-explorer/raw/main/updater.json",
+        "https://raw.githubusercontent.com/chaoyingLi/files-explorer/main/updater.json"
+      ],
+      "pubkey": "请替换为您的 Tauri 更新公钥"
     }
   },
   "bundle": {

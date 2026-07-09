@@ -287,6 +287,18 @@ export default {
     en: "English",
     zh: "中文",
   },
+  updater: {
+    available: "发现新版本 {version}",
+    updateNow: "立即更新",
+    updateLater: "稍后提醒",
+    updating: "正在更新...",
+    updateDialogDescription: "新版本已准备就绪，是否现在更新？",
+    restartNow: "立即重启",
+    restartLater: "稍后重启",
+    restartPromptTitle: "重启应用",
+    restartPromptDescription: "更新已安装，重启应用以生效。",
+    updateFailed: "更新失败",
+  },
   tray: {
     hideHint: "已最小化到系统托盘",
     clearCache: "清理缓存数据",

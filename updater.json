@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "notes": "## 更新内容\n\n请访问 Gitee Releases 或 GitHub Releases 查看详情。",
+  "pub_date": "2026-07-09T18:00:00+08:00",
+  "platforms": {
+    "darwin-x86_64": {
+      "signature": "",
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.0/Files Explorer_x64.dmg"
+    },
+    "darwin-aarch64": {
+      "signature": "",
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.0/Files Explorer_aarch64.dmg"
+    },
+    "windows-x86_64": {
+      "signature": "",
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.0/Files Explorer_0.2.0_x64_en-US.msi"
+    },
+    "linux-x86_64": {
+      "signature": "",
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.0/Files Explorer_0.2.0_amd64.AppImage"
+    }
+  }
+}

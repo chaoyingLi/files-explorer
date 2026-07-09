@@ -117,6 +117,7 @@
             "
             @cancel="showClearCache = false"
         />
+        <UpdaterChecker />
         <div v-if="toast.messages.value.length > 0" class="toast-container">
             <div
                 v-for="msg in toast.messages.value"
@@ -165,6 +166,7 @@ import ClearCacheDialog from "@/components/Dialogs/ClearCacheDialog.vue";
 import PropertiesPanel from "@/components/PropertiesPanel.vue";
 import PreviewWindow from "@/components/PreviewWindow.vue";
 import TerminalPanel from "@/components/TerminalPanel.vue";
+import UpdaterChecker from "@/components/UpdaterChecker.vue";
 
 import { useToast } from "@/composables/useToast";
 import { useContextMenu } from "@/composables/useContextMenu";
