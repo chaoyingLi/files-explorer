@@ -60,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 创建 Gitee Release
+        continue-on-error: true
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
@@ -120,6 +121,7 @@ jobs:
           fail_on_unmatched_files: false
 
       - name: 上传到 Gitee Releases
+        continue-on-error: true
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
@@ -184,6 +186,7 @@ jobs:
           fail_on_unmatched_files: false
 
       - name: 上传到 Gitee Releases
+        continue-on-error: true
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
@@ -249,6 +252,7 @@ jobs:
           fail_on_unmatched_files: false
 
       - name: 上传到 Gitee Releases
+        continue-on-error: true
         shell: pwsh
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -325,6 +329,7 @@ jobs:
           fail_on_unmatched_files: false
 
       - name: 上传到 Gitee Releases
+        continue-on-error: true
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
@@ -378,12 +383,12 @@ jobs:
           SIG_LINUX=$(cat sig-files/*linux*.sig 2>/dev/null | head -1 || echo "")
 
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
-          BASE_URL="https://gitee.com/${{ env.GITEE_REPO }}/releases/download/$TAG"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
 
           cat > updater.json << JSONEOF
           {
             "version": "$VERSION",
-            "notes": "请访问 Gitee Releases 查看更新详情",
+            "notes": "请访问 GitHub/Gitee Releases 查看更新详情",
             "pub_date": "$PUB_DATE",
             "platforms": {
               "darwin-x86_64": {
@@ -417,3 +422,16 @@ jobs:
           git add updater.json
           git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
           git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master
+
+      - name: 提交并推送到 GitHub
+        run: |
+          git config user.name "发布机器人"
+          git config user.email "bot@files-explorer.dev"
+          git add updater.json
+          # 如果 Gitee 推送已 commit，这里无需再次 commit
+          if git diff --cached --quiet; then
+            echo "updater.json 已提交，直接推送"
+          else
+            git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
+          fi
+          git push origin HEAD:master
