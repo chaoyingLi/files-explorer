@@ -24,10 +24,7 @@ export type UpdateTaskState =
   | "error";
 
 export type UpdateErrorCode =
-  | "CHECK_FAILED"
-  | "NO_UPDATE"
-  | "UPDATE_IN_PROGRESS"
-  | "INSTALL_FAILED";
+  "CHECK_FAILED" | "NO_UPDATE" | "UPDATE_IN_PROGRESS" | "INSTALL_FAILED";
 
 export interface AvailableUpdateRef {
   version: string;
@@ -301,14 +298,22 @@ function createMockUpdate(options?: { slowMode?: boolean }): Update {
     version: slowMode ? "9.9.9-slow" : "9.9.9-test",
     date: new Date().toISOString(),
     body: slowMode ? "Slow download test" : "Mock update",
-    downloadAndInstall: async (eventHandler) => {
+    downloadAndInstall: async (
+      eventHandler?: (event: {
+        event: string;
+        data: { chunkLength: number };
+      }) => void,
+    ) => {
       setTaskState("downloading");
       const totalSteps = slowMode ? 10 : 3;
       const stepDelay = slowMode ? 2000 : 500;
       for (let i = 1; i <= totalSteps; i++) {
         await delay(stepDelay);
         if (eventHandler) {
-          eventHandler({ event: "Progress", data: { chunkLength: 1024 * 100 } });
+          eventHandler({
+            event: "Progress",
+            data: { chunkLength: 1024 * 100 },
+          });
         }
       }
       setTaskState("installing");
