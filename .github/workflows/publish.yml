@@ -9,7 +9,7 @@ name: 发布 / Publish
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 # 安全：将以下 Secrets 添加到 GitHub 仓库 Settings → Secrets and variables → Actions
 # 必须配置：
@@ -97,7 +97,7 @@ jobs:
             security import /tmp/cert.p12 -k temp.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
           fi
-          cargo tauri build --target x86_64-apple-darwin
+          npx @tauri-apps/cli build --target x86_64-apple-darwin
 
       - name: 收集产物
         run: |
@@ -168,7 +168,7 @@ jobs:
             security import /tmp/cert.p12 -k temp.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
           fi
-          cargo tauri build --target aarch64-apple-darwin
+          npx @tauri-apps/cli build --target aarch64-apple-darwin
 
       - name: 收集产物
         run: |
@@ -227,7 +227,7 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: cargo tauri build
+        run: npx @tauri-apps/cli build
 
       - name: 收集产物
         shell: pwsh
@@ -285,12 +285,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
             librsvg2-dev \
             patchelf \
             libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev
+            libgtk-3-dev
 
       - name: 安装前端依赖
         run: npm ci
@@ -299,7 +297,7 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: cargo tauri build
+        run: npx @tauri-apps/cli build
 
       - name: 收集产物
         run: |
