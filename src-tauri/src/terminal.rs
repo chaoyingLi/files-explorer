@@ -71,6 +71,9 @@ impl TerminalManager {
         let mut cmd = CommandBuilder::new(&shell);
         cmd.cwd(cwd);
         cmd.env("TERM", term_type);
+        let locale = std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".into());
+        cmd.env("LANG", &locale);
+        cmd.env("LC_ALL", &locale);
 
         let child = pair
             .slave

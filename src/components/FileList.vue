@@ -356,11 +356,23 @@ const treeVisible = computed<TreeViewItem[]>(() => {
 
 // ── File click handlers ──
 function onFileClick(file: FileEntry, e: MouseEvent) {
-    const multi = e.ctrlKey || e.metaKey;
-    sel.selectFile(file, multi);
-    // Sync focusedIndex with clicked file
+    const shift = e.shiftKey;
+    const ctrl = e.ctrlKey || e.metaKey;
     const idx = displayFiles.value.findIndex((f) => f.path === file.path);
-    if (idx >= 0) {
+    if (idx < 0) return;
+
+    if (shift && sel.selectedFiles.size > 0) {
+        // Shift+Click: 从 anchor 到当前文件范围选中
+        sel.selectRange(displayFiles.value, sel.anchorIndex, idx);
+        sel.focusedIndex = idx;
+        // 不修改 anchorIndex，保留范围锚点
+    } else if (ctrl) {
+        // Ctrl+Click: 切换当前文件，不重置 anchor
+        sel.toggleSelectFile(file);
+        sel.focusedIndex = idx;
+    } else {
+        // 普通点击: 单选，重置 anchor
+        sel.selectFile(file, false);
         sel.focusedIndex = idx;
         sel.anchorIndex = idx;
     }
@@ -371,6 +383,12 @@ async function onFileDblClick(file: FileEntry, _e: MouseEvent) {
 }
 
 function onContextMenu(e: MouseEvent) {
+    // 空白区域右键时清除选中，避免误操作 (Issue 7)
+    // 需排除来自文件项的冒泡事件，否则会清掉刚选中的文件
+    const target = e.target as HTMLElement | null;
+    if (!target?.closest(".file-item, .grid-card, .column-item, .tree-item")) {
+        sel.clearSelection();
+    }
     emit("contextMenu", e);
 }
 

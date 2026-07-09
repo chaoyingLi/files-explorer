@@ -339,68 +339,70 @@
                 </div>
 
                 <table class="props-table">
-                    <tr>
-                        <td class="props-td-label">
-                            {{ $t("fileList.type") }}
-                        </td>
-                        <td class="props-td-value">{{ fileType }}</td>
-                    </tr>
-                    <tr>
-                        <td class="props-td-label">
-                            {{ $t("fileList.size") }}
-                        </td>
-                        <td class="props-td-value">
-                            {{ formatSize(file.size) }}
-                        </td>
-                    </tr>
-                    <tr v-if="imageInfo">
-                        <td class="props-td-label">
-                            {{ $t("properties.dimensions") }}
-                        </td>
-                        <td class="props-td-value">
-                            {{ imageInfo.width }} × {{ imageInfo.height }}
-                        </td>
-                    </tr>
-                    <tr v-else-if="file.is_dir">
-                        <td class="props-td-label">
-                            {{ $t("properties.contents") }}
-                        </td>
-                        <td class="props-td-value">
-                            {{
-                                $t("properties.itemsCount", {
-                                    count: dirItemCount,
-                                })
-                            }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="props-td-label">
-                            {{ $t("fileList.dateModified") }}
-                        </td>
-                        <td class="props-td-value">
-                            {{ formatDate(file.modified) }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="props-td-label">
-                            {{ $t("fileList.dateCreated") }}
-                        </td>
-                        <td class="props-td-value">
-                            {{ formatDate(file.created) }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="props-td-label">
-                            {{ $t("properties.fullPath") }}
-                        </td>
-                        <td
-                            class="props-td-value props-td-path"
-                            :title="$t('contextMenu.showInExplorer')"
-                            @click.stop="showInExplorerClick"
-                        >
-                            {{ file.path }}
-                        </td>
-                    </tr>
+                    <tbody>
+                        <tr>
+                            <td class="props-td-label">
+                                {{ $t("fileList.type") }}
+                            </td>
+                            <td class="props-td-value">{{ fileType }}</td>
+                        </tr>
+                        <tr>
+                            <td class="props-td-label">
+                                {{ $t("fileList.size") }}
+                            </td>
+                            <td class="props-td-value">
+                                {{ formatSize(file.size) }}
+                            </td>
+                        </tr>
+                        <tr v-if="imageInfo">
+                            <td class="props-td-label">
+                                {{ $t("properties.dimensions") }}
+                            </td>
+                            <td class="props-td-value">
+                                {{ imageInfo.width }} × {{ imageInfo.height }}
+                            </td>
+                        </tr>
+                        <tr v-else-if="file.is_dir">
+                            <td class="props-td-label">
+                                {{ $t("properties.contents") }}
+                            </td>
+                            <td class="props-td-value">
+                                {{
+                                    $t("properties.itemsCount", {
+                                        count: dirItemCount,
+                                    })
+                                }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="props-td-label">
+                                {{ $t("fileList.dateModified") }}
+                            </td>
+                            <td class="props-td-value">
+                                {{ formatDate(file.modified) }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="props-td-label">
+                                {{ $t("fileList.dateCreated") }}
+                            </td>
+                            <td class="props-td-value">
+                                {{ formatDate(file.created) }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="props-td-label">
+                                {{ $t("properties.fullPath") }}
+                            </td>
+                            <td
+                                class="props-td-value props-td-path"
+                                :title="$t('contextMenu.showInExplorer')"
+                                @click.stop="showInExplorerClick"
+                            >
+                                {{ file.path }}
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
 
                 <div class="preview-info-actions">

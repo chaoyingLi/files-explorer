@@ -36,7 +36,7 @@
                         <rect x="1.5" y="2.5" width="13" height="11" rx="1.2" />
                         <path d="M4.5 6l2.5 2-2.5 2M8 10h3.5" />
                     </svg>
-                    <span>{{ tab.shellName }}</span>
+                    <span>{{ tabDisplayName(tab) }}</span>
                     <span class="tab-close" @click.stop="closeTab(tab.id)"
                         >&times;</span
                     >
@@ -146,6 +146,15 @@
                         {{ $t("terminal.restart") }}
                     </button>
                 </div>
+                <div v-else-if="tab.spawnError" class="terminal-overlay">
+                    <span>{{ $t("terminal.spawnFailed") }}</span>
+                    <button
+                        class="overlay-btn"
+                        @click="restartTerminal(tab.id)"
+                    >
+                        {{ $t("terminal.restart") }}
+                    </button>
+                </div>
                 <div
                     :ref="(el) => setTabContainer(tab.id, el)"
                     class="terminal-body"
@@ -168,7 +177,11 @@
 import { ref, watch, onUnmounted, nextTick, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
-import { useSettingsStore, type ThemeMode } from "@/stores/settingsStore";
+import {
+    useSettingsStore,
+    type ThemeMode,
+    FONT_FAMILY_MAP,
+} from "@/stores/settingsStore";
 import type { ContextMenuOption } from "@/types";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -183,6 +196,7 @@ interface TerminalTab {
     cwd: string;
     terminalReady: boolean;
     exited: boolean;
+    spawnError: boolean;
     term: Terminal | null;
     fit: FitAddon | null;
 }
@@ -202,7 +216,7 @@ const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<number | null>(null);
 const nextTabId = ref(1);
 const isMaximized = ref(false);
-const fontSize = ref(13);
+const fontSize = ref<number>(settings.termFontSize);
 const _savedHeight = ref(250);
 const fontSizeChanged = ref(false);
 const maximizeStyle = ref<Record<string, string>>({});
@@ -218,6 +232,15 @@ const activeTab = computed(
     () => tabs.value.find((t) => t.id === activeTabId.value) || null,
 );
 
+function tabDisplayName(tab: TerminalTab): string {
+    const sameName = tabs.value.filter((t) => t.shellName === tab.shellName);
+    if (sameName.length > 1) {
+        const idx = sameName.indexOf(tab) + 1;
+        return `${tab.shellName} #${idx}`;
+    }
+    return tab.shellName;
+}
+
 // ── Tab management ──
 
 async function addTab() {
@@ -232,7 +255,8 @@ async function addTab() {
     } catch {
         shellName = "";
     }
-    const sh = shellName.split("/").pop() || shellName || "sh";
+    const sh =
+        shellName.replace(/\\/g, "/").split("/").pop() || shellName || "sh";
 
     const tab: TerminalTab = {
         id,
@@ -240,6 +264,7 @@ async function addTab() {
         cwd: dirName,
         terminalReady: false,
         exited: false,
+        spawnError: false,
         term: null,
         fit: null,
     };
@@ -249,6 +274,8 @@ async function addTab() {
     await nextTick();
     initTerminal(tab);
     await spawnTerminal(tab);
+    await nextTick();
+    resizeTerminal(id);
 }
 
 function closeTab(id: number) {
@@ -298,8 +325,8 @@ function initTerminal(tab: TerminalTab) {
     const th = currentTermTheme();
     const term = new Terminal({
         cursorBlink: true,
-        fontSize: fontSize.value,
-        fontFamily: 'Menlo, "DejaVu Sans Mono", Consolas, monospace',
+        fontSize: settings.termFontSize,
+        fontFamily: FONT_FAMILY_MAP[settings.termFontFamily],
         theme: th as any,
         allowProposedApi: true,
     });
@@ -358,6 +385,17 @@ function initTerminal(tab: TerminalTab) {
             resetZoom();
             return false;
         }
+        if (e.key === "Backspace") {
+            // macOS PTY 行规约对 \x7f (DEL) 处理异常，发送 \x08 (BS) 替代
+            // 同时阻止冒泡，避免触发全局快捷键（返回上级目录）
+            e.preventDefault();
+            e.stopPropagation();
+            invoke("terminal_write", {
+                id: tab.id,
+                data: encodeBase64(new TextEncoder().encode("\x08")),
+            }).catch(() => {});
+            return false;
+        }
         if (e.key === "Escape" && isMaximized.value) {
             e.preventDefault();
             toggleMaximize();
@@ -378,13 +416,23 @@ function initTerminal(tab: TerminalTab) {
 }
 
 async function spawnTerminal(tab: TerminalTab) {
+    tab.spawnError = false;
     try {
+        const timeout = setTimeout(() => {
+            const t = tabs.value.find((t) => t.id === tab.id);
+            if (t && !t.terminalReady && !t.exited) {
+                t.spawnError = true;
+            }
+        }, 10000);
         await invoke("terminal_spawn", {
             id: tab.id,
             cwd: store.currentPath || "/",
             termType: settings.termEmulation,
         });
+        clearTimeout(timeout);
     } catch (e) {
+        const t = tabs.value.find((t) => t.id === tab.id);
+        if (t) t.spawnError = true;
         console.error(e);
     }
 }
@@ -428,6 +476,7 @@ async function setupGlobalListeners() {
         if (tab) {
             tab.terminalReady = true;
             tab.exited = false;
+            tab.spawnError = false;
         }
     });
     const u3 = await listen<TermPayload>("terminal-exit", (event) => {
@@ -638,6 +687,53 @@ watch(
     },
 );
 
+watch(
+    () => settings.termFontSize,
+    (v) => {
+        for (const tab of tabs.value) {
+            if (tab.term) {
+                tab.term.options.fontSize = v;
+            }
+        }
+        nextTick(() => {
+            for (const tab of tabs.value) {
+                if (tab.fit)
+                    try {
+                        tab.fit.fit();
+                    } catch {}
+            }
+        });
+    },
+);
+
+watch(
+    () => settings.termFontFamily,
+    (v) => {
+        const ff = FONT_FAMILY_MAP[v];
+        for (const tab of tabs.value) {
+            if (tab.term) {
+                tab.term.options.fontFamily = ff;
+            }
+        }
+        nextTick(() => {
+            for (const tab of tabs.value) {
+                if (tab.fit)
+                    try {
+                        tab.fit.fit();
+                    } catch {}
+            }
+        });
+    },
+);
+
+// Sync fontSize label with settings
+watch(
+    () => settings.termFontSize,
+    (v) => {
+        fontSize.value = v;
+    },
+);
+
 // ── Encoding helper ──
 
 function encodeBase64(bytes: Uint8Array): string {
@@ -651,15 +747,18 @@ function encodeBase64(bytes: Uint8Array): string {
 // ── Zoom ──
 
 function zoomIn() {
-    fontSize.value = Math.min(24, fontSize.value + 1);
+    fontSize.value = Math.min(24, fontSize.value + 1) as any;
+    settings.setTermFontSize(fontSize.value as any);
     applyFontSize();
 }
 function zoomOut() {
-    fontSize.value = Math.max(8, fontSize.value - 1);
+    fontSize.value = Math.max(8, fontSize.value - 1) as any;
+    settings.setTermFontSize(fontSize.value as any);
     applyFontSize();
 }
 function resetZoom() {
-    fontSize.value = 13;
+    fontSize.value = 13 as any;
+    settings.setTermFontSize(13);
     applyFontSize();
 }
 
@@ -708,10 +807,7 @@ function toggleMaximize() {
     emit("update:maximized", isMaximized.value);
     nextTick(() => {
         for (const tab of tabs.value) {
-            if (tab.fit)
-                try {
-                    tab.fit.fit();
-                } catch {}
+            resizeTerminal(tab.id);
         }
     });
 }
@@ -748,10 +844,8 @@ function onResizeEnd() {
     document.removeEventListener("mouseup", onResizeEnd);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-    if (activeTab.value?.fit) {
-        try {
-            activeTab.value.fit.fit();
-        } catch {}
+    if (activeTabId.value !== null) {
+        resizeTerminal(activeTabId.value);
     }
 }
 
@@ -849,16 +943,7 @@ watch(
     },
 );
 
-watch(
-    () => store.currentPath,
-    async (newPath, oldPath) => {
-        if (!props.visible || !newPath || newPath === oldPath) return;
-        // Only restart the active tab with the new directory
-        if (activeTabId.value !== null) {
-            await restartTerminal(activeTabId.value);
-        }
-    },
-);
+// 终端不跟随目录导航，每个终端独立，cd 到哪里就保持在哪里
 
 onMounted(() => {});
 onUnmounted(() => {

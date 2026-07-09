@@ -328,7 +328,7 @@ fn read_file_bytes(path: String) -> Result<String, FsError> {
 #[command]
 fn get_file_preview(path: String) -> Result<serde_json::Value, FsError> {
     use crate::utils::encoding::{
-        is_known_binary_ext, is_known_text_ext, is_probably_text, truncate_to_chars,
+        decode_to_utf8, is_known_binary_ext, is_known_text_ext, is_probably_text, truncate_to_chars,
     };
     let p = std::path::Path::new(&path);
     let ext = p
@@ -350,7 +350,8 @@ fn get_file_preview(path: String) -> Result<serde_json::Value, FsError> {
     if !is_known_text_ext(&ext) && !is_probably_text(&bytes) {
         return Err(FsError::Other("Binary file".into()));
     }
-    let content = String::from_utf8_lossy(&bytes);
+    // ── Encoding-aware decode (BOM detection + chardetng + encoding_rs) ──
+    let content = decode_to_utf8(&bytes);
     let preview = truncate_to_chars(&content, CHARS).to_string();
     let is_md = ext == "md"
         || ext == "mdx"

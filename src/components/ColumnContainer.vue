@@ -126,7 +126,7 @@ function syncSelection(colIdx: number, fileIdx: number) {
 async function onSelect(colIdx: number, fileIdx: number) {
     const file = props.stack[colIdx]?.files[fileIdx];
     if (!file) return;
-    syncSelection(colIdx, fileIdx);
+    // 选中逻辑已在 ColumnPane.onClick 中完成
     if (!file.is_dir) return;
     await view.columnLoadDirectory(props.stack, colIdx, file);
     emit("updateStack", [...props.stack]);
@@ -144,7 +144,10 @@ async function onSelect(colIdx: number, fileIdx: number) {
 async function onDblClick(colIdx: number, fileIdx: number) {
     const file = props.stack[colIdx]?.files[fileIdx];
     if (!file) return;
-    syncSelection(colIdx, fileIdx);
+    // 双击强制单选
+    sel.selectedFiles = new Set([file.path]);
+    sel.focusedIndex = fileIdx;
+    sel.anchorIndex = fileIdx;
     if (file.is_dir) {
         await view.columnLoadDirectory(props.stack, colIdx, file);
         emit("updateStack", [...props.stack]);
@@ -158,7 +161,26 @@ async function onDblClick(colIdx: number, fileIdx: number) {
 }
 
 function onContextMenu(file: FileEntry, event: MouseEvent) {
-    sel.selectFile(file, event.ctrlKey || event.metaKey);
+    // 右键选中逻辑复用 ColumnPane 的 onClick 语义
+    const shift = event.shiftKey;
+    const ctrl = event.ctrlKey || event.metaKey;
+    for (const col of props.stack) {
+        const idx = col.files.findIndex((f) => f.path === file.path);
+        if (idx >= 0) {
+            if (shift && sel.selectedFiles.size > 0) {
+                sel.selectRange(col.files, sel.anchorIndex, idx);
+                sel.focusedIndex = idx;
+            } else if (ctrl) {
+                sel.toggleSelectFile(file);
+                sel.focusedIndex = idx;
+            } else {
+                sel.selectedFiles = new Set([file.path]);
+                sel.focusedIndex = idx;
+                sel.anchorIndex = idx;
+            }
+            break;
+        }
+    }
     emit("contextMenu", file, event);
 }
 

@@ -501,23 +501,38 @@
                 :title="t('properties.title')"
                 @click="$emit('action', 'toggleProperties')"
             >
-                <svg viewBox="0 0 20 20" fill="none">
-                    <circle
-                        cx="10"
-                        cy="10"
-                        r="8"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                        fill="none"
-                    />
-                    <path
-                        d="M10 7v5M10 14v.01"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                    />
+                <svg
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <rect x="1.5" y="3" width="8" height="14" rx="1.2" />
+                    <rect x="10.5" y="3" width="8" height="14" rx="1.2" />
                 </svg>
                 <span class="ribbon-label">{{ t("properties.title") }}</span>
+            </button>
+            <button
+                class="ribbon-btn"
+                :title="t('statusBar.terminal')"
+                @click="$emit('toggleTerminal')"
+            >
+                <svg
+                    viewBox="0 0 20 20"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <rect x="2" y="4.5" width="16" height="12" rx="1.5" />
+                    <path d="M6 8.5l3 2.5-3 2.5M10 13h4" />
+                </svg>
+                <span class="ribbon-label">{{ t("statusBar.terminal") }}</span>
             </button>
         </div>
     </div>
@@ -535,7 +550,7 @@ const store = useFileStore();
 const sel = useSelectionStore();
 const view = useViewStore();
 
-const emit = defineEmits<{ action: [action: string] }>();
+const emit = defineEmits<{ action: [action: string]; toggleTerminal: [] }>();
 
 function switchToColumn() {
     view.setViewMode("column");

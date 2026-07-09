@@ -43,16 +43,12 @@
                     height="12"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="1.2"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
                 >
-                    <rect x="2" y="2" width="8" height="12" rx="1" />
-                    <line
-                        x1="11.5"
-                        y1="2"
-                        x2="11.5"
-                        y2="14"
-                        stroke-linecap="round"
-                    />
+                    <rect x="1.2" y="2.5" width="6.3" height="11" rx="1" />
+                    <rect x="8.5" y="2.5" width="6.3" height="11" rx="1" />
                 </svg>
             </button>
             <span v-if="store.loading" class="loading-indicator">
