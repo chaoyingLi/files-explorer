@@ -16,6 +16,16 @@
 
 ---
 
+<div align="center">
+  <img src="../screenshots/dark.png" alt="暗色主题界面" width="90%" />
+  <br/>
+  <em>暗色主题界面 (Catppuccin Mocha)</em>
+  <br/><br/>
+  <img src="../screenshots/light.png" alt="亮色主题界面" width="90%" />
+  <br/>
+  <em>亮色主题界面 (Catppuccin Latte)</em>
+</div>
+
 ## 1. 界面布局
 
 ```

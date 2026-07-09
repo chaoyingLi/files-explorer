@@ -26,6 +26,16 @@
 
 > 📖 **完整用户手册**：请参阅 [docs/user-manual.md](docs/user-manual.md)
 
+<div align="center">
+  <img src="screenshots/dark.png" alt="暗色主题界面" width="90%" />
+  <br/>
+  <em>暗色主题界面 (Catppuccin Mocha)</em>
+  <br/><br/>
+  <img src="screenshots/light.png" alt="亮色主题界面" width="90%" />
+  <br/>
+  <em>亮色主题界面 (Catppuccin Latte)</em>
+</div>
+
 ---
 
 ## 🖥️ 平台支持
