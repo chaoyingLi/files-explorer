@@ -72,6 +72,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: x86_64-apple-darwin
+          rustflags: ""
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -135,6 +136,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: aarch64-apple-darwin
+          rustflags: ""
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -196,6 +198,8 @@ jobs:
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -206,7 +210,6 @@ jobs:
         run: npm ci
 
       - name: 安装 Tauri CLI
-        shell: pwsh
         run: npm install -D @tauri-apps/cli
 
       - name: 构建（Windows）
@@ -261,6 +264,8 @@ jobs:
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
