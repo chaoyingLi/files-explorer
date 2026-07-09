@@ -29,9 +29,9 @@
   <br/>
   <em>文件浏览与预览面板</em>
   <br/><br/>
-  <img src="../screenshots/dark2.png" alt="内置终端界面" width="90%" />
+  <img src="../screenshots/dark2.png" alt="独立预览窗口" width="90%" />
   <br/>
-  <em>内置终端</em>
+  <em>独立预览窗口</em>
 </div>
 
 ## 1. 界面布局
