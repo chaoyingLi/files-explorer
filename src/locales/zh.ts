@@ -384,15 +384,4 @@ export default {
     quitOnClose: "关闭界面时退出",
     quitOnCloseDesc: "关闭窗口时退出应用程序（取消勾选则隐藏到托盘）",
   },
-  updater: {
-    available: "发现新版本 v{version}",
-    updateDialogDescription: "是否立即下载并安装更新？",
-    updateLater: "稍后提醒",
-    updateNow: "立即更新",
-    updating: "下载中...",
-    restartPromptTitle: "更新就绪",
-    restartPromptDescription: "更新已安装，重启应用即可生效。",
-    restartLater: "稍后重启",
-    restartNow: "立即重启",
-  },
 };
