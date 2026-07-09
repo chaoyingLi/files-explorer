@@ -385,6 +385,17 @@ function initTerminal(tab: TerminalTab) {
             resetZoom();
             return false;
         }
+        if (e.key === "Backspace") {
+            // macOS PTY 行规约对 \x7f (DEL) 处理异常，发送 \x08 (BS) 替代
+            // 同时阻止冒泡，避免触发全局快捷键（返回上级目录）
+            e.preventDefault();
+            e.stopPropagation();
+            invoke("terminal_write", {
+                id: tab.id,
+                data: encodeBase64(new TextEncoder().encode("\x08")),
+            }).catch(() => {});
+            return false;
+        }
         if (e.key === "Escape" && isMaximized.value) {
             e.preventDefault();
             toggleMaximize();
