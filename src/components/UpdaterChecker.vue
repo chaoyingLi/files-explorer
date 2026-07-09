@@ -67,22 +67,15 @@ import {
     subscribeUpdateTask,
     enableMock,
     disableMock,
-    type AvailableUpdateRef,
-    type UpdateTaskState,
+    type AvailableUpdate,
 } from "@/utils/updater";
 
 const { t } = useI18n();
 
 const updateAvailable = ref(false);
-const updateInfo = ref<AvailableUpdateRef | null>(null);
+const updateInfo = ref<AvailableUpdate | null>(null);
 const showRestart = ref(false);
 const installing = ref(false);
-
-const ACTIVE_TASK_STATES: UpdateTaskState[] = [
-    "checking",
-    "downloading",
-    "installing",
-];
 
 onMounted(async () => {
     try {
@@ -165,14 +158,10 @@ async function handleUpdate() {
     if (installing.value) return;
     try {
         installing.value = true;
-        const result = startBackgroundInstall(updateInfo.value);
-        if (
-            !result.started ||
-            ACTIVE_TASK_STATES.includes(result.snapshot.state)
-        ) {
-            console.log("更新已在后台进行中");
+        const result = startBackgroundInstall();
+        if (result.started) {
+            updateAvailable.value = false;
         }
-        updateAvailable.value = false;
     } catch (error) {
         console.error("安装更新失败:", error);
     } finally {

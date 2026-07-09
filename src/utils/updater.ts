@@ -1,7 +1,7 @@
 // ── 自动更新服务 ──
 // 封装 @tauri-apps/plugin-updater，提供状态管理和 Mock 测试支持
 
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
 // ============ 类型 ============
@@ -26,18 +26,15 @@ export type UpdateTaskState =
 export type UpdateErrorCode =
   "CHECK_FAILED" | "NO_UPDATE" | "UPDATE_IN_PROGRESS" | "INSTALL_FAILED";
 
-export interface AvailableUpdateRef {
+export interface AvailableUpdate {
   version: string;
   body?: string;
-  raw: Exclude<RawUpdate, null>;
 }
-
-type RawUpdate = Awaited<ReturnType<typeof check>>;
 
 export interface UpdateResult {
   state: UpdateState;
   available: boolean;
-  update?: AvailableUpdateRef;
+  update?: AvailableUpdate;
   errorCode?: UpdateErrorCode;
   message?: string;
   error?: unknown;
@@ -81,7 +78,6 @@ function delay(ms: number) {
 
 // ============ 状态管理 ============
 
-let checkInFlight: Promise<UpdateResult> | null = null;
 let installInFlight: Promise<UpdateResult> | null = null;
 let updateTaskSnapshot: UpdateTaskSnapshot = { state: "idle" };
 const updateTaskListeners = new Set<(snapshot: UpdateTaskSnapshot) => void>();
@@ -119,80 +115,65 @@ export function subscribeUpdateTask(
 // ============ 检查更新 ============
 
 export async function checkForUpdates(): Promise<UpdateResult> {
-  if (checkInFlight) return checkInFlight;
-
   if (mockEnabled) {
     return mockCheckForUpdates();
   }
 
-  checkInFlight = (async () => {
-    try {
-      setTaskState("checking");
-      const update = await check();
-      if (update?.available) {
-        setTaskState("idle");
-        return {
-          state: "available",
-          available: true,
-          update: {
-            version: update.version,
-            body: update.body,
-            raw: update,
-          },
-        };
-      }
+  try {
+    setTaskState("checking");
+    const update = await check();
+    if (update?.available) {
       setTaskState("idle");
       return {
-        state: "idle",
-        available: false,
-        errorCode: "NO_UPDATE",
-        message: "当前已是最新版本",
+        state: "available",
+        available: true,
+        update: {
+          version: update.version,
+          body: update.body,
+        },
       };
-    } catch (error) {
-      setTaskState("idle");
-      return {
-        state: "error",
-        available: false,
-        errorCode: "CHECK_FAILED",
-        message: error instanceof Error ? error.message : String(error),
-        error,
-      };
-    } finally {
-      checkInFlight = null;
     }
-  })();
-
-  return checkInFlight;
+    setTaskState("idle");
+    return {
+      state: "idle",
+      available: false,
+      errorCode: "NO_UPDATE",
+      message: "当前已是最新版本",
+    };
+  } catch (error) {
+    setTaskState("idle");
+    return {
+      state: "error",
+      available: false,
+      errorCode: "CHECK_FAILED",
+      message: error instanceof Error ? error.message : String(error),
+      error,
+    };
+  }
 }
 
-// ============ 安装更新 ============
+// ============ 安装更新（内部调用 check 获取最新 Update 对象） ============
 
-export function startBackgroundInstall(
-  updateRef?: AvailableUpdateRef | null,
-): BackgroundInstallStartResult {
+export function startBackgroundInstall(): BackgroundInstallStartResult {
   if (installInFlight) {
     return { started: false, snapshot: getUpdateTaskSnapshot() };
   }
 
   installInFlight = (async () => {
     try {
-      let update = updateRef?.raw;
+      setTaskState("checking");
+      const update = await check();
       if (!update?.available) {
-        setTaskState("checking");
-        const latest = await check();
-        if (!latest?.available) {
-          setTaskState("idle", {
-            message: "当前已是最新版本",
-            errorCode: "NO_UPDATE",
-          });
-          return {
-            state: "idle",
-            available: false,
-            errorCode: "NO_UPDATE",
-            message: "当前已是最新版本",
-          };
-        }
-        update = latest;
+        setTaskState("idle", {
+          message: "当前已是最新版本",
+          errorCode: "NO_UPDATE",
+        });
+        return {
+          state: "idle",
+          available: false,
+          errorCode: "NO_UPDATE",
+          message: "当前已是最新版本",
+        };
       }
 
       setTaskState("downloading");
@@ -227,11 +208,6 @@ export function startBackgroundInstall(
   return { started: true, snapshot: getUpdateTaskSnapshot() };
 }
 
-export async function waitForInstallCompletion(): Promise<UpdateResult | null> {
-  if (!installInFlight) return null;
-  return installInFlight;
-}
-
 export async function relaunchAfterUpdate(): Promise<void> {
   await relaunch();
 }
@@ -251,7 +227,6 @@ async function mockCheckForUpdates(): Promise<UpdateResult> {
         update: {
           version: "9.9.9-test",
           body: "## 🎉 测试更新\n\n用于验证自动更新流程。",
-          raw: createMockUpdate(),
         },
       };
 
@@ -281,7 +256,6 @@ async function mockCheckForUpdates(): Promise<UpdateResult> {
         update: {
           version: "9.9.9-slow",
           body: "用于测试慢速下载",
-          raw: createMockUpdate({ slowMode: true }),
         },
       };
 
@@ -289,40 +263,4 @@ async function mockCheckForUpdates(): Promise<UpdateResult> {
       setTaskState("idle");
       return { state: "idle", available: false };
   }
-}
-
-function createMockUpdate(options?: { slowMode?: boolean }): Update {
-  const slowMode = options?.slowMode ?? false;
-  return {
-    available: true,
-    version: slowMode ? "9.9.9-slow" : "9.9.9-test",
-    date: new Date().toISOString(),
-    body: slowMode ? "Slow download test" : "Mock update",
-    downloadAndInstall: async (
-      eventHandler?: (event: {
-        event: string;
-        data: { chunkLength: number };
-      }) => void,
-    ) => {
-      setTaskState("downloading");
-      const totalSteps = slowMode ? 10 : 3;
-      const stepDelay = slowMode ? 2000 : 500;
-      for (let i = 1; i <= totalSteps; i++) {
-        await delay(stepDelay);
-        if (eventHandler) {
-          eventHandler({
-            event: "Progress",
-            data: { chunkLength: 1024 * 100 },
-          });
-        }
-      }
-      setTaskState("installing");
-      await delay(slowMode ? 3000 : 500);
-      setTaskState("ready_to_restart", {
-        message: slowMode
-          ? "慢速下载完成，重启以生效"
-          : "Mock: 更新已安装，重启以生效",
-      });
-    },
-  } as Update;
 }
