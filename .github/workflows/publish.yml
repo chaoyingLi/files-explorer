@@ -81,23 +81,14 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
+      - name: 安装 Tauri CLI
+        run: npm install -D @tauri-apps/cli
+
       - name: 构建（macOS Intel）
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          # macOS 代码签名（如有证书）
-          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ]; then
-            echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
-            security create-keychain -p temp temp.keychain
-            security default-keychain -s temp.keychain
-            security unlock-keychain -p temp temp.keychain
-            security import /tmp/cert.p12 -k temp.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
-          fi
-          npx @tauri-apps/cli build --target x86_64-apple-darwin
+        run: npx @tauri-apps/cli build --target x86_64-apple-darwin
 
       - name: 收集产物
         run: |
@@ -153,22 +144,14 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
+      - name: 安装 Tauri CLI
+        run: npm install -D @tauri-apps/cli
+
       - name: 构建（macOS Apple Silicon）
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ]; then
-            echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
-            security create-keychain -p temp temp.keychain
-            security default-keychain -s temp.keychain
-            security unlock-keychain -p temp temp.keychain
-            security import /tmp/cert.p12 -k temp.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
-          fi
-          npx @tauri-apps/cli build --target aarch64-apple-darwin
+        run: npx @tauri-apps/cli build --target aarch64-apple-darwin
 
       - name: 收集产物
         run: |
@@ -221,6 +204,10 @@ jobs:
 
       - name: 安装前端依赖
         run: npm ci
+
+      - name: 安装 Tauri CLI
+        shell: pwsh
+        run: npm install -D @tauri-apps/cli
 
       - name: 构建（Windows）
         shell: pwsh
@@ -292,6 +279,9 @@ jobs:
 
       - name: 安装前端依赖
         run: npm ci
+
+      - name: 安装 Tauri CLI
+        run: npm install -D @tauri-apps/cli
 
       - name: 构建（Linux）
         env:
