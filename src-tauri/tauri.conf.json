@@ -54,7 +54,7 @@
         "https://gitee.com/hhyd/files-explorer/raw/main/updater.json",
         "https://raw.githubusercontent.com/chaoyingLi/files-explorer/main/updater.json"
       ],
-      "pubkey": "请替换为您的 Tauri 更新公钥"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY0RDY3OTYxN0M0MUU4MEYKUldRUDZFRjhZWG5XOUdUNE9WQVRvaTkza2J1WW4yK0MvYUdRaDNVdFNGMjYwaW9oRi9ydyt6MmoK"
     }
   },
   "bundle": {
