@@ -1,7 +1,8 @@
 # 自动更新方案 — 实现步骤
 
 > 基于 `tauri-plugin-updater` v2，更新源使用 Gitee Releases。
-> 发布策略：**纯手动构建 + 上传**（方案 C）。
+> 发布策略：**GitHub Actions CI 自动构建 + 上传到 Gitee + GitHub**。
+> 也支持纯手动发布作为备用方案（参见 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)）。
 
 ---
 
