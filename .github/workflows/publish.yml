@@ -20,16 +20,6 @@ on:
 permissions:
   contents: write
 
-# 安全：将以下 Secrets 添加到 GitHub 仓库 Settings → Secrets and variables → Actions
-# 必须配置：
-#   TAURI_PRIVATE_KEY    — Tauri 签名私钥内容（cat ~/.tauri/updater.key）
-#   TAURI_KEY_PASSWORD   — 私钥密码（如果有）
-#   GITEE_TOKEN          — Gitee 个人访问令牌（需 repo 权限）
-# 可选配置：
-#   APPLE_ID             — macOS 公证 Apple ID
-#   APPLE_PASSWORD       — macOS 公证 App 专用密码
-#   APPLE_TEAM_ID        — Apple Team ID
-
 env:
   GITEE_REPO: hhyd/files-explorer
   APP_NAME: Files Explorer
@@ -57,46 +47,74 @@ jobs:
   create-gitee-release:
     needs: get-version
     runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.gitee.outputs.release_id }}
     steps:
       - name: 创建或获取 Gitee Release
-        id: gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
           API="https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases"
-          # 先尝试获取已有 release
           EXISTING=$(curl -s -H "Authorization: bearer $GITEE_TOKEN" "$API/tags/$TAG")
           RELEASE_ID=$(echo "$EXISTING" | jq -r '.id // empty')
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "✅ Gitee Release 已存在: id=$RELEASE_ID"
           else
-            # 不存在则创建
             echo "📦 创建新的 Gitee Release..."
             BODY="Files Explorer v${VERSION} 发布。"
             RESULT=$(curl -s -X POST "$API" \
-                -H "Content-Type: application/json" \
-                -H "Authorization: bearer $GITEE_TOKEN" \
-                -d "$(jq -n \
-                  --arg tag "$TAG" \
-                  --arg name "$TAG" \
-                  --arg body "$BODY" \
-                  '{tag_name: $tag, name: $name, body: $body, target_commitish: "master", prerelease: false}')")
-              echo "DEBUG 创建响应: $RESULT"
-              RELEASE_ID=$(echo "$RESULT" | jq -r '.id // empty')
+              -H "Content-Type: application/json" \
+              -H "Authorization: bearer $GITEE_TOKEN" \
+              -d "$(jq -n \
+                --arg tag "$TAG" \
+                --arg name "$TAG" \
+                --arg body "$BODY" \
+                '{tag_name: $tag, name: $name, body: $body, target_commitish: "master", prerelease: false}')")
+            RELEASE_ID=$(echo "$RESULT" | jq -r '.id // empty')
             if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-              echo "❌ 创建 Gitee Release 失败: $(echo "$RESULT" | jq -r '.message // "unknown error"')"
-              echo "release_id=" >> "$GITHUB_OUTPUT"
+              echo "❌ 创建 Gitee Release 失败: $RESULT"
             else
               echo "✅ Gitee Release 创建成功: id=$RELEASE_ID"
             fi
           fi
-          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
   # ── 步骤 3：各平台并行构建 ──
+  # 每个平台的 Gitee 上传步骤完全相同，定义复用
+  .gitee-upload: &gitee-upload
+    - name: 上传到 Gitee Releases
+      continue-on-error: true
+      env:
+        GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        TAG: ${{ needs.get-version.outputs.tag }}
+      run: |
+        RELEASE_ID=$(curl -s \
+          -H "Authorization: bearer $GITEE_TOKEN" \
+          "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
+          | jq -r '.id')
+        if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+          echo "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
+          exit 0
+        fi
+        echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
+        shopt -s nullglob
+        UPLOAD_COUNT=0
+        FAIL_COUNT=0
+        for f in dist/*.dmg dist/*.msi dist/*.deb dist/*.AppImage dist/*.sig; do
+          echo "  上传: $(basename "$f")"
+          if curl -sS --max-time 300 -X POST \
+            -H "Authorization: bearer $GITEE_TOKEN" \
+            -F "file=@$f" \
+            "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+            UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
+          else
+            echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+          fi
+        done
+        echo "✅ Gitee 上传: 成功 $UPLOAD_COUNT / 失败 $FAIL_COUNT"
+        if [ $FAIL_COUNT -gt 0 ]; then
+          echo "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$TAG 手动补传"
+        fi
 
   build-macos-x86_64:
     needs: [get-version, create-gitee-release]
@@ -156,19 +174,29 @@ jobs:
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            echo "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           shopt -s nullglob
-          for f in dist/*.sig; do
-            shopt -s nullglob
-            echo "  上传签名: $(basename "$f")" && curl -sS -X POST \
+          UPLOAD_COUNT=0
+          FAIL_COUNT=0
+          for f in dist/*.dmg dist/*.sig; do
+            echo "  上传: $(basename "$f")"
+            if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
+            else
+              echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
           done
-          echo "✅ Gitee 上传完成"
+          echo "✅ Gitee 上传: 成功 $UPLOAD_COUNT / 失败 $FAIL_COUNT"
+          if [ $FAIL_COUNT -gt 0 ]; then
+            echo "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$TAG 手动补传"
+          fi
 
       - name: 保存签名文件（传递到最终步骤）
         uses: actions/upload-artifact@v4
@@ -235,18 +263,29 @@ jobs:
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            echo "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-          for f in dist/*.sig; do
-            shopt -s nullglob
-            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
+          shopt -s nullglob
+          UPLOAD_COUNT=0
+          FAIL_COUNT=0
+          for f in dist/*.dmg dist/*.sig; do
+            echo "  上传: $(basename "$f")"
+            if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
+            else
+              echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
           done
-          echo "✅ Gitee 上传完成"
+          echo "✅ Gitee 上传: 成功 $UPLOAD_COUNT / 失败 $FAIL_COUNT"
+          if [ $FAIL_COUNT -gt 0 ]; then
+            echo "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$TAG 手动补传"
+          fi
 
       - name: 保存签名文件
         uses: actions/upload-artifact@v4
@@ -316,19 +355,21 @@ jobs:
             $resp = curl -s -H "Authorization: bearer $env:GITEE_TOKEN" "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$env:TAG" | ConvertFrom-Json
             $releaseId = $resp.id
             if (-not $releaseId) {
-              Write-Host "⚠️ 未找到 Gitee Release (tag=$env:TAG)，跳过上传"
+              Write-Host "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
               exit 0
             }
             Write-Host "📤 上传到 Gitee Release id=$releaseId ..."
-            Get-ChildItem dist/* | ForEach-Object {
+            $ok = 0; $fail = 0
+            Get-ChildItem dist/*.msi, dist/*.sig -ErrorAction SilentlyContinue | ForEach-Object {
               Write-Host "  上传: $($_.Name)"
-              curl -sS -X POST `
+              curl -sS --max-time 300 -X POST `
                 -H "Authorization: bearer $env:GITEE_TOKEN" `
                 -F "file=@$($_.FullName)" `
                 "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$releaseId/release_files"
-              if ($LASTEXITCODE -ne 0) { Write-Host "  ❌ 上传失败: $($_.Name)" }
+              if ($LASTEXITCODE -eq 0) { $ok++ } else { Write-Host "  ❌ 上传失败: $($_.Name)（可手动补传）"; $fail++ }
             }
-            Write-Host "✅ Gitee 上传完成"
+            Write-Host "✅ Gitee 上传: 成功 $ok / 失败 $fail"
+            if ($fail -gt 0) { Write-Host "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$env:TAG 手动补传" }
           } catch {
             Write-Host "⚠️ Gitee 上传异常: $_"
           }
@@ -373,8 +414,6 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             pkg-config
-          # Tauri CLI 可能检查 appindicator3-0.1，Ubuntu 24.04 只有 ayatana
-          # 创建 pkg-config 别名解决
           if ! pkg-config --exists appindicator3-0.1; then
             sudo ln -sf /usr/lib/$(uname -m)-linux-gnu/pkgconfig/ayatana-appindicator3-0.1.pc \
                          /usr/lib/$(uname -m)-linux-gnu/pkgconfig/appindicator3-0.1.pc 2>/dev/null || true
@@ -416,18 +455,29 @@ jobs:
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            echo "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-          for f in dist/*.sig; do
-            shopt -s nullglob
-            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
+          shopt -s nullglob
+          UPLOAD_COUNT=0
+          FAIL_COUNT=0
+          for f in dist/*.AppImage dist/*.deb dist/*.sig; do
+            echo "  上传: $(basename "$f")"
+            if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
+            else
+              echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
           done
-          echo "✅ Gitee 上传完成"
+          echo "✅ Gitee 上传: 成功 $UPLOAD_COUNT / 失败 $FAIL_COUNT"
+          if [ $FAIL_COUNT -gt 0 ]; then
+            echo "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$TAG 手动补传"
+          fi
 
       - name: 保存签名文件
         uses: actions/upload-artifact@v4
@@ -437,7 +487,6 @@ jobs:
           if-no-files-found: ignore
 
   # ── 步骤 4：更新 updater.json 并推送 ──
-  # 只要有任一平台构建成功，就生成 updater.json（失败的平台签名留空）
   update-updater-json:
     needs:
       - get-version
@@ -445,7 +494,6 @@ jobs:
       - build-macos-aarch64
       - build-windows
       - build-linux
-    # 即使部分平台失败也继续（被取消则跳过）
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -464,24 +512,24 @@ jobs:
           TAG: ${{ needs.get-version.outputs.tag }}
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
-          # 若没有任何签名文件则跳过
           if [ ! -d sig-files ] || [ -z "$(ls -A sig-files 2>/dev/null)" ]; then
-            echo "⚠️ 没有找到任何签名文件，跳过 updater.json 生成"
+            echo "⚠️ 没有签名文件，跳过 updater.json"
             exit 0
           fi
-          # 读取各平台签名（不存在则留空）
           SIG_X64=$(cat sig-files/*x86_64*.sig sig-files/*x64*.sig 2>/dev/null | head -1 || echo "")
           SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
           SIG_WIN=$(cat sig-files/*windows*.sig sig-files/*Win*.sig 2>/dev/null | head -1 || echo "")
           SIG_LINUX=$(cat sig-files/*linux*.sig 2>/dev/null | head -1 || echo "")
 
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
-          BASE_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          # 下载 URL 优先 Gitee（国内快），GitHub 作为备用
+          BASE_URL="https://gitee.com/${{ env.GITEE_REPO }}/releases/download/$TAG"
+          GITHUB_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
 
           cat > updater.json << JSONEOF
           {
             "version": "$VERSION",
-            "notes": "请访问 GitHub/Gitee Releases 查看更新详情",
+            "notes": "更新详情见 GitHub/Gitee Releases",
             "pub_date": "$PUB_DATE",
             "platforms": {
               "darwin-x86_64": {
@@ -511,7 +559,7 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           if [ ! -f updater.json ]; then
-            echo "⚠️ updater.json 未生成，跳过推送"
+            echo "⚠️ updater.json 未生成，跳过"
             exit 0
           fi
           git config user.name "发布机器人"
@@ -525,20 +573,20 @@ jobs:
           if git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master 2>&1; then
             echo "✅ updater.json 已推送到 Gitee"
           else
-            echo "❌ Gitee 推送失败（GITEE_TOKEN 权限或网络问题）"
+            echo "❌ Gitee 推送失败"
           fi
 
       - name: 提交并推送到 GitHub
         run: |
           if [ ! -f updater.json ]; then
-            echo "⚠️ updater.json 未生成，跳过推送"
+            echo "⚠️ updater.json 未生成，跳过"
             exit 0
           fi
           git config user.name "发布机器人"
           git config user.email "bot@files-explorer.dev"
           git add updater.json
           if git diff --cached --quiet; then
-            echo "updater.json 已提交，直接推送"
+            echo "updater.json 无变化，跳过提交"
           else
             git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
           fi
