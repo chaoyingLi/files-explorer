@@ -54,28 +54,46 @@ jobs:
           fi
 
   # ── 步骤 2：创建 Gitee Release ──
-  # 先创建 Release 占位，后续 job 再上传文件
   create-gitee-release:
     needs: get-version
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.gitee.outputs.release_id }}
     steps:
-      - name: 创建 Gitee Release
-        continue-on-error: true
+      - name: 创建或获取 Gitee Release
+        id: gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
           API="https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases"
-          BODY="Files Explorer v${VERSION} 发布。"
-          curl -X POST "$API" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: bearer $GITEE_TOKEN" \
-            -d "$(jq -n \
-              --arg tag "$TAG" \
-              --arg name "$TAG" \
-              --arg body "$BODY" \
-              '{tag_name: $tag, name: $name, body: $body, prerelease: false}')"
+          # 先尝试获取已有 release
+          EXISTING=$(curl -s -H "Authorization: bearer $GITEE_TOKEN" "$API/tags/$TAG") 
+          RELEASE_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "✅ Gitee Release 已存在: id=$RELEASE_ID"
+          else
+            # 不存在则创建
+            echo "📦 创建新的 Gitee Release..."
+            BODY="Files Explorer v${VERSION} 发布。"
+            RESULT=$(curl -s -X POST "$API" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: bearer $GITEE_TOKEN" \
+              -d "$(jq -n \
+                --arg tag "$TAG" \
+                --arg name "$TAG" \
+                --arg body "$BODY" \
+                '{tag_name: $tag, name: $name, body: $body, prerelease: false}')")
+            RELEASE_ID=$(echo "$RESULT" | jq -r '.id // empty')
+            if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+              echo "❌ 创建 Gitee Release 失败: $(echo "$RESULT" | jq -r '.message // "unknown error"')"
+              echo "release_id=" >> "$GITHUB_OUTPUT"
+            else
+              echo "✅ Gitee Release 创建成功: id=$RELEASE_ID"
+            fi
+          fi
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
   # ── 步骤 3：各平台并行构建 ──
 
@@ -136,12 +154,18 @@ jobs:
             -H "Authorization: bearer $GITEE_TOKEN" \
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            exit 0
+          fi
+          echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           for f in dist/*; do
-            [ -f "$f" ] && curl -X POST \
+            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
           done
+          echo "✅ Gitee 上传完成"
 
       - name: 保存签名文件（传递到最终步骤）
         uses: actions/upload-artifact@v4
@@ -207,12 +231,18 @@ jobs:
             -H "Authorization: bearer $GITEE_TOKEN" \
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            exit 0
+          fi
+          echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           for f in dist/*; do
-            [ -f "$f" ] && curl -X POST \
+            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
           done
+          echo "✅ Gitee 上传完成"
 
       - name: 保存签名文件
         uses: actions/upload-artifact@v4
@@ -278,15 +308,25 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.get-version.outputs.tag }}
         run: |
-          $releaseId = (curl -s `
-            -H "Authorization: bearer $env:GITEE_TOKEN" `
-            "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$env:TAG" `
-            | ConvertFrom-Json).id
-          Get-ChildItem dist/* | ForEach-Object {
-            curl -X POST `
-              -H "Authorization: bearer $env:GITEE_TOKEN" `
-              -F "file=@$($_.FullName)" `
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$releaseId/release_files"
+          try {
+            $resp = curl -s -H "Authorization: bearer $env:GITEE_TOKEN" "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$env:TAG" | ConvertFrom-Json
+            $releaseId = $resp.id
+            if (-not $releaseId) {
+              Write-Host "⚠️ 未找到 Gitee Release (tag=$env:TAG)，跳过上传"
+              exit 0
+            }
+            Write-Host "📤 上传到 Gitee Release id=$releaseId ..."
+            Get-ChildItem dist/* | ForEach-Object {
+              Write-Host "  上传: $($_.Name)"
+              curl -sS -X POST `
+                -H "Authorization: bearer $env:GITEE_TOKEN" `
+                -F "file=@$($_.FullName)" `
+                "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$releaseId/release_files"
+              if ($LASTEXITCODE -ne 0) { Write-Host "  ❌ 上传失败: $($_.Name)" }
+            }
+            Write-Host "✅ Gitee 上传完成"
+          } catch {
+            Write-Host "⚠️ Gitee 上传异常: $_"
           }
 
       - name: 保存签名文件
@@ -371,12 +411,18 @@ jobs:
             -H "Authorization: bearer $GITEE_TOKEN" \
             "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
             | jq -r '.id')
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "⚠️ 未找到 Gitee Release (tag=$TAG)，跳过上传"
+            exit 0
+          fi
+          echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           for f in dist/*; do
-            [ -f "$f" ] && curl -X POST \
+            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
           done
+          echo "✅ Gitee 上传完成"
 
       - name: 保存签名文件
         uses: actions/upload-artifact@v4
@@ -471,7 +517,11 @@ jobs:
           else
             git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
           fi
-          git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master
+          if git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master 2>&1; then
+            echo "✅ updater.json 已推送到 Gitee"
+          else
+            echo "❌ Gitee 推送失败（GITEE_TOKEN 权限或网络问题）"
+          fi
 
       - name: 提交并推送到 GitHub
         run: |
