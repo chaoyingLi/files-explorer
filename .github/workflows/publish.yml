@@ -466,7 +466,11 @@ jobs:
           git config user.name "发布机器人"
           git config user.email "bot@files-explorer.dev"
           git add updater.json
-          git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
+          if git diff --cached --quiet; then
+            echo "updater.json 无变化，跳过提交"
+          else
+            git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
+          fi
           git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master
 
       - name: 提交并推送到 GitHub
