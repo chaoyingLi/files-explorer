@@ -70,7 +70,6 @@ jobs:
           API="https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases"
           # 先尝试获取已有 release
           EXISTING=$(curl -s -H "Authorization: bearer $GITEE_TOKEN" "$API/tags/$TAG")
-          echo "DEBUG 获取已有响应: $EXISTING"
           RELEASE_ID=$(echo "$EXISTING" | jq -r '.id // empty')
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "✅ Gitee Release 已存在: id=$RELEASE_ID"
@@ -85,7 +84,7 @@ jobs:
                   --arg tag "$TAG" \
                   --arg name "$TAG" \
                   --arg body "$BODY" \
-                  '{tag_name: $tag, name: $name, body: $body, prerelease: false}')")
+                  '{tag_name: $tag, name: $name, body: $body, target_commitish: "master", prerelease: false}')")
               echo "DEBUG 创建响应: $RESULT"
               RELEASE_ID=$(echo "$RESULT" | jq -r '.id // empty')
             if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
