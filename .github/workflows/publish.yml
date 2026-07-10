@@ -160,8 +160,10 @@ jobs:
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
+          shopt -s nullglob
           for f in dist/*.sig; do
-            [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
+            shopt -s nullglob
+            echo "  上传签名: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
               "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files" || echo "  ❌ 上传失败: $(basename "$f")"
@@ -238,6 +240,7 @@ jobs:
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           for f in dist/*.sig; do
+            shopt -s nullglob
             [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
@@ -418,6 +421,7 @@ jobs:
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
           for f in dist/*.sig; do
+            shopt -s nullglob
             [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
