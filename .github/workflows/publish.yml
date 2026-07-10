@@ -150,7 +150,7 @@ jobs:
             if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/attach_files"; then
               UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
             else
               echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
@@ -239,7 +239,7 @@ jobs:
             if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/attach_files"; then
               UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
             else
               echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
@@ -329,7 +329,7 @@ jobs:
               curl -sS --max-time 300 -X POST `
                 -H "Authorization: bearer $env:GITEE_TOKEN" `
                 -F "file=@$($_.FullName)" `
-                "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$releaseId/release_files"
+                "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$releaseId/attach_files"
               if ($LASTEXITCODE -eq 0) { $ok++ } else { Write-Host "  ❌ 上传失败: $($_.Name)（可手动补传）"; $fail++ }
             }
             Write-Host "✅ Gitee 上传: 成功 $ok / 失败 $fail"
@@ -431,7 +431,7 @@ jobs:
             if curl -sS --max-time 300 -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
-              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
+              "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/attach_files"; then
               UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
             else
               echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
