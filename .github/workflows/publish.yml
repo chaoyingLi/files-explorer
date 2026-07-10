@@ -160,7 +160,7 @@ jobs:
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-          for f in dist/*; do
+          for f in dist/*.sig; do
             [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
@@ -237,7 +237,7 @@ jobs:
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-          for f in dist/*; do
+          for f in dist/*.sig; do
             [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
@@ -417,7 +417,7 @@ jobs:
             exit 0
           fi
           echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-          for f in dist/*; do
+          for f in dist/*.sig; do
             [ -f "$f" ] && echo "  上传: $(basename "$f")" && curl -sS -X POST \
               -H "Authorization: bearer $GITEE_TOKEN" \
               -F "file=@$f" \
