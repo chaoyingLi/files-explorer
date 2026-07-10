@@ -517,7 +517,7 @@ jobs:
           echo "=== 生成的 updater.json ==="
           cat updater.json
 
-      - name: 提交并推送到 Gitee
+      - name: 提交并推送 updater.json
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
@@ -533,24 +533,23 @@ jobs:
           else
             git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
           fi
+          # 推送到 Gitee
           if git push https://oauth2:$GITEE_TOKEN@gitee.com/${{ env.GITEE_REPO }}.git HEAD:master 2>&1; then
-            echo "✅ updater.json 已推送到 Gitee"
+            echo "✅ 已推送到 Gitee"
           else
             echo "❌ Gitee 推送失败"
           fi
-
-      - name: 提交并推送到 GitHub
-        run: |
-          if [ ! -f updater.json ]; then
-            echo "⚠️ updater.json 未生成，跳过"
-            exit 0
-          fi
-          git config user.name "发布机器人"
-          git config user.email "bot@files-explorer.dev"
-          git add updater.json
-          if git diff --cached --quiet; then
-            echo "updater.json 无变化，跳过提交"
+          # 推送到 GitHub（仅 GitHub URL）
+          GH_URL="https://github.com/${{ github.repository }}.git"
+          if git push "$GH_URL" HEAD:master 2>&1; then
+            echo "✅ 已推送到 GitHub"
           else
-            git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
+            echo "⚠️ GitHub 推送冲突，使用 force-with-lease 重试..."
+            git fetch "$GH_URL" master
+            git rebase "$GH_URL/master" || git rebase --abort
+            if git push "$GH_URL" HEAD:master --force-with-lease 2>&1; then
+              echo "✅ 已强制推送到 GitHub"
+            else
+              echo "❌ GitHub 推送失败"
+            fi
           fi
-          git push origin HEAD:master
