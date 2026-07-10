@@ -79,42 +79,6 @@ jobs:
           fi
 
   # ── 步骤 3：各平台并行构建 ──
-  # 每个平台的 Gitee 上传步骤完全相同，定义复用
-  .gitee-upload: &gitee-upload
-    - name: 上传到 Gitee Releases
-      continue-on-error: true
-      env:
-        GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        TAG: ${{ needs.get-version.outputs.tag }}
-      run: |
-        RELEASE_ID=$(curl -s \
-          -H "Authorization: bearer $GITEE_TOKEN" \
-          "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/tags/$TAG" \
-          | jq -r '.id')
-        if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-          echo "⚠️ 未找到 Gitee Release，跳过上传（可手动补传）"
-          exit 0
-        fi
-        echo "📤 上传到 Gitee Release id=$RELEASE_ID ..."
-        shopt -s nullglob
-        UPLOAD_COUNT=0
-        FAIL_COUNT=0
-        for f in dist/*.dmg dist/*.msi dist/*.deb dist/*.AppImage dist/*.sig; do
-          echo "  上传: $(basename "$f")"
-          if curl -sS --max-time 300 -X POST \
-            -H "Authorization: bearer $GITEE_TOKEN" \
-            -F "file=@$f" \
-            "https://gitee.com/api/v5/repos/${{ env.GITEE_REPO }}/releases/$RELEASE_ID/release_files"; then
-            UPLOAD_COUNT=$((UPLOAD_COUNT + 1))
-          else
-            echo "  ❌ 上传失败: $(basename "$f")（可手动补传）"
-            FAIL_COUNT=$((FAIL_COUNT + 1))
-          fi
-        done
-        echo "✅ Gitee 上传: 成功 $UPLOAD_COUNT / 失败 $FAIL_COUNT"
-        if [ $FAIL_COUNT -gt 0 ]; then
-          echo "⚠️ 前往 https://gitee.com/${{ env.GITEE_REPO }}/releases/$TAG 手动补传"
-        fi
 
   build-macos-x86_64:
     needs: [get-version, create-gitee-release]
@@ -522,9 +486,8 @@ jobs:
           SIG_LINUX=$(cat sig-files/*linux*.sig 2>/dev/null | head -1 || echo "")
 
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
-          # 下载 URL 优先 Gitee（国内快），GitHub 作为备用
+          # 下载 URL 指向 Gitee（国内快）
           BASE_URL="https://gitee.com/${{ env.GITEE_REPO }}/releases/download/$TAG"
-          GITHUB_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
 
           cat > updater.json << JSONEOF
           {
