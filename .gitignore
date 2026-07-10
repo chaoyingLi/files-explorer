@@ -47,3 +47,6 @@ logs/
 # ── Misc ──
 .cache/
 tmp/
+
+# ── Local scripts (contains tokens/paths) ──
+scripts/
