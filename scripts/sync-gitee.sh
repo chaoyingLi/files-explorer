@@ -58,18 +58,28 @@ for FILE in "${FILES[@]}"; do
   URL="${GITHUB_BASE}/$(echo "$FILE" | sed 's/ /%20/g')"
   LOCAL_FILE=$(echo "$FILE" | sed 's/ /_/g')
 
-  # 下载（跳过已存在的）
+  # 下载（最多重试 3 次）
   if [ -f "$LOCAL_FILE" ]; then
     echo "   ⏭ 已存在，跳过下载"
   else
     echo "   下载中..."
-    if curl -fSL --progress-bar -o "$LOCAL_FILE" "$URL"; then
-      echo "   ✅ 下载完成 ($(du -h "$LOCAL_FILE" | cut -f1))"
-    else
-      echo "   ❌ 下载失败（可能该平台未构建）"
-      SKIP=$((SKIP + 1))
-      continue
-    fi
+    RETRY=0
+    while [ $RETRY -lt 3 ]; do
+      if curl -fSL --retry 2 --retry-delay 5 --connect-timeout 30 -# -o "$LOCAL_FILE" "$URL" 2>&1; then
+        echo "   ✅ 下载完成 ($(du -h "$LOCAL_FILE" | cut -f1))"
+        break
+      fi
+      RETRY=$((RETRY + 1))
+      if [ $RETRY -lt 3 ]; then
+        echo "   🔄 重试 $RETRY/3..."
+        sleep 5
+      else
+        echo "   ❌ 下载失败，跳过"
+        SKIP=$((SKIP + 1))
+      fi
+    done
+    # 下载失败则跳过上传
+    [ ! -f "$LOCAL_FILE" ] && continue
   fi
 
   # 上传到 Gitee
