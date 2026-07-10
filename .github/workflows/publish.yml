@@ -497,19 +497,19 @@ jobs:
             "platforms": {
               "darwin-x86_64": {
                 "signature": "${SIG_X64:-}",
-                "url": "${BASE_URL}/Files Explorer_${VERSION}_x64.dmg"
+                "url": "${BASE_URL}/Files.Explorer_${VERSION}_x64.dmg"
               },
               "darwin-aarch64": {
                 "signature": "${SIG_ARM64:-}",
-                "url": "${BASE_URL}/Files Explorer_${VERSION}_aarch64.dmg"
+                "url": "${BASE_URL}/Files.Explorer_${VERSION}_aarch64.dmg"
               },
               "windows-x86_64": {
                 "signature": "${SIG_WIN:-}",
-                "url": "${BASE_URL}/Files Explorer_${VERSION}_x64_en-US.msi"
+                "url": "${BASE_URL}/Files.Explorer_${VERSION}_x64_en-US.msi"
               },
               "linux-x86_64": {
                 "signature": "${SIG_LINUX:-}",
-                "url": "${BASE_URL}/Files Explorer_${VERSION}_amd64.AppImage"
+                "url": "${BASE_URL}/Files.Explorer_${VERSION}_amd64.AppImage"
               }
             }
           }
