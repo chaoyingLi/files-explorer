@@ -600,6 +600,26 @@
                             </svg>
                             {{ $t("tray.clearCache") }}
                         </button>
+                        <button
+                            class="about-update-btn"
+                            :disabled="updateCheckState === 'checking'"
+                            @click="manualCheckUpdate"
+                        >
+                            <svg
+                                v-if="updateCheckState === 'checking'"
+                                class="spinner"
+                                viewBox="0 0 14 14"
+                                width="14"
+                                height="14"
+                            >
+                                <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 8" />
+                            </svg>
+                            <svg v-else-if="updateCheckState === 'up-to-date'" viewBox="0 0 14 14" width="14" height="14">
+                                <circle cx="7" cy="7" r="6" fill="none" stroke="#4CAF50" stroke-width="1.3" />
+                                <path d="M4 7l2.5 2.5L10 5.5" stroke="#4CAF50" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            {{ updateCheckLabel }}
+                        </button>
                         <div class="about-pillars">
                             <span
                                 class="pillar-chip"
@@ -795,6 +815,8 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
+import { checkForUpdates } from "@/utils/updater";
+import { useToast } from "@/composables/useToast";
 import type {
     ThemeMode,
     FontSize,
@@ -805,8 +827,51 @@ import type {
 
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
+const toast = useToast();
 const activeTab = ref("general");
 const termDropdownOpen = ref(false);
+
+// ── 更新检查 ──
+type UpdateCheckState = "idle" | "checking" | "up-to-date" | "error";
+const updateCheckState = ref<UpdateCheckState>("idle");
+const updateCheckLabel = computed(() => {
+    switch (updateCheckState.value) {
+        case "checking": return t("settings.checkingUpdate");
+        case "up-to-date": return t("settings.upToDate");
+        case "error": return t("settings.updateCheckFailed");
+        default: return t("settings.checkUpdate");
+    }
+});
+const newVersion = ref<string | null>(null);
+
+async function manualCheckUpdate() {
+    if (updateCheckState.value === "checking") return;
+    updateCheckState.value = "checking";
+    newVersion.value = null;
+    try {
+        const result = await checkForUpdates();
+        if (result.available && result.update) {
+            newVersion.value = result.update.version;
+            updateCheckState.value = "idle";
+            // 触发 UpdaterChecker 弹窗
+            window.dispatchEvent(new CustomEvent("updater:show", {
+                detail: { version: result.update.version, body: result.update.body },
+            }));
+        } else if (result.errorCode === "NO_UPDATE") {
+            updateCheckState.value = "up-to-date";
+            toast.show(t("settings.alreadyLatest"));
+            setTimeout(() => { if (updateCheckState.value === "up-to-date") updateCheckState.value = "idle"; }, 3000);
+        } else {
+            updateCheckState.value = "error";
+            toast.show(result.message || t("settings.updateCheckFailed"), true);
+            setTimeout(() => { if (updateCheckState.value === "error") updateCheckState.value = "idle"; }, 3000);
+        }
+    } catch (e) {
+        updateCheckState.value = "error";
+        toast.show(e instanceof Error ? e.message : t("settings.updateCheckFailed"), true);
+        setTimeout(() => { if (updateCheckState.value === "error") updateCheckState.value = "idle"; }, 3000);
+    }
+}
 const fontSizeOpen = ref(false);
 const fontFamilyOpen = ref(false);
 
@@ -1393,6 +1458,39 @@ function handleLocaleChange(l: string) {
 .about-clear-btn:hover {
     color: var(--danger);
     border-color: var(--danger);
+}
+
+.about-update-btn {
+    margin-top: 10px;
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+}
+.about-update-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.about-update-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.spinner {
+    animation: spin 0.8s linear infinite;
 }
 
 .icon-preview {

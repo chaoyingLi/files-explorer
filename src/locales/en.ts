@@ -391,5 +391,10 @@ export default {
     quitOnClose: "Quit on close",
     quitOnCloseDesc:
       "Exit application when closing window (uncheck to hide to tray)",
+    checkUpdate: "Check for Updates",
+    checkingUpdate: "Checking...",
+    upToDate: "Up to Date",
+    updateCheckFailed: "Update check failed",
+    alreadyLatest: "You are on the latest version",
   },
 };

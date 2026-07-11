@@ -72,6 +72,11 @@ import {
 
 const { t } = useI18n();
 
+const emit = defineEmits<{
+    noUpdate: [];
+    error: [message: string];
+}>();
+
 const updateAvailable = ref(false);
 const updateInfo = ref<AvailableUpdate | null>(null);
 const showRestart = ref(false);
@@ -85,7 +90,7 @@ onMounted(async () => {
             updateAvailable.value = true;
         }
     } catch (error) {
-        console.error("检查更新失败:", error);
+        emit("error", error instanceof Error ? error.message : String(error));
     }
 
     // 注册更新任务状态监听
@@ -95,6 +100,17 @@ onMounted(async () => {
         }
     });
     onUnmounted(unsub);
+
+    // 监听来自设置页的手动检查事件
+    const onManualCheck = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail?.version) {
+            updateInfo.value = { version: detail.version, body: detail.body };
+            updateAvailable.value = true;
+        }
+    };
+    window.addEventListener("updater:show", onManualCheck);
+    onUnmounted(() => window.removeEventListener("updater:show", onManualCheck));
 
     // Dev 模式挂载测试辅助
     if (import.meta.env.DEV) {

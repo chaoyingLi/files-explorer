@@ -1,7 +1,7 @@
 // ── 自动更新服务 ──
 // 封装 @tauri-apps/plugin-updater，提供状态管理和 Mock 测试支持
 
-import { check } from "@tauri-apps/plugin-updater";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
 // ============ 类型 ============
@@ -112,6 +112,10 @@ export function subscribeUpdateTask(
   };
 }
 
+// ============ 缓存的 Update 对象（避免重复 check()） ============
+
+let cachedUpdate: Update | null = null;
+
 // ============ 检查更新 ============
 
 export async function checkForUpdates(): Promise<UpdateResult> {
@@ -122,6 +126,8 @@ export async function checkForUpdates(): Promise<UpdateResult> {
   try {
     setTaskState("checking");
     const update = await check();
+    cachedUpdate = update?.available ? update : null;
+
     if (update?.available) {
       setTaskState("idle");
       return {
@@ -152,7 +158,7 @@ export async function checkForUpdates(): Promise<UpdateResult> {
   }
 }
 
-// ============ 安装更新（内部调用 check 获取最新 Update 对象） ============
+// ============ 安装更新（复用缓存的 Update 对象） ============
 
 export function startBackgroundInstall(): BackgroundInstallStartResult {
   if (installInFlight) {
@@ -161,9 +167,8 @@ export function startBackgroundInstall(): BackgroundInstallStartResult {
 
   installInFlight = (async () => {
     try {
-      setTaskState("checking");
-      const update = await check();
-      if (!update?.available) {
+      // 优先用缓存的 Update 对象
+      if (!cachedUpdate?.available) {
         setTaskState("idle", {
           message: "当前已是最新版本",
           errorCode: "NO_UPDATE",
@@ -178,7 +183,7 @@ export function startBackgroundInstall(): BackgroundInstallStartResult {
 
       setTaskState("downloading");
       setTaskState("installing");
-      await update.downloadAndInstall();
+      await cachedUpdate.downloadAndInstall();
       setTaskState("ready_to_restart", {
         message: "更新已安装，重启以生效",
       });
@@ -186,7 +191,7 @@ export function startBackgroundInstall(): BackgroundInstallStartResult {
       return {
         state: "ready_to_restart",
         available: false,
-        message: "更新已安装，正在重启...",
+        message: "更新已安装",
       };
     } catch (error) {
       setTaskState("error", {

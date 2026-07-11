@@ -387,5 +387,10 @@ export default {
     showTrayDesc: "在菜单栏/任务栏显示托盘图标",
     quitOnClose: "关闭界面时退出",
     quitOnCloseDesc: "关闭窗口时退出应用程序（取消勾选则隐藏到托盘）",
+    checkUpdate: "检查更新",
+    checkingUpdate: "检查中...",
+    upToDate: "已是最新版本",
+    updateCheckFailed: "检查更新失败",
+    alreadyLatest: "当前已是最新版本",
   },
 };
