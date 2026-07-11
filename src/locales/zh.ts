@@ -298,6 +298,8 @@ export default {
     updating: "正在更新...",
     updateDialogDescription: "新版本已准备就绪，是否现在更新？",
     restartNow: "立即重启",
+    updateFailed: "更新失败",
+    updateInProgress: "更新正在进行中",
     restartLater: "稍后重启",
     restartPromptTitle: "重启应用",
     restartPromptDescription: "更新已安装，重启应用以生效。",

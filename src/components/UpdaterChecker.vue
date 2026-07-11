@@ -60,6 +60,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { useToast } from "@/composables/useToast";
 import {
     checkForUpdates,
     startBackgroundInstall,
@@ -71,6 +72,7 @@ import {
 } from "@/utils/updater";
 
 const { t } = useI18n();
+const toast = useToast();
 
 const emit = defineEmits<{
     noUpdate: [];
@@ -96,7 +98,14 @@ onMounted(async () => {
     // 注册更新任务状态监听
     const unsub = subscribeUpdateTask((snapshot) => {
         if (snapshot.state === "ready_to_restart") {
+            updateAvailable.value = false;
+            installing.value = false;
             showRestart.value = true;
+        }
+        if (snapshot.state === "error") {
+            toast.show(snapshot.message || t("updater.updateFailed"), true);
+            installing.value = false;
+            updateAvailable.value = false;
         }
     });
     onUnmounted(unsub);
@@ -172,16 +181,20 @@ function dismissRestart() {
 
 async function handleUpdate() {
     if (installing.value) return;
+    installing.value = true;
     try {
-        installing.value = true;
         const result = startBackgroundInstall();
-        if (result.started) {
-            updateAvailable.value = false;
+        if (!result.started) {
+            toast.show(t("updater.updateInProgress"), true);
+            installing.value = false;
+            return;
         }
+        // 不关闭弹窗，保持 installing 状态等待完成
+        // 完成后 subscribeUpdateTask 会触发 showRestart
     } catch (error) {
-        console.error("安装更新失败:", error);
-    } finally {
+        toast.show(t("updater.updateFailed"), true);
         installing.value = false;
+        updateAvailable.value = false;
     }
 }
 
