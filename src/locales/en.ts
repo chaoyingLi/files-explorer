@@ -399,6 +399,7 @@ export default {
     upToDate: "Up to Date",
     updateCheckFailed: "Update check failed",
     alreadyLatest: "You are on the latest version",
+    downloadingUpdate: "Downloading...",
     openSource: "Repository",
   },
 };

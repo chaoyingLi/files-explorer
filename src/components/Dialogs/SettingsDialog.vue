@@ -573,7 +573,7 @@
                         </div>
                         <button
                             class="about-update-btn"
-                            :disabled="updateCheckState === 'checking'"
+                            :disabled="updateCheckState === 'checking' || updateCheckState === 'downloading'"
                             @click="manualCheckUpdate"
                         >
                             <svg
@@ -726,7 +726,7 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
-import { checkForUpdates } from "@/utils/updater";
+import { checkForUpdates, downloadSilently, subscribeUpdateTask } from "@/utils/updater";
 import { useToast } from "@/composables/useToast";
 import type {
     ThemeMode,
@@ -743,11 +743,12 @@ const activeTab = ref("general");
 const termDropdownOpen = ref(false);
 
 // ── 更新检查 ──
-type UpdateCheckState = "idle" | "checking" | "up-to-date" | "error";
+type UpdateCheckState = "idle" | "checking" | "downloading" | "up-to-date" | "error";
 const updateCheckState = ref<UpdateCheckState>("idle");
 const updateCheckLabel = computed(() => {
     switch (updateCheckState.value) {
         case "checking": return t("settings.checkingUpdate");
+        case "downloading": return t("settings.downloadingUpdate");
         case "up-to-date": return t("settings.upToDate");
         case "error": return t("settings.updateCheckFailed");
         default: return t("settings.checkUpdate");
@@ -756,18 +757,40 @@ const updateCheckLabel = computed(() => {
 const newVersion = ref<string | null>(null);
 
 async function manualCheckUpdate() {
-    if (updateCheckState.value === "checking") return;
+    if (updateCheckState.value === "checking" || updateCheckState.value === "downloading") return;
     updateCheckState.value = "checking";
     newVersion.value = null;
     try {
         const result = await checkForUpdates();
         if (result.available && result.update) {
             newVersion.value = result.update.version;
-            updateCheckState.value = "idle";
-            // 触发 UpdaterChecker 弹窗
-            window.dispatchEvent(new CustomEvent("updater:show", {
-                detail: { version: result.update.version, body: result.update.body },
-            }));
+            // 开始下载
+            updateCheckState.value = "downloading";
+            const dl = downloadSilently();
+            if (!dl.started) {
+                // 下载已在进行中，直接弹窗
+                updateCheckState.value = "idle";
+                window.dispatchEvent(new CustomEvent("updater:show", {
+                    detail: { version: result.update.version, body: result.update.body },
+                }));
+                return;
+            }
+            // 监听下载状态
+            const unsub = subscribeUpdateTask((snapshot) => {
+                if (snapshot.state === "ready_to_restart") {
+                    unsub();
+                    updateCheckState.value = "idle";
+                    window.dispatchEvent(new CustomEvent("updater:show", {
+                        detail: { version: result.update!.version, body: result.update!.body },
+                    }));
+                }
+                if (snapshot.state === "error") {
+                    unsub();
+                    updateCheckState.value = "error";
+                    toast.show(snapshot.message || t("settings.updateCheckFailed"), true);
+                    setTimeout(() => { if (updateCheckState.value === "error") updateCheckState.value = "idle"; }, 3000);
+                }
+            });
         } else if (result.errorCode === "NO_UPDATE") {
             updateCheckState.value = "up-to-date";
             toast.show(t("settings.alreadyLatest"));

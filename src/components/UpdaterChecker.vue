@@ -137,13 +137,12 @@ onMounted(async () => {
     });
     onUnmounted(unsub);
 
-    // 监听来自设置页的手动检查事件
+    // 监听来自设置页的手动检查事件（下载已完成，直接显示弹窗）
     const onManualCheck = (e: Event) => {
         const detail = (e as CustomEvent).detail;
         if (detail?.version) {
             updateInfo.value = { version: detail.version, body: detail.body };
-            downloadState.value = "downloading";
-            downloadSilently();
+            updateAvailable.value = true;
         }
     };
     window.addEventListener("updater:show", onManualCheck);
