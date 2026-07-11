@@ -392,5 +392,6 @@ export default {
     upToDate: "已是最新版本",
     updateCheckFailed: "检查更新失败",
     alreadyLatest: "当前已是最新版本",
+    openSource: "开源地址",
   },
 };

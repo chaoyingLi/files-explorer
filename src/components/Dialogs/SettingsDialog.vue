@@ -557,49 +557,20 @@
 
                     <!-- About -->
                     <div v-if="activeTab === 'about'" class="tab-panel">
-                        <div class="about-content">
+                        <div class="about-hero">
                             <img
                                 class="about-icon"
                                 src="/icon.png"
                                 alt="Files Explorer"
                             />
-                            <div class="about-info">
-                                <div class="about-name">Files Explorer</div>
-                                <div class="about-version">
-                                    {{ t("settings.version") }}
-                                    {{ APP_VERSION }}
-                                </div>
-                                <div class="about-desc">
-                                    {{ t("settings.description") }}
-                                </div>
+                            <div class="about-name">{{ $t("app.title") }}</div>
+                            <div class="about-version">
+                                v{{ APP_VERSION }}
+                            </div>
+                            <div class="about-desc">
+                                {{ t("settings.description") }}
                             </div>
                         </div>
-                        <button
-                            class="about-clear-btn"
-                            @click="$emit('clearCache')"
-                        >
-                            <svg
-                                viewBox="0 0 14 14"
-                                width="14"
-                                height="14"
-                                fill="none"
-                            >
-                                <circle
-                                    cx="7"
-                                    cy="7"
-                                    r="5.5"
-                                    stroke="currentColor"
-                                    stroke-width="1.2"
-                                />
-                                <path
-                                    d="M5 5l4 4M9 5l-4 4"
-                                    stroke="currentColor"
-                                    stroke-width="1.2"
-                                    stroke-linecap="round"
-                                />
-                            </svg>
-                            {{ $t("tray.clearCache") }}
-                        </button>
                         <button
                             class="about-update-btn"
                             :disabled="updateCheckState === 'checking'"
@@ -615,125 +586,65 @@
                                 <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 8" />
                             </svg>
                             <svg v-else-if="updateCheckState === 'up-to-date'" viewBox="0 0 14 14" width="14" height="14">
-                                <circle cx="7" cy="7" r="6" fill="none" stroke="#4CAF50" stroke-width="1.3" />
-                                <path d="M4 7l2.5 2.5L10 5.5" stroke="#4CAF50" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                                <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.3" />
+                                <path d="M4 7l2.5 2.5L10 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <svg v-else viewBox="0 0 14 14" width="14" height="14" fill="none">
+                                <path d="M7 2v3M7 9v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                                <circle cx="7" cy="11" r="1.5" stroke="currentColor" stroke-width="3" stroke-dasharray="0 8" transform="rotate(45 7 7)" opacity="0" />
+                                <path d="M7 2a5 5 0 015 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                                <circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 21" />
                             </svg>
                             {{ updateCheckLabel }}
                         </button>
                         <div class="about-pillars">
-                            <span
-                                class="pillar-chip"
-                                :title="$t('settings.pillarLightweightTooltip')"
-                            >
-                                <svg
-                                    viewBox="0 0 14 14"
-                                    width="13"
-                                    height="13"
-                                    fill="none"
-                                >
-                                    <path
-                                        d="M7 2L3 7l4 5 4-5-4-5z"
-                                        stroke="currentColor"
-                                        stroke-width="1.1"
-                                        stroke-linejoin="round"
-                                    />
-                                    <path
-                                        d="M4 7h6"
-                                        stroke="currentColor"
-                                        stroke-width="1.1"
-                                        stroke-linecap="round"
-                                    />
+                            <span class="pillar-chip" :title="$t('settings.pillarLightweightTooltip')">
+                                <svg viewBox="0 0 14 14" width="13" height="13" fill="none">
+                                    <path d="M7 2L3 7l4 5 4-5-4-5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
+                                    <path d="M4 7h6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
                                 </svg>
                                 {{ $t("settings.pillarLightweight") }}
                             </span>
-                            <span
-                                class="pillar-chip"
-                                :title="$t('settings.pillarFastTooltip')"
-                            >
-                                <svg
-                                    viewBox="0 0 14 14"
-                                    width="13"
-                                    height="13"
-                                    fill="none"
-                                >
-                                    <path
-                                        d="M6 3.5L11 7l-5 3.5v-7z"
-                                        fill="currentColor"
-                                        opacity="0.8"
-                                    />
-                                    <path
-                                        d="M3 3.5l2.5 1.75v3.5L3 10.5v-7z"
-                                        fill="currentColor"
-                                        opacity="0.3"
-                                    />
+                            <span class="pillar-chip" :title="$t('settings.pillarFastTooltip')">
+                                <svg viewBox="0 0 14 14" width="13" height="13" fill="none">
+                                    <path d="M6 3.5L11 7l-5 3.5v-7z" fill="currentColor" opacity="0.8" />
+                                    <path d="M3 3.5l2.5 1.75v3.5L3 10.5v-7z" fill="currentColor" opacity="0.3" />
                                 </svg>
                                 {{ $t("settings.pillarFast") }}
                             </span>
-                            <span
-                                class="pillar-chip"
-                                :title="$t('settings.pillarModernTooltip')"
-                            >
-                                <svg
-                                    viewBox="0 0 14 14"
-                                    width="13"
-                                    height="13"
-                                    fill="none"
-                                >
-                                    <circle
-                                        cx="7"
-                                        cy="7"
-                                        r="4"
-                                        stroke="currentColor"
-                                        stroke-width="1.1"
-                                    />
-                                    <circle
-                                        cx="7"
-                                        cy="7"
-                                        r="1.5"
-                                        fill="currentColor"
-                                        opacity="0.7"
-                                    />
-                                    <path
-                                        d="M7 3v1.5M7 9.5v1.5M3 7h1.5M9.5 7H11"
-                                        stroke="currentColor"
-                                        stroke-width="1"
-                                        stroke-linecap="round"
-                                    />
+                            <span class="pillar-chip" :title="$t('settings.pillarModernTooltip')">
+                                <svg viewBox="0 0 14 14" width="13" height="13" fill="none">
+                                    <rect x="2" y="2.5" width="10" height="9" rx="1.5" stroke="currentColor" stroke-width="1.1" />
+                                    <path d="M5 7l1.5 1.5L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
                                 </svg>
                                 {{ $t("settings.pillarModern") }}
                             </span>
-                            <span
-                                class="pillar-chip"
-                                :title="$t('settings.pillarSmartTooltip')"
-                            >
-                                <svg
-                                    viewBox="0 0 14 14"
-                                    width="13"
-                                    height="13"
-                                    fill="none"
-                                >
-                                    <path
-                                        d="M7 2v3M4 5l3-3 3 3"
-                                        stroke="currentColor"
-                                        stroke-width="1.1"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    />
-                                    <path
-                                        d="M3 7h8l-1 5H4L3 7z"
-                                        stroke="currentColor"
-                                        stroke-width="1.1"
-                                        stroke-linejoin="round"
-                                    />
-                                    <circle
-                                        cx="7"
-                                        cy="9"
-                                        r=".7"
-                                        fill="currentColor"
-                                    />
+                            <span class="pillar-chip" :title="$t('settings.pillarSmartTooltip')">
+                                <svg viewBox="0 0 14 14" width="13" height="13" fill="none">
+                                    <path d="M7 1.5L9.5 5l4 .5-3 3 .8 4.5L7 10.8 3.2 13l.8-4.5-3-3 4-.5L7 1.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
                                 </svg>
                                 {{ $t("settings.pillarSmart") }}
                             </span>
+                        </div>
+                        <div class="about-links">
+                            <button class="about-link-btn" @click="$emit('clearCache')">
+                                <svg viewBox="0 0 14 14" width="14" height="14" fill="none">
+                                    <path d="M2 4h10M5 4V2.5a1 1 0 011-1h2a1 1 0 011 1V4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                                    <path d="M3 4l.8 7.5a1 1 0 001 .5h4.4a1 1 0 001-.5L11 4" stroke="currentColor" stroke-width="1.2" />
+                                </svg>
+                                {{ $t("tray.clearCache") }}
+                            </button>
+                            <button class="about-link-btn" @click="openRepo">
+                                <svg viewBox="0 0 14 14" width="14" height="14" fill="none">
+                                    <path d="M5 2H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                                    <path d="M13 1H9v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M13 1L6 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                                </svg>
+                                {{ $t("settings.openSource") }}
+                            </button>
+                        </div>
+                        <div class="about-footer">
+                            Copyright © {{ new Date().getFullYear() }} Files Explorer
                         </div>
                     </div>
 
@@ -871,6 +782,10 @@ async function manualCheckUpdate() {
         toast.show(e instanceof Error ? e.message : t("settings.updateCheckFailed"), true);
         setTimeout(() => { if (updateCheckState.value === "error") updateCheckState.value = "idle"; }, 3000);
     }
+
+function openRepo() {
+    window.open("https://github.com/chaoyingLi/files-explorer", "_blank");
+}
 }
 const fontSizeOpen = ref(false);
 const fontFamilyOpen = ref(false);
@@ -1380,57 +1295,55 @@ function handleLocaleChange(l: string) {
 }
 
 /* ── About ── */
-.about-content {
+.about-hero {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 16px;
-    padding: 16px;
-    background: var(--bg-primary);
-    border-radius: 10px;
-    border: 1px solid var(--border);
+    gap: 4px;
+    padding: 24px 16px 20px;
 }
 
 .about-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    flex-shrink: 0;
-}
-
-.about-info {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .about-name {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
 }
 
 .about-version {
     font-size: 12px;
     color: var(--text-muted);
+    font-family: monospace;
 }
 
 .about-desc {
     font-size: 12px;
     color: var(--text-secondary);
-    margin-top: 4px;
+    text-align: center;
+    line-height: 1.5;
+    max-width: 280px;
+    margin-top: 6px;
 }
 
 .about-pillars {
     display: flex;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
+    margin: 16px 0 20px;
 }
 
 .pillar-chip {
     cursor: default;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
-    padding: 4px 12px;
+    padding: 5px 14px;
     background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -1439,51 +1352,65 @@ function handleLocaleChange(l: string) {
     gap: 5px;
 }
 
-.about-clear-btn {
-    margin-top: 14px;
+.about-update-btn {
+    width: calc(100% - 32px);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: #1e1e2e;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+}
+.about-update-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+.about-update-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.about-links {
+    display: flex;
+    gap: 8px;
+    margin: 0 16px;
+}
+
+.about-link-btn {
+    flex: 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 7px 12px;
     font-size: var(--font-size-sm);
     color: var(--text-muted);
     background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: 6px;
     cursor: pointer;
-    transition:
-        color 0.15s,
-        border-color 0.15s;
+    transition: color 0.15s, border-color 0.15s;
 }
-.about-clear-btn:hover {
-    color: var(--danger);
-    border-color: var(--danger);
+.about-link-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
 }
 
-.about-update-btn {
-    margin-top: 10px;
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 14px;
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.1s, border-color 0.1s;
-}
-.about-update-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-.about-update-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+.about-footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 16px 0 8px;
+    opacity: 0.5;
 }
 
 @keyframes spin {
