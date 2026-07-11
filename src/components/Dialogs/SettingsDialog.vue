@@ -782,6 +782,7 @@ async function manualCheckUpdate() {
         toast.show(e instanceof Error ? e.message : t("settings.updateCheckFailed"), true);
         setTimeout(() => { if (updateCheckState.value === "error") updateCheckState.value = "idle"; }, 3000);
     }
+}
 
 function openRepo() {
     import("@tauri-apps/plugin-shell").then(({ open }) =>
