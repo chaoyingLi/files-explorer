@@ -5,19 +5,19 @@
   "platforms": {
     "darwin-x86_64": {
       "signature": "",
-      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.4_x64.dmg"
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.5_x64.dmg"
     },
     "darwin-aarch64": {
       "signature": "",
-      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.4_aarch64.dmg"
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.5_aarch64.dmg"
     },
     "windows-x86_64": {
       "signature": "",
-      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.4_x64_en-US.msi"
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.5_x64_en-US.msi"
     },
     "linux-x86_64": {
       "signature": "",
-      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.4_amd64.AppImage"
+      "url": "https://gitee.com/hhyd/files-explorer/releases/download/v0.2.5/Files.Explorer_0.2.5_amd64.AppImage"
     }
   }
 }
