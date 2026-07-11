@@ -1,4 +1,12 @@
 <template>
+    <!-- 下载进度提示（轻量） -->
+    <div v-if="downloadState === 'downloading'" class="updater-notice">
+        <svg class="spinner" viewBox="0 0 14 14" width="14" height="14">
+            <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 8" />
+        </svg>
+        {{ t("updater.downloadingUpdate") }}
+    </div>
+
     <!-- 更新可用对话框 -->
     <div
         v-if="updateAvailable"
@@ -24,11 +32,11 @@
                 <button
                     class="btn btn-primary"
                     :disabled="installing"
-                    @click="handleUpdate"
+                    @click="handleInstall"
                 >
                     {{
                         installing
-                            ? t("updater.updating")
+                            ? t("updater.installing")
                             : t("updater.updateNow")
                     }}
                 </button>
@@ -63,7 +71,8 @@ import { useI18n } from "vue-i18n";
 import { useToast } from "@/composables/useToast";
 import {
     checkForUpdates,
-    startBackgroundInstall,
+    downloadSilently,
+    installDownloadedUpdate,
     relaunchAfterUpdate,
     subscribeUpdateTask,
     enableMock,
@@ -83,13 +92,20 @@ const updateAvailable = ref(false);
 const updateInfo = ref<AvailableUpdate | null>(null);
 const showRestart = ref(false);
 const installing = ref(false);
+const downloadState = ref<"idle" | "downloading">("idle");
 
 onMounted(async () => {
     try {
         const result = await checkForUpdates();
         if (result.state === "available" && result.update) {
             updateInfo.value = result.update;
-            updateAvailable.value = true;
+            // 先静默下载，完成后再显示弹窗
+            downloadState.value = "downloading";
+            const dl = downloadSilently();
+            if (!dl.started) {
+                updateAvailable.value = true;
+                downloadState.value = "idle";
+            }
         }
     } catch (error) {
         emit("error", error instanceof Error ? error.message : String(error));
@@ -97,15 +113,26 @@ onMounted(async () => {
 
     // 注册更新任务状态监听
     const unsub = subscribeUpdateTask((snapshot) => {
-        if (snapshot.state === "ready_to_restart") {
+        // 静默下载完成 → 显示更新弹窗
+        if (snapshot.state === "ready_to_restart" && downloadState.value === "downloading") {
+            downloadState.value = "idle";
+            updateAvailable.value = true;
+            return;
+        }
+        // 安装完成 → 显示重启弹窗
+        if (snapshot.state === "ready_to_restart" && installing.value) {
             updateAvailable.value = false;
             installing.value = false;
             showRestart.value = true;
+            return;
         }
         if (snapshot.state === "error") {
+            if (downloadState.value === "downloading") {
+                downloadState.value = "idle";
+                updateAvailable.value = true; // 下载失败也显示弹窗让用户手动重试
+            }
             toast.show(snapshot.message || t("updater.updateFailed"), true);
             installing.value = false;
-            updateAvailable.value = false;
         }
     });
     onUnmounted(unsub);
@@ -115,7 +142,8 @@ onMounted(async () => {
         const detail = (e as CustomEvent).detail;
         if (detail?.version) {
             updateInfo.value = { version: detail.version, body: detail.body };
-            updateAvailable.value = true;
+            downloadState.value = "downloading";
+            downloadSilently();
         }
     };
     window.addEventListener("updater:show", onManualCheck);
@@ -142,15 +170,13 @@ onMounted(async () => {
                 const result = await checkForUpdates();
                 if (result.state === "available" && result.update) {
                     updateInfo.value = result.update;
-                    updateAvailable.value = true;
+                    downloadState.value = "downloading";
+                    downloadSilently();
                 }
             },
             mockAvailable: () => {
                 enableMock("available");
-                console.log(
-                    "%c[Updater Test] 模拟：有可用更新",
-                    "color: #4CAF50",
-                );
+                console.log("%c[Updater Test] 模拟：有可用更新", "color: #4CAF50");
             },
             mockNoUpdate: () => {
                 enableMock("no_update");
@@ -158,16 +184,10 @@ onMounted(async () => {
             },
             mockError: () => {
                 enableMock("error");
-                console.log(
-                    "%c[Updater Test] 模拟：检查失败",
-                    "color: #f44336",
-                );
+                console.log("%c[Updater Test] 模拟：检查失败", "color: #f44336");
             },
         };
-        console.log(
-            "%c[Updater] 测试辅助已挂载到 window.__updaterTest",
-            "color: #4CAF50",
-        );
+        console.log("%c[Updater] 测试辅助已挂载到 window.__updaterTest", "color: #4CAF50");
     }
 });
 
@@ -179,22 +199,13 @@ function dismissRestart() {
     showRestart.value = false;
 }
 
-async function handleUpdate() {
+async function handleInstall() {
     if (installing.value) return;
     installing.value = true;
-    try {
-        const result = startBackgroundInstall();
-        if (!result.started) {
-            toast.show(t("updater.updateInProgress"), true);
-            installing.value = false;
-            return;
-        }
-        // 不关闭弹窗，保持 installing 状态等待完成
-        // 完成后 subscribeUpdateTask 会触发 showRestart
-    } catch (error) {
-        toast.show(t("updater.updateFailed"), true);
+    const result = installDownloadedUpdate();
+    if (!result.started) {
+        toast.show(t("updater.updateInProgress"), true);
         installing.value = false;
-        updateAvailable.value = false;
     }
 }
 
@@ -204,6 +215,25 @@ async function relaunchNow() {
 </script>
 
 <style scoped>
+/* ── 下载提示 ── */
+.updater-notice {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+
 .updater-overlay {
     position: fixed;
     inset: 0;
@@ -265,5 +295,12 @@ async function relaunchNow() {
 .btn-secondary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.spinner {
+    animation: spin 0.8s linear infinite;
 }
 </style>

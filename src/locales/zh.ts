@@ -303,6 +303,8 @@ export default {
     restartPromptDescription: "更新已安装，重启应用以生效。",
     updateFailed: "更新失败",
     updateInProgress: "更新正在进行中",
+    downloadingUpdate: "正在下载更新...",
+    installing: "安装中...",
   },
   tray: {
     hideHint: "已最小化到系统托盘",

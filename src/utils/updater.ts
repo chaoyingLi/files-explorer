@@ -158,7 +158,79 @@ export async function checkForUpdates(): Promise<UpdateResult> {
   }
 }
 
-// ============ 安装更新（复用缓存的 Update 对象） ============
+// ============ 静默下载（后台下载，不安装） ============
+
+let downloadInFlight: Promise<UpdateResult> | null = null;
+
+export function downloadSilently(): BackgroundInstallStartResult {
+  if (downloadInFlight) {
+    return { started: false, snapshot: getUpdateTaskSnapshot() };
+  }
+  if (!cachedUpdate?.available) {
+    setTaskState("error", { message: "没有可用更新", errorCode: "NO_UPDATE" });
+    return { started: false, snapshot: getUpdateTaskSnapshot() };
+  }
+
+  downloadInFlight = (async () => {
+    try {
+      if (mockEnabled) {
+        setTaskState("downloading");
+        await delay(2000);
+        setTaskState("ready_to_restart", { message: "Mock 更新已下载" });
+        return { state: "ready_to_restart" as const, available: false, message: "Mock 下载完成" };
+      }
+
+      setTaskState("downloading");
+      await cachedUpdate!.download();
+      setTaskState("ready_to_restart", { message: "更新已下载，点击安装" });
+      return { state: "ready_to_restart" as const, available: false, message: "下载完成" };
+    } catch (error) {
+      setTaskState("error", {
+        message: error instanceof Error ? error.message : String(error),
+        errorCode: "INSTALL_FAILED",
+      });
+      return { state: "error" as const, available: false, errorCode: "INSTALL_FAILED" as const };
+    } finally {
+      downloadInFlight = null;
+    }
+  })();
+
+  return { started: true, snapshot: getUpdateTaskSnapshot() };
+}
+
+export function installDownloadedUpdate(): BackgroundInstallStartResult {
+  if (installInFlight) {
+    return { started: false, snapshot: getUpdateTaskSnapshot() };
+  }
+
+  installInFlight = (async () => {
+    try {
+      if (mockEnabled) {
+        setTaskState("installing");
+        await delay(1000);
+        setTaskState("ready_to_restart", { message: "Mock 已安装，重启以生效" });
+        return { state: "ready_to_restart" as const, available: false, message: "Mock 已安装" };
+      }
+
+      setTaskState("installing");
+      await cachedUpdate!.install();
+      setTaskState("ready_to_restart", { message: "更新已安装，重启以生效" });
+      return { state: "ready_to_restart" as const, available: false, message: "已安装" };
+    } catch (error) {
+      setTaskState("error", {
+        message: error instanceof Error ? error.message : String(error),
+        errorCode: "INSTALL_FAILED",
+      });
+      return { state: "error" as const, available: false, errorCode: "INSTALL_FAILED" as const };
+    } finally {
+      installInFlight = null;
+    }
+  })();
+
+  return { started: true, snapshot: getUpdateTaskSnapshot() };
+}
+
+// ============ 安装更新（下载+安装，旧API保留兼容） ============
 
 export function startBackgroundInstall(): BackgroundInstallStartResult {
   if (installInFlight) {

@@ -304,6 +304,8 @@ export default {
     restartPromptDescription: "Update installed. Restart to apply changes.",
     updateFailed: "Update failed",
     updateInProgress: "Update in progress",
+    downloadingUpdate: "Downloading update...",
+    installing: "Installing...",
   },
   tray: {
     hideHint: "Minimized to system tray",
