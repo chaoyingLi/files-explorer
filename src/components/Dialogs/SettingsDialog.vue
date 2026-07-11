@@ -784,9 +784,11 @@ async function manualCheckUpdate() {
     }
 
 function openRepo() {
-    window.open("https://github.com/chaoyingLi/files-explorer", "_blank");
+    import("@tauri-apps/plugin-shell").then(({ open }) =>
+        open("https://github.com/chaoyingLi/files-explorer")
+    );
 }
-}
+
 const fontSizeOpen = ref(false);
 const fontFamilyOpen = ref(false);
 
