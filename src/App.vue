@@ -104,15 +104,13 @@
         <SettingsDialog
             v-if="showSettings"
             @close="showSettings = false"
-            @clear-cache="
-                showSettings = false;
-                showClearCache = true;
-            "
+            @clear-cache="showClearCache = true"
         />
         <ClearCacheDialog
             v-if="showClearCache"
             @confirm="
                 showClearCache = false;
+                showSettings = false;
                 doClearCache();
             "
             @cancel="showClearCache = false"
