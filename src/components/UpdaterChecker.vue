@@ -140,8 +140,7 @@ onMounted(async () => {
                 const result = await checkForUpdates();
                 if (result.state === "available" && result.update) {
                     updateInfo.value = result.update;
-                    downloadState.value = "downloading";
-                    downloadSilently();
+                    updateAvailable.value = true;
                 }
             },
             mockAvailable: () => {
