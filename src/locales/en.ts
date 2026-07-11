@@ -299,12 +299,11 @@ export default {
     updating: "Updating...",
     updateDialogDescription: "A new version is ready. Update now?",
     restartNow: "Restart now",
-    updateFailed: "Update failed",
-    updateInProgress: "Update in progress",
     restartLater: "Restart Later",
     restartPromptTitle: "Restart Application",
     restartPromptDescription: "Update installed. Restart to apply changes.",
     updateFailed: "Update failed",
+    updateInProgress: "Update in progress",
   },
   tray: {
     hideHint: "Minimized to system tray",
