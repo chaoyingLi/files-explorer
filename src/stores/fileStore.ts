@@ -550,6 +550,11 @@ export const useFileStore = defineStore("file", () => {
     saveRecentItems();
   }
 
+  function removeRecentItem(path: string) {
+    recentItems.value = recentItems.value.filter((i) => i.path !== path);
+    saveRecentItems();
+  }
+
   return {
     // State
     currentPath,
@@ -584,6 +589,7 @@ export const useFileStore = defineStore("file", () => {
     stopDrivePolling,
     recentItems,
     addRecentItem,
+    removeRecentItem,
     syncToTab,
     loadFromTab,
   };

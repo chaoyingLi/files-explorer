@@ -153,6 +153,16 @@
                         <span class="recent-row-time">{{ formatTime(item.time) }}</span>
                     </span>
                 </div>
+                <button
+                    class="recent-row-remove"
+                    :title="t('thisPc.removeFromList')"
+                    @click.stop="store.removeRecentItem(item.path)"
+                >
+                    <svg viewBox="0 0 16 16" width="14" height="14">
+                        <line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                        <line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                </button>
             </div>
             <!-- 查看更多 -->
             <div v-if="recentItems.length > MAX_RECENT" class="recent-more" @click="showAllRecent = !showAllRecent">
@@ -507,6 +517,25 @@ function usePercent(drive: DiskInfo): number {
     color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
+}
+.recent-row-remove {
+    opacity: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: opacity 0.1s, color 0.1s, background 0.1s;
+    line-height: 1;
+}
+.recent-row:hover .recent-row-remove {
+    opacity: 1;
+}
+.recent-row-remove:hover {
+    color: var(--danger, #ef4444);
+    background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
 }
 
 /* ── 隐藏旧列头（改用两行布局后不需要了） ── */

@@ -202,6 +202,7 @@ export default {
     showMore: "显示更多 ({n})",
     showLess: "收起",
     noRecentFiles: "暂无最近访问的文件",
+    removeFromList: "从列表中移除",
   },
   toast: {
     copied: "已复制到剪贴板",

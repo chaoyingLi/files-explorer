@@ -203,6 +203,7 @@ export default {
     showMore: "Show more ({n})",
     showLess: "Show less",
     noRecentFiles: "No recently accessed files",
+    removeFromList: "Remove from list",
   },
   toast: {
     copied: "Copied to clipboard",
