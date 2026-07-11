@@ -1,5 +1,5 @@
 <template>
-    <div class="this-pc">
+    <div class="this-pc" @click.self="clearSelection" @keydown="handleKeydown" tabindex="0">
         <!-- ═══ 设备与驱动器 ═══ -->
         <div class="section-header" @click="expanded.drives = !expanded.drives">
             <span class="section-arrow">{{ expanded.drives ? "▼" : "▶" }}</span>
@@ -78,6 +78,8 @@
                 v-for="item in quickAccessFolders"
                 :key="item.path"
                 class="drive-card"
+                :class="{ 'drive-card--selected': selectedFolder === item.path }"
+                @click="selectedFolder = item.path"
                 @dblclick="store.navigateTo(item.path)"
             >
                 <svg class="drive-card-icon" viewBox="0 0 48 48">
@@ -121,8 +123,12 @@
                 v-for="(item, idx) in displayedRecentItems"
                 :key="item.path"
                 class="recent-row"
-                :class="{ 'recent-row--last': idx === displayedRecentItems.length - 1 }"
+                :class="{
+                    'recent-row--last': idx === displayedRecentItems.length - 1,
+                    'recent-row--selected': selectedRecent === item.path,
+                }"
                 :style="{ '--stripe-color': stripeColor(item) }"
+                @click="selectedRecent = item.path"
                 @dblclick="store.navigateTo(item.path)"
                 @contextmenu.prevent="onRecentCtx(item, $event)"
             >
@@ -180,7 +186,29 @@ const MAX_RECENT = 20;
 
 const expanded = reactive({ drives: true, folders: true, recent: true });
 const selectedDrive = ref<string | null>(null);
+const selectedFolder = ref<string | null>(null);
+const selectedRecent = ref<string | null>(null);
 const showAllRecent = ref(false);
+
+// 空白区点击取消所有选中
+function clearSelection() {
+    selectedDrive.value = null;
+    selectedFolder.value = null;
+    selectedRecent.value = null;
+}
+
+// Enter 键打开选中项
+function handleKeydown(e: KeyboardEvent) {
+    if (e.key !== "Enter") return;
+    if (selectedDrive.value) {
+        const drive = store.drives.find((d) => d.mount_point === selectedDrive.value);
+        if (drive) store.openDrive(drive);
+    } else if (selectedFolder.value) {
+        store.navigateTo(selectedFolder.value);
+    } else if (selectedRecent.value) {
+        store.navigateTo(selectedRecent.value);
+    }
+}
 
 // 快速访问文件夹（带颜色）
 const folderColors: Record<string, string> = {
@@ -266,6 +294,7 @@ function usePercent(drive: DiskInfo): number {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
+    outline: none;
 }
 
 /* ── 区域标题 ── */
@@ -419,10 +448,18 @@ function usePercent(drive: DiskInfo): number {
     width: 3px;
     background: var(--stripe-color);
     border-radius: 0 2px 2px 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.recent-row:hover::before {
+    opacity: 1;
 }
 .recent-row:hover {
     background: var(--bg-hover);
     transform: translateX(2px);
+}
+.recent-row--selected {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .recent-row:not(.recent-row--last) {
     border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.12));
