@@ -23,7 +23,6 @@
                 }"
                 @click="selectedDrive = drive.mount_point"
                 @dblclick="store.openDrive(drive)"
-                @contextmenu.prevent="emit('driveContextMenu', drive, $event)"
             >
                 <svg class="drive-card-icon" viewBox="0 0 48 48">
                     <template v-if="drive.file_system === 'smb' || drive.file_system === 'nfs'">
@@ -130,7 +129,6 @@
                 :style="{ '--stripe-color': stripeColor(item) }"
                 @click="selectedRecent = item.path"
                 @dblclick="store.navigateTo(item.path)"
-                @contextmenu.prevent="onRecentCtx(item, $event)"
             >
                 <svg
                     v-if="item.isDir"
@@ -186,11 +184,6 @@ import { formatFileSize } from "@/utils/fileTypes";
 
 const { t } = useI18n();
 const store = useFileStore();
-
-const emit = defineEmits<{
-    recentContextMenu: [path: string, e: MouseEvent];
-    driveContextMenu: [drive: DiskInfo, e: MouseEvent];
-}>();
 
 const MAX_RECENT = 20;
 
@@ -284,11 +277,7 @@ function formatTime(ts: number): string {
     return new Date(ts).toLocaleDateString();
 }
 
-function onRecentCtx(item: { path: string }, e: MouseEvent) {
-    emit("recentContextMenu", item.path, e);
-}
-
-function formatSize(bytes: number): string {
+function formatTime(ts: number): string {
     return formatFileSize(bytes);
 }
 
