@@ -167,6 +167,22 @@ export function startBackgroundInstall(): BackgroundInstallStartResult {
 
   installInFlight = (async () => {
     try {
+      // Mock 模式下模拟安装
+      if (mockEnabled) {
+        setTaskState("downloading");
+        await delay(1500);
+        setTaskState("installing");
+        await delay(1000);
+        setTaskState("ready_to_restart", {
+          message: "Mock 更新已安装，重启以生效",
+        });
+        return {
+          state: "ready_to_restart" as const,
+          available: false,
+          message: "Mock 更新已安装",
+        };
+      }
+
       // 优先用缓存的 Update 对象
       if (!cachedUpdate?.available) {
         setTaskState("idle", {
