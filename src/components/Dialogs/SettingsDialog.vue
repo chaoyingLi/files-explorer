@@ -726,7 +726,7 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
-import { checkForUpdates, downloadSilently, subscribeUpdateTask } from "@/utils/updater";
+import { checkForUpdates, startSilentUpdate, subscribeUpdateTask } from "@/utils/updater";
 import { useToast } from "@/composables/useToast";
 import type {
     ThemeMode,
@@ -764,25 +764,17 @@ async function manualCheckUpdate() {
         const result = await checkForUpdates();
         if (result.available && result.update) {
             newVersion.value = result.update.version;
-            // 开始下载
             updateCheckState.value = "downloading";
-            const dl = downloadSilently();
+            const dl = startSilentUpdate();
             if (!dl.started) {
-                // 下载已在进行中，直接弹窗
                 updateCheckState.value = "idle";
-                window.dispatchEvent(new CustomEvent("updater:show", {
-                    detail: { version: result.update.version, body: result.update.body },
-                }));
                 return;
             }
-            // 监听下载状态
+            // 监听：完成时清空按钮状态，UpdaterChecker 会自动弹出重启
             const unsub = subscribeUpdateTask((snapshot) => {
                 if (snapshot.state === "ready_to_restart") {
                     unsub();
                     updateCheckState.value = "idle";
-                    window.dispatchEvent(new CustomEvent("updater:show", {
-                        detail: { version: result.update!.version, body: result.update!.body },
-                    }));
                 }
                 if (snapshot.state === "error") {
                     unsub();

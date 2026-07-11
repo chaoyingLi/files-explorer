@@ -158,12 +158,12 @@ export async function checkForUpdates(): Promise<UpdateResult> {
   }
 }
 
-// ============ 静默下载（后台下载，不安装） ============
+// ============ 静默下载+安装（后台完成，完成直接能重启） ============
 
-let downloadInFlight: Promise<UpdateResult> | null = null;
+let updateInFlight: Promise<UpdateResult> | null = null;
 
-export function downloadSilently(): BackgroundInstallStartResult {
-  if (downloadInFlight) {
+export function startSilentUpdate(): BackgroundInstallStartResult {
+  if (updateInFlight) {
     return { started: false, snapshot: getUpdateTaskSnapshot() };
   }
   if (!cachedUpdate?.available) {
@@ -171,51 +171,22 @@ export function downloadSilently(): BackgroundInstallStartResult {
     return { started: false, snapshot: getUpdateTaskSnapshot() };
   }
 
-  downloadInFlight = (async () => {
+  updateInFlight = (async () => {
     try {
       if (mockEnabled) {
         setTaskState("downloading");
-        await delay(2000);
-        setTaskState("ready_to_restart", { message: "Mock 更新已下载" });
-        return { state: "ready_to_restart" as const, available: false, message: "Mock 下载完成" };
+        await delay(1500);
+        setTaskState("installing");
+        await delay(1000);
+        setTaskState("ready_to_restart", { message: "Mock 更新已安装，重启以生效" });
+        return { state: "ready_to_restart" as const, available: false, message: "Mock" };
       }
 
       setTaskState("downloading");
-      await cachedUpdate!.download();
-      setTaskState("ready_to_restart", { message: "更新已下载，点击安装" });
-      return { state: "ready_to_restart" as const, available: false, message: "下载完成" };
-    } catch (error) {
-      setTaskState("error", {
-        message: error instanceof Error ? error.message : String(error),
-        errorCode: "INSTALL_FAILED",
-      });
-      return { state: "error" as const, available: false, errorCode: "INSTALL_FAILED" as const };
-    } finally {
-      downloadInFlight = null;
-    }
-  })();
-
-  return { started: true, snapshot: getUpdateTaskSnapshot() };
-}
-
-export function installDownloadedUpdate(): BackgroundInstallStartResult {
-  if (installInFlight) {
-    return { started: false, snapshot: getUpdateTaskSnapshot() };
-  }
-
-  installInFlight = (async () => {
-    try {
-      if (mockEnabled) {
-        setTaskState("installing");
-        await delay(1000);
-        setTaskState("ready_to_restart", { message: "Mock 已安装，重启以生效" });
-        return { state: "ready_to_restart" as const, available: false, message: "Mock 已安装" };
-      }
-
       setTaskState("installing");
-      await cachedUpdate!.install();
+      await cachedUpdate!.downloadAndInstall();
       setTaskState("ready_to_restart", { message: "更新已安装，重启以生效" });
-      return { state: "ready_to_restart" as const, available: false, message: "已安装" };
+      return { state: "ready_to_restart" as const, available: false, message: "完成" };
     } catch (error) {
       setTaskState("error", {
         message: error instanceof Error ? error.message : String(error),
@@ -223,14 +194,18 @@ export function installDownloadedUpdate(): BackgroundInstallStartResult {
       });
       return { state: "error" as const, available: false, errorCode: "INSTALL_FAILED" as const };
     } finally {
-      installInFlight = null;
+      updateInFlight = null;
     }
   })();
 
   return { started: true, snapshot: getUpdateTaskSnapshot() };
 }
 
-// ============ 安装更新（下载+安装，旧API保留兼容） ============
+// 兼容旧 API
+
+export const startBackgroundInstall = startSilentUpdate;
+export const downloadSilently = startSilentUpdate;
+export const installDownloadedUpdate = startSilentUpdate;
 
 export function startBackgroundInstall(): BackgroundInstallStartResult {
   if (installInFlight) {

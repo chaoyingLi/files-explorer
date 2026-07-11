@@ -1,12 +1,4 @@
 <template>
-    <!-- 下载进度提示（轻量） -->
-    <div v-if="downloadState === 'downloading'" class="updater-notice">
-        <svg class="spinner" viewBox="0 0 14 14" width="14" height="14">
-            <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 8" />
-        </svg>
-        {{ t("updater.downloadingUpdate") }}
-    </div>
-
     <!-- 更新可用对话框 -->
     <div
         v-if="updateAvailable"
@@ -71,8 +63,7 @@ import { useI18n } from "vue-i18n";
 import { useToast } from "@/composables/useToast";
 import {
     checkForUpdates,
-    downloadSilently,
-    installDownloadedUpdate,
+    startSilentUpdate,
     relaunchAfterUpdate,
     subscribeUpdateTask,
     enableMock,
@@ -92,20 +83,13 @@ const updateAvailable = ref(false);
 const updateInfo = ref<AvailableUpdate | null>(null);
 const showRestart = ref(false);
 const installing = ref(false);
-const downloadState = ref<"idle" | "downloading">("idle");
 
 onMounted(async () => {
     try {
         const result = await checkForUpdates();
         if (result.state === "available" && result.update) {
             updateInfo.value = result.update;
-            // 先静默下载，完成后再显示弹窗
-            downloadState.value = "downloading";
-            const dl = downloadSilently();
-            if (!dl.started) {
-                updateAvailable.value = true;
-                downloadState.value = "idle";
-            }
+            updateAvailable.value = true;
         }
     } catch (error) {
         emit("error", error instanceof Error ? error.message : String(error));
@@ -113,31 +97,18 @@ onMounted(async () => {
 
     // 注册更新任务状态监听
     const unsub = subscribeUpdateTask((snapshot) => {
-        // 静默下载完成 → 显示更新弹窗
-        if (snapshot.state === "ready_to_restart" && downloadState.value === "downloading") {
-            downloadState.value = "idle";
-            updateAvailable.value = true;
-            return;
-        }
-        // 安装完成 → 显示重启弹窗
-        if (snapshot.state === "ready_to_restart" && installing.value) {
+        if (snapshot.state === "ready_to_restart") {
             updateAvailable.value = false;
-            installing.value = false;
             showRestart.value = true;
-            return;
         }
         if (snapshot.state === "error") {
-            if (downloadState.value === "downloading") {
-                downloadState.value = "idle";
-                updateAvailable.value = true; // 下载失败也显示弹窗让用户手动重试
-            }
             toast.show(snapshot.message || t("updater.updateFailed"), true);
-            installing.value = false;
+            updateAvailable.value = false;
         }
     });
     onUnmounted(unsub);
 
-    // 监听来自设置页的手动检查事件（下载已完成，直接显示弹窗）
+    // 监听来自设置页的手动检查事件
     const onManualCheck = (e: Event) => {
         const detail = (e as CustomEvent).detail;
         if (detail?.version) {
@@ -201,7 +172,7 @@ function dismissRestart() {
 async function handleInstall() {
     if (installing.value) return;
     installing.value = true;
-    const result = installDownloadedUpdate();
+    const result = startSilentUpdate();
     if (!result.started) {
         toast.show(t("updater.updateInProgress"), true);
         installing.value = false;
