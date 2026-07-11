@@ -277,7 +277,7 @@ function formatTime(ts: number): string {
     return new Date(ts).toLocaleDateString();
 }
 
-function formatTime(ts: number): string {
+function formatSize(bytes: number): string {
     return formatFileSize(bytes);
 }
 
