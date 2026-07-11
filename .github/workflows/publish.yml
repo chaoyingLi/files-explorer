@@ -51,11 +51,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 同步版本号至 tauri.conf.json
+      - name: 同步版本号
         run: |
-          jq --arg v "${{ needs.get-version.outputs.version }}" \
-            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
-            && mv tmp.json src-tauri/tauri.conf.json
+          V="${{ needs.get-version.outputs.version }}"
+          jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -105,11 +105,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 同步版本号至 tauri.conf.json
+      - name: 同步版本号
         run: |
-          jq --arg v "${{ needs.get-version.outputs.version }}" \
-            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
-            && mv tmp.json src-tauri/tauri.conf.json
+          V="${{ needs.get-version.outputs.version }}"
+          jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -159,13 +159,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 同步版本号至 tauri.conf.json
+      - name: 同步版本号
         shell: pwsh
         run: |
           $v = "${{ needs.get-version.outputs.version }}"
           $cfg = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $cfg.version = $v
           $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $pkg.version = $v
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -216,11 +219,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 同步版本号至 tauri.conf.json
+      - name: 同步版本号
         run: |
-          jq --arg v "${{ needs.get-version.outputs.version }}" \
-            '.version = $v' src-tauri/tauri.conf.json > tmp.json \
-            && mv tmp.json src-tauri/tauri.conf.json
+          V="${{ needs.get-version.outputs.version }}"
+          jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
 
       - name: 安装 Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
