@@ -238,7 +238,7 @@ const quickAccessFolders = computed(() => {
     }));
 });
 
-const recentItems = computed(() => store.recentItems);
+const recentItems = computed(() => store.recentItems.filter((i) => i.isDir));
 const displayedRecentItems = computed(() =>
     showAllRecent.value ? recentItems.value : recentItems.value.slice(0, MAX_RECENT),
 );
