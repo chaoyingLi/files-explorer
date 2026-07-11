@@ -199,6 +199,9 @@ export default {
     minutesAgo: "分钟前",
     hoursAgo: "小时前",
     daysAgo: "天前",
+    showMore: "显示更多 ({n})",
+    showLess: "收起",
+    noRecentFiles: "暂无最近访问的文件",
   },
   toast: {
     copied: "已复制到剪贴板",

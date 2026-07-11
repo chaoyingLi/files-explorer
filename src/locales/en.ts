@@ -200,6 +200,9 @@ export default {
     minutesAgo: "min ago",
     hoursAgo: "hr ago",
     daysAgo: "days ago",
+    showMore: "Show more ({n})",
+    showLess: "Show less",
+    noRecentFiles: "No recently accessed files",
   },
   toast: {
     copied: "Copied to clipboard",
