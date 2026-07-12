@@ -1,8 +1,8 @@
 # ──────────────────────────────────────────────────────────────
 # Files Explorer — 自动发布流水线
 # 触发: push v* tag
-# Tauri createUpdaterArtifacts 自动生成 latest.json（含签名）
-# Gitee 同步: 本地 scripts/sync-gitee.sh
+# Tauri createUpdaterArtifacts 自动签名
+# 最后汇总生成 latest.json 上传
 # ──────────────────────────────────────────────────────────────
 
 name: 发布 / Publish
@@ -20,9 +20,6 @@ on:
 
 permissions:
   contents: write
-
-env:
-  APP_NAME: Files Explorer
 
 jobs:
   get-version:
@@ -47,124 +44,82 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: 同步版本号
         run: |
           V="${{ needs.get-version.outputs.version }}"
           jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
           jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-
-      - name: 安装 Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: x86_64-apple-darwin
-          rustflags: ""
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 安装前端依赖
-        run: npm ci
-
-      - name: 构建（macOS Intel）
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { target: x86_64-apple-darwin, rustflags: "" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - name: 构建
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build --target x86_64-apple-darwin
-
-      - name: 收集产物
+      - name: 收集
         run: |
           mkdir -p dist
-          cp -R "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/"*.dmg dist/ 2>/dev/null || true
-          cp "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/"*latest.json dist/ 2>/dev/null || true
-
-      - name: 上传到 GitHub Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          fail_on_unmatched_files: false
+          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+          find src-tauri/target/x86_64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+      - uses: softprops/action-gh-release@v2
+        with: { files: "dist/*", fail_on_unmatched_files: false }
+      - uses: actions/upload-artifact@v4
+        with: { name: sig-macos-x64, path: "dist/*.sig", if-no-files-found: ignore }
 
   build-macos-aarch64:
     needs: get-version
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: 同步版本号
         run: |
           V="${{ needs.get-version.outputs.version }}"
           jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
           jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-
-      - name: 安装 Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: aarch64-apple-darwin
-          rustflags: ""
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 安装前端依赖
-        run: npm ci
-
-      - name: 构建（macOS Apple Silicon）
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { target: aarch64-apple-darwin, rustflags: "" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - name: 构建
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build --target aarch64-apple-darwin
-
-      - name: 收集产物
+      - name: 收集
         run: |
           mkdir -p dist
-          cp -R "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/"*.dmg dist/ 2>/dev/null || true
-          cp "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/"*latest.json dist/ 2>/dev/null || true
-
-      - name: 上传到 GitHub Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          fail_on_unmatched_files: false
+          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+          find src-tauri/target/aarch64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+      - uses: softprops/action-gh-release@v2
+        with: { files: "dist/*", fail_on_unmatched_files: false }
+      - uses: actions/upload-artifact@v4
+        with: { name: sig-macos-arm64, path: "dist/*.sig", if-no-files-found: ignore }
 
   build-windows:
     needs: get-version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: 同步版本号
         shell: pwsh
         run: |
           $v = "${{ needs.get-version.outputs.version }}"
-          $cfg = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
-          $cfg.version = $v
-          $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
-          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
-          $pkg.version = $v
-          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
-
-      - name: 安装 Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          rustflags: ""
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 安装前端依赖
-        run: npm ci
-
-      - name: 构建（Windows）
+          ($cfg = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version = $v; $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
+          ($pkg = Get-Content package.json -Raw | ConvertFrom-Json).version = $v; $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { rustflags: "" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - name: 构建
         shell: pwsh
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -172,78 +127,95 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build
-
-      - name: 收集产物
+      - name: 收集
         shell: pwsh
         run: |
           mkdir dist -Force
-          Copy-Item "src-tauri/target/release/bundle/msi/*.msi" dist/ -ErrorAction SilentlyContinue
-          Copy-Item "src-tauri/target/release/bundle/msi/*latest.json" dist/ -ErrorAction SilentlyContinue
-
-      - name: 上传到 GitHub Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          fail_on_unmatched_files: false
+          Copy-Item src-tauri/target/release/bundle/msi/*.msi dist/ -ErrorAction SilentlyContinue
+          Get-ChildItem src-tauri/target/release/*.sig -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
+      - uses: softprops/action-gh-release@v2
+        with: { files: "dist/*", fail_on_unmatched_files: false }
+      - uses: actions/upload-artifact@v4
+        with: { name: sig-windows, path: "dist/*.sig", if-no-files-found: ignore }
 
   build-linux:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: 同步版本号
         run: |
           V="${{ needs.get-version.outputs.version }}"
           jq --arg v "$V" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
           jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-
-      - name: 安装 Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          rustflags: ""
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 安装系统依赖
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { rustflags: "" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: 系统依赖
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            pkg-config
-          if ! pkg-config --exists appindicator3-0.1; then
-            sudo ln -sf /usr/lib/$(uname -m)-linux-gnu/pkgconfig/ayatana-appindicator3-0.1.pc \
-                         /usr/lib/$(uname -m)-linux-gnu/pkgconfig/appindicator3-0.1.pc 2>/dev/null || true
-          fi
-
-      - name: 安装前端依赖
-        run: npm ci
-
-      - name: 构建（Linux）
+          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libssl-dev libgtk-3-dev libayatana-appindicator3-dev pkg-config
+          if ! pkg-config --exists appindicator3-0.1; then sudo ln -sf /usr/lib/$(uname -m)-linux-gnu/pkgconfig/ayatana-appindicator3-0.1.pc /usr/lib/$(uname -m)-linux-gnu/pkgconfig/appindicator3-0.1.pc 2>/dev/null || true; fi
+      - run: npm ci
+      - name: 构建
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build
-
-      - name: 收集产物
+      - name: 收集
         run: |
           mkdir -p dist
           cp src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
           cp src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
-          find src-tauri/target/release/bundle -name "*latest.json" -exec cp {} dist/ \;
+          find src-tauri/target/release -name "*.sig" -exec cp {} dist/ \;
+      - uses: softprops/action-gh-release@v2
+        with: { files: "dist/*", fail_on_unmatched_files: false }
+      - uses: actions/upload-artifact@v4
+        with: { name: sig-linux, path: "dist/*.sig", if-no-files-found: ignore }
 
-      - name: 上传到 GitHub Releases
+  # 汇总所有平台的 .sig 生成 latest.json 并上传
+  update-latest-json:
+    needs:
+      - get-version
+      - build-macos-x86_64
+      - build-macos-aarch64
+      - build-windows
+      - build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { pattern: sig-*, path: sig-files, merge-multiple: true }
+      - name: 生成 latest.json
+        env:
+          TAG: ${{ needs.get-version.outputs.tag }}
+          VERSION: ${{ needs.get-version.outputs.version }}
+        run: |
+          [ -d sig-files ] && [ -n "$(ls -A sig-files 2>/dev/null)" ] || { echo "⚠️ 无签名文件"; exit 0; }
+          SIG_X64=$(cat sig-files/*x86_64*.sig sig-files/*x64*.sig 2>/dev/null | head -1 || echo "")
+          SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
+          SIG_WIN=$(cat sig-files/*windows*.sig 2>/dev/null | head -1 || echo "")
+          SIG_LINUX=$(cat sig-files/*linux*.sig sig-files/*amd64*.sig 2>/dev/null | head -1 || echo "")
+          PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
+          BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          cat > latest.json << JSONEOF
+          {
+            "version": "$VERSION",
+            "notes": "更新详情见 GitHub Releases",
+            "pub_date": "$PUB_DATE",
+            "platforms": {
+              "darwin-x86_64": {"signature":"${SIG_X64}","url":"${BASE}/Files.Explorer_${VERSION}_x64.dmg"},
+              "darwin-aarch64": {"signature":"${SIG_ARM64}","url":"${BASE}/Files.Explorer_${VERSION}_aarch64.dmg"},
+              "windows-x86_64": {"signature":"${SIG_WIN}","url":"${BASE}/Files.Explorer_${VERSION}_x64_en-US.msi"},
+              "linux-x86_64": {"signature":"${SIG_LINUX}","url":"${BASE}/Files.Explorer_${VERSION}_amd64.AppImage"}
+            }
+          }
+          JSONEOF
+          echo "=== latest.json ===" && cat latest.json
+      - name: 上传 latest.json
         uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          fail_on_unmatched_files: false
+        with: { files: latest.json, fail_on_unmatched_files: false }
