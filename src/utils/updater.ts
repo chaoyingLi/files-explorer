@@ -7,7 +7,6 @@
 
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { Command } from "@tauri-apps/plugin-shell";
 
 // ============ 类型 ============
 
@@ -233,14 +232,9 @@ export function installDownloadedUpdate(): BackgroundInstallStartResult {
         return { state: "ready_to_restart" as const, available: false, message: "Mock 已安装" };
       }
 
-      // 启动独立 updater 二进制
       setTaskState("installing");
-      const version = cachedUpdate!.version;
-
-      await Command.sidecar("updater", [version]).execute();
-
-      setTaskState("ready_to_restart", { message: "正在重启..." });
-      await relaunch();
+      await cachedUpdate!.install();
+      setTaskState("ready_to_restart", { message: "更新已安装，重启以生效" });
       return { state: "ready_to_restart" as const, available: false, message: "已启动" };
     } catch (error) {
       setTaskState("error", {
