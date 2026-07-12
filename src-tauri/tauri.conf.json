@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicepkg/vscode-tauri/main/schemas/config.schema.json",
   "productName": "Files Explorer",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "identifier": "com.files-explorer.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -70,7 +70,9 @@
       "icons/icon.ico"
     ],
     "resources": [],
-    "externalBin": ["binaries/updater"],
+    "externalBin": [
+      "binaries/updater"
+    ],
     "copyright": "",
     "category": "Utility",
     "shortDescription": "Cross-platform file manager",
