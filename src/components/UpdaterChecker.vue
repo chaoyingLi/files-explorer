@@ -63,7 +63,8 @@ import { useI18n } from "vue-i18n";
 import { useToast } from "@/composables/useToast";
 import {
     checkForUpdates,
-    startSilentUpdate,
+    downloadSilently,
+    installDownloadedUpdate,
     relaunchAfterUpdate,
     subscribeUpdateTask,
     enableMock,
@@ -171,7 +172,7 @@ function dismissRestart() {
 async function handleInstall() {
     if (installing.value) return;
     installing.value = true;
-    const result = startSilentUpdate();
+    const result = installDownloadedUpdate();
     if (!result.started) {
         toast.show(t("updater.updateInProgress"), true);
         installing.value = false;

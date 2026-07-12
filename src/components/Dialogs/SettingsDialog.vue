@@ -726,7 +726,7 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
-import { checkForUpdates, startSilentUpdate, subscribeUpdateTask } from "@/utils/updater";
+import { checkForUpdates, downloadSilently, subscribeUpdateTask } from "@/utils/updater";
 import { useToast } from "@/composables/useToast";
 import type {
     ThemeMode,
@@ -765,7 +765,7 @@ async function manualCheckUpdate() {
         if (result.available && result.update) {
             newVersion.value = result.update.version;
             updateCheckState.value = "downloading";
-            const dl = startSilentUpdate();
+            const dl = downloadSilently();
             if (!dl.started) {
                 updateCheckState.value = "idle";
                 return;
