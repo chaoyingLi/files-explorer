@@ -70,6 +70,7 @@
       "icons/icon.ico"
     ],
     "resources": [],
+    "externalBin": ["binaries/updater"],
     "copyright": "",
     "category": "Utility",
     "shortDescription": "Cross-platform file manager",
