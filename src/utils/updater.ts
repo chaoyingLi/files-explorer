@@ -1,4 +1,8 @@
 // ── 自动更新服务 ──
+// ⚠️  本文件由 downloadSilently / installDownloadedUpdate 两分步函数组成
+// ⛔ 禁止合并为一个 downloadAndInstall，会破坏静默下载→弹窗的 UX
+// ⛔ 禁止修改函数签名，UpdaterChecker.vue 和 SettingsDialog.vue 依赖
+//
 // 封装 @tauri-apps/plugin-updater，提供状态管理和 Mock 测试支持
 
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -181,7 +185,17 @@ export function downloadSilently(): BackgroundInstallStartResult {
       }
 
       setTaskState("downloading");
-      await cachedUpdate!.download();
+      // 重试最多 3 次
+      const MAX_RETRIES = 3;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          await cachedUpdate!.download();
+          break;
+        } catch (e) {
+          if (attempt === MAX_RETRIES) throw e;
+          await delay(2000);
+        }
+      }
       setTaskState("ready_to_restart", { message: "更新已下载，点击安装" });
       return { state: "ready_to_restart" as const, available: false, message: "下载完成" };
     } catch (error) {

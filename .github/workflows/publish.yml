@@ -1,8 +1,8 @@
 # ──────────────────────────────────────────────────────────────
 # Files Explorer — 自动发布流水线
-# 触发条件：推送 v 开头 tag（如 v0.3.0）
-# 构建产物上传至 GitHub Releases + 生成 updater.json
-# Gitee 同步使用本地 scripts/sync-gitee.sh
+# 触发: push v* tag
+# Tauri createUpdaterArtifacts 自动生成 latest.json（含签名）
+# Gitee 同步: 本地 scripts/sync-gitee.sh
 # ──────────────────────────────────────────────────────────────
 
 name: 发布 / Publish
@@ -25,7 +25,6 @@ env:
   APP_NAME: Files Explorer
 
 jobs:
-  # ── 步骤 1：提取版本号 ──
   get-version:
     runs-on: ubuntu-latest
     outputs:
@@ -42,8 +41,6 @@ jobs:
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
           fi
-
-  # ── 步骤 2：各平台并行构建 ──
 
   build-macos-x86_64:
     needs: get-version
@@ -71,9 +68,6 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
-      - name: 安装 Tauri CLI
-        run: npm install -D @tauri-apps/cli
-
       - name: 构建（macOS Intel）
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -84,20 +78,13 @@ jobs:
         run: |
           mkdir -p dist
           cp -R "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/"*.dmg dist/ 2>/dev/null || true
-          find src-tauri/target/x86_64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+          cp "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/"*latest.json dist/ 2>/dev/null || true
 
       - name: 上传到 GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           fail_on_unmatched_files: false
-
-      - name: 保存签名文件
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-macos-x64
-          path: dist/*.sig
-          if-no-files-found: ignore
 
   build-macos-aarch64:
     needs: get-version
@@ -125,9 +112,6 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
-      - name: 安装 Tauri CLI
-        run: npm install -D @tauri-apps/cli
-
       - name: 构建（macOS Apple Silicon）
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -138,20 +122,13 @@ jobs:
         run: |
           mkdir -p dist
           cp -R "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/"*.dmg dist/ 2>/dev/null || true
-          find src-tauri/target/aarch64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+          cp "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/"*latest.json dist/ 2>/dev/null || true
 
       - name: 上传到 GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           fail_on_unmatched_files: false
-
-      - name: 保存签名文件
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-macos-arm64
-          path: dist/*.sig
-          if-no-files-found: ignore
 
   build-windows:
     needs: get-version
@@ -183,9 +160,6 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
-      - name: 安装 Tauri CLI
-        run: npm install -D @tauri-apps/cli
-
       - name: 构建（Windows）
         shell: pwsh
         env:
@@ -198,20 +172,13 @@ jobs:
         run: |
           mkdir dist -Force
           Copy-Item "src-tauri/target/release/bundle/msi/*.msi" dist/ -ErrorAction SilentlyContinue
-          Get-ChildItem src-tauri/target/release/*.sig -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
+          Copy-Item "src-tauri/target/release/bundle/msi/*latest.json" dist/ -ErrorAction SilentlyContinue
 
       - name: 上传到 GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           fail_on_unmatched_files: false
-
-      - name: 保存签名文件
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-windows
-          path: dist/*.sig
-          if-no-files-found: ignore
 
   build-linux:
     needs: get-version
@@ -254,9 +221,6 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
-      - name: 安装 Tauri CLI
-        run: npm install -D @tauri-apps/cli
-
       - name: 构建（Linux）
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -268,99 +232,10 @@ jobs:
           mkdir -p dist
           cp src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
           cp src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
-          find src-tauri/target/release -name "*.sig" -exec cp {} dist/ \;
+          find src-tauri/target/release/bundle -name "*latest.json" -exec cp {} dist/ \;
 
       - name: 上传到 GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           fail_on_unmatched_files: false
-
-      - name: 保存签名文件
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-linux
-          path: dist/*.sig
-          if-no-files-found: ignore
-
-  # ── 步骤 3：生成 updater.json 并推送 ──
-  update-updater-json:
-    needs:
-      - get-version
-      - build-macos-x86_64
-      - build-macos-aarch64
-      - build-windows
-      - build-linux
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 下载所有签名文件
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          pattern: sig-*
-          path: sig-files
-          merge-multiple: true
-
-      - name: 读取签名并生成 updater.json
-        env:
-          TAG: ${{ needs.get-version.outputs.tag }}
-          VERSION: ${{ needs.get-version.outputs.version }}
-        run: |
-          if [ ! -d sig-files ] || [ -z "$(ls -A sig-files 2>/dev/null)" ]; then
-            echo "⚠️ 没有签名文件，跳过 updater.json"
-            exit 0
-          fi
-          SIG_X64=$(cat sig-files/*x86_64*.sig sig-files/*x64*.sig 2>/dev/null | head -1 || echo "")
-          SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
-          SIG_WIN=$(cat sig-files/*windows*.sig sig-files/*Win*.sig 2>/dev/null | head -1 || echo "")
-          SIG_LINUX=$(cat sig-files/*linux*.sig 2>/dev/null | head -1 || echo "")
-
-          PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
-          BASE_URL="https://gitee.com/hhyd/files-explorer/releases/download/$TAG"
-
-          cat > updater.json << JSONEOF
-          {
-            "version": "$VERSION",
-            "notes": "更新详情见 Gitee / GitHub Releases",
-            "pub_date": "$PUB_DATE",
-            "platforms": {
-              "darwin-x86_64": {
-                "signature": "${SIG_X64}",
-                "url": "${BASE_URL}/Files.Explorer_${VERSION}_x64.dmg"
-              },
-              "darwin-aarch64": {
-                "signature": "${SIG_ARM64}",
-                "url": "${BASE_URL}/Files.Explorer_${VERSION}_aarch64.dmg"
-              },
-              "windows-x86_64": {
-                "signature": "${SIG_WIN}",
-                "url": "${BASE_URL}/Files.Explorer_${VERSION}_x64_en-US.msi"
-              },
-              "linux-x86_64": {
-                "signature": "${SIG_LINUX}",
-                "url": "${BASE_URL}/Files.Explorer_${VERSION}_amd64.AppImage"
-              }
-            }
-          }
-          JSONEOF
-          echo "=== 生成的 updater.json ==="
-          cat updater.json
-
-      - name: 推送 updater.json 到仓库
-        run: |
-          if [ ! -f updater.json ]; then
-            echo "⚠️ updater.json 未生成，跳过"
-            exit 0
-          fi
-          git config user.name "发布机器人"
-          git config user.email "bot@files-explorer.dev"
-          git add updater.json
-          if git diff --cached --quiet; then
-            echo "updater.json 无变化，跳过提交"
-          else
-            git commit -m "chore: 更新 updater.json 至 ${{ needs.get-version.outputs.version }}"
-          fi
-          git push origin HEAD:master
