@@ -179,7 +179,7 @@ const { t } = useI18n();
 const store = useFileStore();
 const sel = useSelectionStore();
 const del = useDeleteStore();
-useSettingsStore();
+const settings = useSettingsStore();
 const tabStore = useTabStore();
 const navStore = useNavigationStore();
 const view = useViewStore();
@@ -462,6 +462,9 @@ async function doClearCache() {
 
 onMounted(async () => {
     // ── Window geometry handled by tauri-plugin-window-state ──
+
+    // ── Sync settings to backend (safe: Tauri IPC ready) ──
+    settings.syncToBackend();
 
     // ── Restore session state ──
     let _restoredPath = "";

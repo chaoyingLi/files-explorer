@@ -9,8 +9,13 @@ import { useSelectionStore } from "@/stores/selectionStore";
 import { useViewStore } from "@/stores/viewStore";
 import { useDeleteStore } from "@/stores/deleteStore";
 
-// Navigation token to cancel stale async operations
-let navigateSeq = 0;
+// Navigation token per tab to cancel stale async operations
+const navigateSeqs = new Map<string, number>();
+function nextNavSeq(tabId: string): number {
+  const next = (navigateSeqs.get(tabId) ?? 0) + 1;
+  navigateSeqs.set(tabId, next);
+  return next;
+}
 
 // Shared directory-first case-insensitive sort
 export function sortDirFirst(files: FileEntry[]): FileEntry[] {
@@ -203,7 +208,9 @@ export const useFileStore = defineStore("file", () => {
       useNavigationStore().pushHistory(path);
     }
 
-    const navId = ++navigateSeq;
+    const tabId = getTabStore().getFocusedTab()?.id || "_root";
+    const navId = nextNavSeq(tabId);
+    const latestNav = () => navigateSeqs.get(tabId) ?? 0;
     let cleanupListeners: (() => void) | null = null;
 
     try {
@@ -214,7 +221,7 @@ export const useFileStore = defineStore("file", () => {
       const unlistenProgress = await listen<FileEntry[]>(
         "list-progress",
         (event) => {
-          if (resolved || navId !== navigateSeq) return;
+          if (resolved || navId !== latestNav()) return;
           batchIndex++;
           for (const f of event.payload) {
             files.value.push(f);
@@ -239,7 +246,7 @@ export const useFileStore = defineStore("file", () => {
 
       const streamDone = new Promise<void>((resolve, reject) => {
         listen<boolean>("list-done", () => {
-          if (resolved || navId !== navigateSeq) return;
+          if (resolved || navId !== latestNav()) return;
           resolved = true;
           cleanupListenersFn();
           files.value = sortDirFirst(files.value);
@@ -262,7 +269,7 @@ export const useFileStore = defineStore("file", () => {
           unlistenDone = u;
         });
         listen<string>("list-error", (ev) => {
-          if (resolved || navId !== navigateSeq) return;
+          if (resolved || navId !== latestNav()) return;
           resolved = true;
           cleanupListenersFn();
           loading.value = false;
@@ -276,7 +283,7 @@ export const useFileStore = defineStore("file", () => {
       await tauri.listDirectoryStreamed(path);
       await streamDone;
     } catch (_e) {
-      if (navId !== navigateSeq) return;
+      if (navId !== latestNav()) return;
       try {
         files.value = await tauri.listDirectory(path);
         loading.value = false;

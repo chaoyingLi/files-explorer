@@ -5,7 +5,7 @@ use crate::core::error::{op_err, AppError, AppResult};
 use crate::core::fs_helper;
 use crate::core::state::AppState;
 use crate::core::types::{ActionKind, FileAction, FileEntry, LIST_BATCH_SIZE, MAX_UNDO_HISTORY};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, State};
 
 /// Trim undo history to MAX_UNDO_HISTORY.
@@ -140,17 +140,31 @@ pub fn create_file(state: State<AppState>, path: String) -> AppResult<()> {
     Ok(())
 }
 
-pub fn delete_item(path: String, permanently: bool) -> AppResult<()> {
+pub fn delete_item(app: Option<AppHandle>, path: String, permanently: bool) -> AppResult<()> {
     let p = Path::new(&path);
     if !p.exists() {
         return Err(AppError::NotFound("Path does not exist".into()));
     }
-    if permanently {
-        if p.is_dir() {
-            fs_helper::remove_dir_all(p).map_err(|e| op_err("Failed to delete", e))
-        } else {
-            fs_helper::remove_file(p).map_err(|e| op_err("Failed to delete", e))
-        }
+    if permanently && p.is_dir() {
+        // Large directory deletion: run on background thread to avoid blocking IPC
+        let p_buf = p.to_path_buf();
+        let parent = p
+            .parent()
+            .map(|x| x.to_string_lossy().to_string())
+            .unwrap_or_default();
+        std::thread::spawn(move || {
+            let result = fs_helper::remove_dir_all(&p_buf);
+            if let Err(e) = result {
+                tracing::error!(path = %p_buf.display(), error = %e, "Permanent delete failed");
+            }
+            // Notify frontend to refresh via existing file-changed listener
+            if let Some(ref handle) = app {
+                let _ = handle.emit("file-changed", serde_json::json!({"path": parent}));
+            }
+        });
+        Ok(())
+    } else if permanently {
+        fs_helper::remove_file(p).map_err(|e| op_err("Failed to delete", e))
     } else {
         trash::delete(p).map_err(|e| op_err("Failed to move to trash", e))
     }
@@ -176,6 +190,8 @@ pub fn rename_item(state: State<AppState>, old_path: String, new_path: String) -
 
 pub fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> AppResult<()> {
     let dest = Path::new(&dest_dir);
+    // Phase 1: process all files — only copy, collect sources for deferred deletion
+    let mut to_delete: Vec<(PathBuf, bool)> = Vec::new();
     for src_str in &paths {
         let src = Path::new(src_str);
         if !src.exists() {
@@ -192,16 +208,23 @@ pub fn move_files(paths: Vec<String>, dest_dir: String, copy: bool) -> AppResult
                 file_name
             )));
         }
+        // Try atomic rename first (same filesystem)
         if !copy && fs_helper::rename(src, &dest_path).is_ok() {
             continue;
         }
+        // Fallback: copy (cross-filesystem or explicit copy mode)
         fs_helper::copy_recursive(src, &dest_path)?;
         if !copy {
-            if src.is_dir() {
-                fs_helper::remove_dir_all(src).map_err(|e| op_err("Failed to remove source", e))?;
-            } else {
-                fs_helper::remove_file(src).map_err(|e| op_err("Failed to remove source", e))?;
-            }
+            to_delete.push((src.to_path_buf(), src.is_dir()));
+        }
+    }
+    // Phase 2: after all copies confirmed, delete source files
+    for (src_path, is_dir) in &to_delete {
+        if *is_dir {
+            fs_helper::remove_dir_all(src_path)
+                .map_err(|e| op_err("Failed to remove source", e))?;
+        } else {
+            fs_helper::remove_file(src_path).map_err(|e| op_err("Failed to remove source", e))?;
         }
     }
     Ok(())

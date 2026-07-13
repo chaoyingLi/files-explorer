@@ -471,11 +471,19 @@ fn list_tar_xz_list(path: &str) -> Result<Vec<ArchiveEntry>, String> {
     let mut a = tar::Archive::new(xz);
     list_tar_entries(&mut a)
 }
+/// Password for 7z archives. Currently empty — password-protected 7z files
+/// cannot be opened until a password-input UI is added to the frontend.
+const SEVENZ_PASSWORD: &str = "";
+
 fn list_7z(path: &str) -> Result<Vec<ArchiveEntry>, String> {
-    let sz = sevenz_rust::SevenZReader::open(path, "".into()).map_err(|e| {
+    let sz = sevenz_rust::SevenZReader::open(path, SEVENZ_PASSWORD.into()).map_err(|e| {
         let m = format!("{}", e);
         if m.contains("password") || m.contains("encrypted") {
-            format!("Password-protected 7z: {}", m)
+            tracing::warn!(path = %path, "Encrypted 7z archive — no password support");
+            format!(
+                "Password-protected 7z (password input not yet supported): {}",
+                m
+            )
         } else {
             format!("7z: {}", m)
         }
@@ -523,9 +531,11 @@ fn parse_rar_output(cmd: &str, output: &str) -> Result<Vec<ArchiveEntry>, String
             if let Some(p) = line.strip_prefix("Path = ") {
                 let p = p.trim();
                 if !p.is_empty() {
+                    // Sanitize path to prevent traversal from crafted RAR
+                    let safe = sanitize_archive_path(p).unwrap_or_else(|_| p.replace('\\', "/"));
                     result.push(ArchiveEntry {
-                        name: p.to_string(),
-                        path: p.to_string(),
+                        name: safe.clone(),
+                        path: safe,
                         size: 0,
                         is_dir: false,
                     });
@@ -543,22 +553,26 @@ fn parse_rar_output(cmd: &str, output: &str) -> Result<Vec<ArchiveEntry>, String
                 }
             }
         } else {
+            // unrar l output format: "<attrs> <size> <date> <time> <name>"
+            // Name starts after the 4th whitespace-delimited field
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3
+            if parts.len() >= 5
                 && !line.starts_with("UNRAR")
                 && !line.starts_with("----")
                 && !line.starts_with("  ")
                 && !line.is_empty()
             {
                 let is_dir = parts[0].contains('d') || parts[0].contains('D');
-                let ns = line
-                    .find(|c: char| {
-                        c.is_ascii_alphabetic() && !c.is_ascii_uppercase() || c == '.' || c == '/'
-                    })
+                // Name is everything after the 4th field (attrs+size+date+time)
+                let name_start = line
+                    .char_indices()
+                    .filter(|(_, c)| c.is_whitespace())
+                    .nth(3)
+                    .map(|(i, _)| i + 1)
                     .unwrap_or(0);
-                let name = line[ns..].trim().to_string();
+                let name = line[name_start..].trim().to_string();
                 let size: u64 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-                if !name.is_empty() {
+                if !name.is_empty() && !name.starts_with('/') && !name.contains("..") {
                     result.push(ArchiveEntry {
                         name: name.clone(),
                         path: name,
@@ -586,13 +600,7 @@ pub fn extract_archive_entry(
     archive_path: String,
     entry_path: String,
 ) -> Result<ExtractResult, String> {
-    let safe = entry_path
-        .replace('\\', "/")
-        .trim_start_matches('/')
-        .to_string();
-    if safe.contains("..") {
-        return Err("Invalid path".into());
-    }
+    let safe = sanitize_archive_path(&entry_path).map_err(|e| e.to_string())?;
     use std::path::Path;
     let ext = Path::new(&archive_path)
         .extension()
@@ -679,10 +687,14 @@ fn ext_tar(a: &str, e: &str, out: &Path, comp: Option<&str>) -> Result<(), Strin
 }
 
 fn ext_7z(a: &str, e: &str, out: &Path) -> Result<(), String> {
-    let mut sz = sevenz_rust::SevenZReader::open(a, "".into()).map_err(|x| {
+    let mut sz = sevenz_rust::SevenZReader::open(a, SEVENZ_PASSWORD.into()).map_err(|x| {
         let m = format!("{}", x);
         if m.contains("password") || m.contains("encrypted") {
-            format!("7z(pw):{}", m)
+            tracing::warn!(path = %a, "Encrypted 7z archive — no password support");
+            format!(
+                "Password-protected 7z (password input not yet supported): {}",
+                m
+            )
         } else {
             format!("7z:{}", m)
         }
@@ -708,6 +720,11 @@ fn ext_rar(a: &str, e: &str, out: &Path) -> Result<(), String> {
     use crate::utils::time::run_command_with_timeout;
     use std::time::Duration;
     const T: Duration = Duration::from_secs(60);
+    // Validate entry path: reject traversal
+    let safe_entry = e.replace('\\', "/").trim_start_matches('/').to_string();
+    if safe_entry.split('/').any(|c| c == "..") || safe_entry.starts_with('/') {
+        return Err("Invalid RAR entry path".into());
+    }
     for cmd in &["7z", "unrar"] {
         let od = out.parent().unwrap_or(out).to_string_lossy().to_string();
         let args: Vec<String> = if *cmd == "7z" {
@@ -715,15 +732,23 @@ fn ext_rar(a: &str, e: &str, out: &Path) -> Result<(), String> {
                 "e".into(),
                 a.into(),
                 format!("-o{}", od),
-                e.into(),
+                safe_entry.clone(),
                 "-y".into(),
             ]
         } else {
-            vec!["x".into(), "-o+".into(), a.into(), e.into()]
+            vec!["x".into(), "-o+".into(), a.into(), safe_entry.clone()]
         };
         let sa: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        tracing::debug!(cmd = %cmd, "ext_rar: invoking");
         if let Ok(o) = run_command_with_timeout(cmd, &sa, T) {
             if o.status.success() {
+                // Verify extracted file size
+                if let Ok(md) = fs_helper::metadata(out) {
+                    if md.len() > EXTRACT_MAX_SIZE {
+                        let _ = fs_helper::remove_file(out);
+                        return Err("Extracted RAR entry exceeds size limit".into());
+                    }
+                }
                 return Ok(());
             }
         }

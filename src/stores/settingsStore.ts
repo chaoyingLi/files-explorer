@@ -153,16 +153,9 @@ export const useSettingsStore = defineStore("settings", () => {
   );
   const termFontCustom = ref<string>(initial.termFontCustom || "");
 
-  // Apply on init
+  // Apply on init (frontend-only, no IPC)
   applyTheme(theme.value);
   applyFontSize(fontSize.value);
-  // Sync showTray / quitOnClose to Rust on init
-  import("@/utils/tauri").then((m) => {
-    m.setQuitOnClose(quitOnClose.value).catch(() => {});
-  });
-  import("@tauri-apps/api/core").then(({ invoke }) => {
-    invoke("set_tray_visible", { visible: showTray.value }).catch(() => {});
-  });
 
   function setTheme(t: ThemeMode) {
     theme.value = t;
@@ -277,6 +270,22 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  /// Sync settings to Rust backend (safe to call after Tauri IPC is ready)
+  async function syncToBackend() {
+    try {
+      const { setQuitOnClose } = await import("@/utils/tauri");
+      await setQuitOnClose(quitOnClose.value);
+    } catch { /* ignore — IPC not ready */ }
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_tray_visible", { visible: showTray.value });
+    } catch { /* ignore — IPC not ready */ }
+    try {
+      const { setAutoStart } = await import("@/utils/tauri");
+      await setAutoStart(autoStart.value);
+    } catch { /* ignore */ }
+  }
+
   function persist() {
     saveSettings({
       theme: theme.value,
@@ -322,5 +331,6 @@ export const useSettingsStore = defineStore("settings", () => {
     setTermFontSize,
     setTermFontFamily,
     setTermFontCustom,
+    syncToBackend,
   };
 });

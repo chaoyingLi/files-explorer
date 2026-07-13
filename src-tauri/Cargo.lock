@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "files-explorer"
-version = "0.2.3"
+version = "0.2.9"
 dependencies = [
  "arboard",
  "base64 0.22.1",

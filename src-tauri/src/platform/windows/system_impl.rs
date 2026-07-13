@@ -470,6 +470,7 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
         fn GlobalAlloc(f: u32, b: usize) -> *mut std::ffi::c_void;
         fn GlobalLock(h: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
         fn GlobalUnlock(h: *mut std::ffi::c_void) -> i32;
+        fn GlobalFree(h: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
     }
 
     struct OleGuard;
@@ -492,10 +493,21 @@ unsafe fn do_drag_drop(paths: &[String]) -> Result<String, String> {
 
     let _ole = OleGuard::init()?;
 
+    struct HGlobalGuard(*mut std::ffi::c_void);
+    impl Drop for HGlobalGuard {
+        fn drop(&mut self) {
+            unsafe {
+                GlobalFree(self.0);
+            }
+        }
+    }
+
     let hmem = GlobalAlloc(2, total);
     if hmem.is_null() {
         return Err("Alloc failed".into());
     }
+    let _hmem_guard = HGlobalGuard(hmem);
+
     let ptr = GlobalLock(hmem) as *mut u8;
     std::ptr::write_bytes(ptr, 0, total);
     std::ptr::write(ptr as *mut u32, hdr);

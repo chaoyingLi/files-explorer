@@ -111,8 +111,8 @@ fn create_file(state: State<AppState>, path: String) -> Result<(), FsError> {
     crate::commands::file_cmd::create_file(state, path)
 }
 #[command]
-fn delete_item(path: String, permanently: bool) -> Result<(), FsError> {
-    crate::commands::file_cmd::delete_item(path, permanently)
+fn delete_item(app: AppHandle, path: String, permanently: bool) -> Result<(), FsError> {
+    crate::commands::file_cmd::delete_item(Some(app), path, permanently)
 }
 #[command]
 fn rename_item(state: State<AppState>, old_path: String, new_path: String) -> Result<(), FsError> {
@@ -316,13 +316,18 @@ fn read_file_bytes(path: String) -> Result<String, FsError> {
     let p = std::path::Path::new(&path);
     let m = fs_helper::metadata(p).map_err(|e| FsError::IoError(format!("Stat: {}", e)))?;
     const MAX: u64 = 20 * 1024 * 1024;
+    const MAX_B64: usize = 30 * 1024 * 1024;
     if m.len() > MAX {
         return Err(FsError::Other("File too large".to_string()));
     }
-    Ok(base64::engine::general_purpose::STANDARD.encode(
-        &fs_helper::read_file_limited(p, MAX as usize)
-            .map_err(|e| FsError::IoError(format!("Read: {}", e)))?,
-    ))
+    let data = fs_helper::read_file_limited(p, MAX as usize)
+        .map_err(|e| FsError::IoError(format!("Read: {}", e)))?;
+    // Guard: reject if Base64 encoding would exceed safe memory limit
+    let b64_len = (data.len() + 2) / 3 * 4;
+    if b64_len > MAX_B64 {
+        return Err(FsError::Other("File too large after encoding".to_string()));
+    }
+    Ok(base64::engine::general_purpose::STANDARD.encode(&data))
 }
 
 #[command]

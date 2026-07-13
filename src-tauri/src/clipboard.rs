@@ -64,6 +64,8 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
                 .map(|i| i.clipboard_action == "cut")
                 .unwrap_or(false);
             let dest = Path::new(&dest_dir);
+            // Phase 1: copy all files first — any failure aborts before deletion
+            let mut copied: Vec<(PathBuf, bool)> = Vec::new();
             for src in &sys_paths {
                 if !src.exists() {
                     continue;
@@ -71,17 +73,12 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
                 if let Some(n) = src.file_name() {
                     let dp = fs_helper::resolve_paste_conflict(&dest.join(n));
                     if src.is_dir() {
-                        fs_helper::copy_recursive(src, &dp)?;
-                        if is_cut {
-                            fs_helper::remove_dir_all(src)
-                                .map_err(|e| op_err("Remove failed", e))?;
-                        }
+                        fs_helper::copy_recursive(src, &dp)
+                            .map_err(|e| op_err("Copy failed", e))?;
                     } else {
                         fs_helper::copy_file(src, &dp).map_err(|e| op_err("Copy failed", e))?;
-                        if is_cut {
-                            fs_helper::remove_file(src).map_err(|e| op_err("Remove failed", e))?;
-                        }
                     }
+                    copied.push((src.clone(), src.is_dir()));
                     let mut inner = state
                         .inner
                         .lock()
@@ -100,7 +97,15 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
                     trim_undo(&mut inner.undo_history);
                 }
             }
+            // Phase 2: only after all copies confirmed, delete source files
             if is_cut {
+                for (src, is_dir) in &copied {
+                    if *is_dir {
+                        fs_helper::remove_dir_all(src).map_err(|e| op_err("Remove failed", e))?;
+                    } else {
+                        fs_helper::remove_file(src).map_err(|e| op_err("Remove failed", e))?;
+                    }
+                }
                 let _ = state.inner.lock().map(|mut i| {
                     i.clipboard.clear();
                     i.clipboard_action.clear();
@@ -122,22 +127,19 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
     drop(inner);
 
     let dest = Path::new(&dest_dir);
+    // Phase 1: copy all files first
+    let mut copied: Vec<(PathBuf, bool)> = Vec::new();
     for src_path in &clipboard_paths {
         if let Some(file_name) = src_path.file_name() {
             let dest_path = fs_helper::resolve_paste_conflict(&dest.join(file_name));
             if src_path.is_dir() {
-                fs_helper::copy_recursive(src_path, &dest_path)?;
-                if is_cut {
-                    fs_helper::remove_dir_all(src_path)
-                        .map_err(|e| op_err("Failed to remove", e))?;
-                }
+                fs_helper::copy_recursive(src_path, &dest_path)
+                    .map_err(|e| op_err("Failed to copy", e))?;
             } else {
                 fs_helper::copy_file(src_path, &dest_path)
                     .map_err(|e| op_err("Failed to copy", e))?;
-                if is_cut {
-                    fs_helper::remove_file(src_path).map_err(|e| op_err("Failed to remove", e))?;
-                }
             }
+            copied.push((src_path.clone(), src_path.is_dir()));
             if !is_cut {
                 let mut inner = state
                     .inner
@@ -158,7 +160,15 @@ pub fn paste_clipboard(state: State<AppState>, dest_dir: String) -> AppResult<()
             }
         }
     }
+    // Phase 2: only after all copies confirmed, delete source files
     if is_cut {
+        for (src_path, is_dir) in &copied {
+            if *is_dir {
+                fs_helper::remove_dir_all(src_path).map_err(|e| op_err("Failed to remove", e))?;
+            } else {
+                fs_helper::remove_file(src_path).map_err(|e| op_err("Failed to remove", e))?;
+            }
+        }
         let _ = state.inner.lock().map(|mut i| {
             i.clipboard.clear();
             i.clipboard_action.clear();

@@ -92,6 +92,9 @@ impl TerminalManager {
 
         let cancel = Arc::new(AtomicBool::new(false));
 
+        // Kill any existing session with the same id (prevent PTY leak)
+        self.kill(id);
+
         // Insert session
         {
             let mut guard = self
