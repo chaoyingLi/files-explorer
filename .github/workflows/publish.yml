@@ -63,9 +63,15 @@ jobs:
         run: npx @tauri-apps/cli build --target x86_64-apple-darwin
       - name: 收集
         run: |
+          set -x
           mkdir -p dist
-          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          find src-tauri/target/x86_64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+          # 复制 DMG
+          cp -v src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+          # 复制签名（明确路径 + find 兜底）
+          cp -v src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.sig dist/ 2>/dev/null || true
+          cp -v src-tauri/target/x86_64-apple-darwin/release/*.sig dist/ 2>/dev/null || true
+          find src-tauri/target/x86_64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
+          echo "=== dist/ 内容 ===" && ls -la dist/ && echo "=== 搜索签名 ===" && find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null || echo "找不到任何 .sig"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -95,9 +101,13 @@ jobs:
         run: npx @tauri-apps/cli build --target aarch64-apple-darwin
       - name: 收集
         run: |
+          set -x
           mkdir -p dist
-          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          find src-tauri/target/aarch64-apple-darwin/release -name "*.sig" -exec cp {} dist/ \;
+          cp -v src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+          cp -v src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.sig dist/ 2>/dev/null || true
+          cp -v src-tauri/target/aarch64-apple-darwin/release/*.sig dist/ 2>/dev/null || true
+          find src-tauri/target/aarch64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
+          echo "=== dist/ 内容 ===" && ls -la dist/ && echo "=== 搜索签名 ===" && find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null || echo "找不到任何 .sig"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -167,10 +177,13 @@ jobs:
         run: npx @tauri-apps/cli build
       - name: 收集
         run: |
+          set -x
           mkdir -p dist
-          cp src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
-          find src-tauri/target/release -name "*.sig" -exec cp {} dist/ \;
+          cp -v src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
+          cp -v src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
+          cp -v src-tauri/target/release/*.sig dist/ 2>/dev/null || true
+          find src-tauri/target/release -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
+          echo "=== dist/ 内容 ===" && ls -la dist/ && echo "=== 搜索签名 ===" && find src-tauri/target/release -name "*.sig" 2>/dev/null || echo "找不到任何 .sig"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
