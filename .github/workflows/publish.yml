@@ -132,7 +132,8 @@ jobs:
         run: |
           mkdir dist -Force
           Copy-Item src-tauri/target/release/bundle/msi/*.msi dist/ -ErrorAction SilentlyContinue
-          Get-ChildItem src-tauri/target/release/*.sig -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
+          Copy-Item src-tauri/target/release/bundle/nsis/*.exe dist/ -ErrorAction SilentlyContinue
+          Get-ChildItem src-tauri/target/release/ -Recurse -Filter "*.sig" -ErrorAction SilentlyContinue | Copy-Item -Destination dist/
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -196,9 +197,9 @@ jobs:
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
           [ -d sig-files ] && [ -n "$(ls -A sig-files 2>/dev/null)" ] || { echo "⚠️ 无签名文件"; exit 0; }
-          SIG_X64=$(cat sig-files/*x86_64*.sig sig-files/*x64*.sig 2>/dev/null | head -1 || echo "")
+          SIG_X64=$(cat sig-files/*x64.dmg.sig 2>/dev/null | head -1 || echo "")
           SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
-          SIG_WIN=$(cat sig-files/*windows*.sig 2>/dev/null | head -1 || echo "")
+          SIG_WIN=$(cat sig-files/*.msi.sig 2>/dev/null | head -1 || echo "")
           SIG_LINUX=$(cat sig-files/*linux*.sig sig-files/*amd64*.sig 2>/dev/null | head -1 || echo "")
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
           BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
