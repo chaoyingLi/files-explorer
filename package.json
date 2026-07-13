@@ -1,8 +1,8 @@
 {
   "name": "files-explorer",
   "private": true,
-  "version": "0.3.1",
-  "type": "module",
+  "version": "0.3.2",
+    "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "node scripts/copy-material-icons.cjs && vue-tsc --noEmit && vite build",
