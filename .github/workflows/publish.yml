@@ -209,9 +209,13 @@ jobs:
           TAG: ${{ needs.get-version.outputs.tag }}
           VERSION: ${{ needs.get-version.outputs.version }}
         run: |
+          echo "=== sig-files 内容 ==="
+          ls -la sig-files/ 2>/dev/null || echo "(空)"
+          find sig-files/ -type f 2>/dev/null | sort
+          echo "======================"
           [ -d sig-files ] && [ -n "$(ls -A sig-files 2>/dev/null)" ] || { echo "⚠️ 无签名文件"; exit 0; }
-          SIG_X64=$(cat sig-files/*x64.dmg.sig 2>/dev/null | head -1 || echo "")
-          SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig 2>/dev/null | head -1 || echo "")
+          SIG_X64=$(cat sig-files/*x64.dmg.sig sig-files/*x86_64*.dmg.sig sig-files/*.dmg.sig 2>/dev/null | head -1 || echo "")
+          SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig sig-files/*.dmg.sig 2>/dev/null | head -1 || echo "")
           SIG_WIN=$(cat sig-files/*.msi.sig 2>/dev/null | head -1 || echo "")
           SIG_LINUX=$(cat sig-files/*linux*.sig sig-files/*amd64*.sig 2>/dev/null | head -1 || echo "")
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
