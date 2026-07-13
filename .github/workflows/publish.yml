@@ -62,16 +62,25 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build --target x86_64-apple-darwin
       - name: 收集
+        env:
+          VERSION: ${{ needs.get-version.outputs.version }}
         run: |
           set -x
           mkdir -p dist
           # 复制 DMG
           cp -v src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          # 复制签名（明确路径 + find 兜底）
-          cp -v src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.sig dist/ 2>/dev/null || true
-          cp -v src-tauri/target/x86_64-apple-darwin/release/*.sig dist/ 2>/dev/null || true
+          # 签名文件：Tauri 生成 .app.tar.gz.sig，重命名为架构特定名称避免覆盖
           find src-tauri/target/x86_64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
-          echo "=== dist/ 内容 ===" && ls -la dist/ && echo "=== 搜索签名 ===" && find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null || echo "找不到任何 .sig"
+          # 将泛型 sig 重命名为架构特定名称
+          for f in dist/*.sig; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            if [ "$base" = "Files.Explorer.app.tar.gz.sig" ]; then
+              cp -v "$f" "dist/Files.Explorer_${VERSION}_x64.dmg.sig"
+            fi
+          done
+          echo "=== dist/ 最终内容 ===" && ls -la dist/
+          echo "=== 搜索签名 ===" && find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null || echo "无"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -100,14 +109,25 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx @tauri-apps/cli build --target aarch64-apple-darwin
       - name: 收集
+        env:
+          VERSION: ${{ needs.get-version.outputs.version }}
         run: |
           set -x
           mkdir -p dist
+          # 复制 DMG
           cp -v src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          cp -v src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.sig dist/ 2>/dev/null || true
-          cp -v src-tauri/target/aarch64-apple-darwin/release/*.sig dist/ 2>/dev/null || true
+          # 签名文件
           find src-tauri/target/aarch64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
-          echo "=== dist/ 内容 ===" && ls -la dist/ && echo "=== 搜索签名 ===" && find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null || echo "找不到任何 .sig"
+          # 将泛型 sig 重命名为架构特定名称
+          for f in dist/*.sig; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            if [ "$base" = "Files.Explorer.app.tar.gz.sig" ]; then
+              cp -v "$f" "dist/Files.Explorer_${VERSION}_aarch64.dmg.sig"
+            fi
+          done
+          echo "=== dist/ 最终内容 ===" && ls -la dist/
+          echo "=== 搜索签名 ===" && find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null || echo "无"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
