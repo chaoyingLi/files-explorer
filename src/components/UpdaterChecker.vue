@@ -146,15 +146,15 @@ onMounted(async () => {
             },
             mockAvailable: () => {
                 enableMock("available");
-                console.log("%c[Updater Test] 模拟：有可用更新", "color: #4CAF50");
+                console.log("%c[Updater Test] 模拟：有可用更新（一次性）", "color: #4CAF50");
             },
             mockNoUpdate: () => {
                 enableMock("no_update");
-                console.log("%c[Updater Test] 模拟：无更新", "color: #2196F3");
+                console.log("%c[Updater Test] 模拟：无更新（一次性）", "color: #2196F3");
             },
             mockError: () => {
                 enableMock("error");
-                console.log("%c[Updater Test] 模拟：检查失败", "color: #f44336");
+                console.log("%c[Updater Test] 模拟：检查失败（一次性）", "color: #f44336");
             },
         };
         console.log("%c[Updater] 测试辅助已挂载到 window.__updaterTest", "color: #4CAF50");

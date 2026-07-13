@@ -1,6 +1,7 @@
 // updater.rs — 独立更新器
 // 双路下载(GitHub+Gitee竞速) → 安装 → 启动新版本
-// 用法: updater <版本号>
+// 用法: updater <版本号> [--app-path <路径>]
+//   --app-path 可选，不传则使用默认安装路径
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -14,12 +15,14 @@ const GITEE_REPO: &str = "hhyd/files-explorer";
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("用法: updater <版本号> [主进程PID]");
+        eprintln!("用法: updater <版本号> [--app-path <路径>]");
         exit(1);
     }
 
     let version = args[1].clone();
-    let app_path = app_bundle_path();
+
+    // 解析 --app-path 参数
+    let app_path = parse_app_path(&args);
 
     println!("╔════════════════════════════════╗");
     println!("║  Files Explorer 更新器        ║");
@@ -28,7 +31,6 @@ fn main() {
     println!("目标: {}", app_path.display());
 
     // 1. 双路下载
-    // 1. 下载
     let filename = download_filename(&version);
     println!("\n📥 下载: {filename}");
 
@@ -69,6 +71,20 @@ fn main() {
     println!("\n🚀 启动新版本...");
     launch_app(&app_path);
     println!("✅ 更新完成");
+}
+
+/// 解析命令行参数，提取 --app-path 的值，否则返回默认安装路径
+fn parse_app_path(args: &[String]) -> PathBuf {
+    // 查找 --app-path 后跟的下一个参数
+    for i in 1..args.len() {
+        if args[i] == "--app-path" {
+            if let Some(path) = args.get(i + 1) {
+                return PathBuf::from(path);
+            }
+        }
+    }
+    // 未指定则用默认路径
+    default_app_bundle_path()
 }
 
 // ── 文件名 ──
@@ -162,18 +178,17 @@ fn download_file(url: &str, dest: &Path) -> bool {
     }
 }
 
-// ── 进程检测 ──
-// ── 应用路径 ──
+// ── 默认应用安装路径 ──
 #[cfg(target_os = "macos")]
-fn app_bundle_path() -> PathBuf {
+fn default_app_bundle_path() -> PathBuf {
     PathBuf::from("/Applications/Files Explorer.app")
 }
 #[cfg(target_os = "windows")]
-fn app_bundle_path() -> PathBuf {
+fn default_app_bundle_path() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from("Files Explorer.exe"))
 }
 #[cfg(target_os = "linux")]
-fn app_bundle_path() -> PathBuf {
+fn default_app_bundle_path() -> PathBuf {
     PathBuf::from("/usr/local/bin/files-explorer")
 }
 
