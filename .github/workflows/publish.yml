@@ -67,20 +67,21 @@ jobs:
         run: |
           set -x
           mkdir -p dist
-          # 复制 DMG
           cp -v src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          # 签名文件：Tauri 生成 .app.tar.gz.sig，重命名为架构特定名称避免覆盖
-          find src-tauri/target/x86_64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
-          # 将泛型 sig 重命名为架构特定名称
-          for f in dist/*.sig; do
-            [ -f "$f" ] || continue
+          echo "=== 构建树搜索 ==="
+          find src-tauri/target/x86_64-apple-darwin \
+            \( -name "*.sig" -o -name "*.tar.gz" -o -name "*.dmg" \) 2>/dev/null
+          echo "=== 复制签名 ==="
+          for f in $(find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null); do
             base=$(basename "$f")
-            if [ "$base" = "Files.Explorer.app.tar.gz.sig" ]; then
-              cp -v "$f" "dist/Files.Explorer_${VERSION}_x64.dmg.sig"
-            fi
+            cp -v "$f" "dist/x64_$base"
+          done
+          echo "=== 复制 tar.gz ==="
+          for f in $(find src-tauri/target/x86_64-apple-darwin -name "*.tar.gz" 2>/dev/null); do
+            base=$(basename "$f")
+            cp -v "$f" "dist/x64_$base"
           done
           echo "=== dist/ 最终内容 ===" && ls -la dist/
-          echo "=== 搜索签名 ===" && find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null || echo "无"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -114,20 +115,21 @@ jobs:
         run: |
           set -x
           mkdir -p dist
-          # 复制 DMG
           cp -v src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-          # 签名文件
-          find src-tauri/target/aarch64-apple-darwin -name "*.sig" -exec cp -v {} dist/ \; 2>/dev/null || true
-          # 将泛型 sig 重命名为架构特定名称
-          for f in dist/*.sig; do
-            [ -f "$f" ] || continue
+          echo "=== 构建树搜索 ==="
+          find src-tauri/target/aarch64-apple-darwin \
+            \( -name "*.sig" -o -name "*.tar.gz" -o -name "*.dmg" \) 2>/dev/null
+          echo "=== 复制签名 ==="
+          for f in $(find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null); do
             base=$(basename "$f")
-            if [ "$base" = "Files.Explorer.app.tar.gz.sig" ]; then
-              cp -v "$f" "dist/Files.Explorer_${VERSION}_aarch64.dmg.sig"
-            fi
+            cp -v "$f" "dist/arm64_$base"
+          done
+          echo "=== 复制 tar.gz ==="
+          for f in $(find src-tauri/target/aarch64-apple-darwin -name "*.tar.gz" 2>/dev/null); do
+            base=$(basename "$f")
+            cp -v "$f" "dist/arm64_$base"
           done
           echo "=== dist/ 最终内容 ===" && ls -la dist/
-          echo "=== 搜索签名 ===" && find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null || echo "无"
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
       - uses: actions/upload-artifact@v4
@@ -234,20 +236,33 @@ jobs:
           find sig-files/ -type f 2>/dev/null | sort
           echo "======================"
           [ -d sig-files ] && [ -n "$(ls -A sig-files 2>/dev/null)" ] || { echo "⚠️ 无签名文件"; exit 0; }
-          SIG_X64=$(cat sig-files/*x64.dmg.sig sig-files/*x86_64*.dmg.sig sig-files/*.dmg.sig 2>/dev/null | head -1 || echo "")
-          SIG_ARM64=$(cat sig-files/*aarch64*.sig sig-files/*arm64*.sig sig-files/*.dmg.sig 2>/dev/null | head -1 || echo "")
+          # macOS: 收集架构前缀的 sig（x64_ / arm64_）
+          SIG_X64=$(cat sig-files/x64_*.sig 2>/dev/null | head -1 || echo "")
+          SIG_ARM64=$(cat sig-files/arm64_*.sig 2>/dev/null | head -1 || echo "")
           SIG_WIN=$(cat sig-files/*.msi.sig 2>/dev/null | head -1 || echo "")
           SIG_LINUX=$(cat sig-files/*linux*.sig sig-files/*amd64*.sig 2>/dev/null | head -1 || echo "")
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
           BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          # macOS: 检查是否有架构前缀的 tar.gz，有则用（updater 使用 tar.gz 格式）
+          MACOS_X64_URL="${BASE}/Files.Explorer_${VERSION}_x64.dmg"
+          MACOS_ARM64_URL="${BASE}/Files.Explorer_${VERSION}_aarch64.dmg"
+          # 如果 sig-files/ 中有 x64_*.tar.gz，说明 Tauri 生成了 tar.gz 格式
+          if ls sig-files/x64_*.tar.gz 2>/dev/null | head -1 > /dev/null; then
+            FNAME=$(basename $(ls sig-files/x64_*.tar.gz 2>/dev/null | head -1))
+            MACOS_X64_URL="${BASE}/${FNAME}"
+          fi
+          if ls sig-files/arm64_*.tar.gz 2>/dev/null | head -1 > /dev/null; then
+            FNAME=$(basename $(ls sig-files/arm64_*.tar.gz 2>/dev/null | head -1))
+            MACOS_ARM64_URL="${BASE}/${FNAME}"
+          fi
           cat > latest.json << JSONEOF
           {
             "version": "$VERSION",
             "notes": "更新详情见 GitHub Releases",
             "pub_date": "$PUB_DATE",
             "platforms": {
-              "darwin-x86_64": {"signature":"${SIG_X64}","url":"${BASE}/Files.Explorer_${VERSION}_x64.dmg"},
-              "darwin-aarch64": {"signature":"${SIG_ARM64}","url":"${BASE}/Files.Explorer_${VERSION}_aarch64.dmg"},
+              "darwin-x86_64": {"signature":"${SIG_X64}","url":"${MACOS_X64_URL}"},
+              "darwin-aarch64": {"signature":"${SIG_ARM64}","url":"${MACOS_ARM64_URL}"},
               "windows-x86_64": {"signature":"${SIG_WIN}","url":"${BASE}/Files.Explorer_${VERSION}_x64_en-US.msi"},
               "linux-x86_64": {"signature":"${SIG_LINUX}","url":"${BASE}/Files.Explorer_${VERSION}_amd64.AppImage"}
             }
