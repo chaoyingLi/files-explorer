@@ -236,25 +236,28 @@ jobs:
           find sig-files/ -type f 2>/dev/null | sort
           echo "======================"
           [ -d sig-files ] && [ -n "$(ls -A sig-files 2>/dev/null)" ] || { echo "⚠️ 无签名文件"; exit 0; }
-          # macOS: 收集架构前缀的 sig（x64_ / arm64_）
-          SIG_X64=$(cat sig-files/x64_*.sig 2>/dev/null | head -1 || echo "")
-          SIG_ARM64=$(cat sig-files/arm64_*.sig 2>/dev/null | head -1 || echo "")
-          SIG_WIN=$(cat sig-files/*.msi.sig 2>/dev/null | head -1 || echo "")
-          SIG_LINUX=$(cat sig-files/*linux*.sig sig-files/*amd64*.sig 2>/dev/null | head -1 || echo "")
+          # 读取签名（用 for 循环处理文件名中的空格）
+          SIG_X64=""; for f in sig-files/x64_*.sig; do [ -f "$f" ] && { SIG_X64=$(cat "$f"); break; }; done
+          SIG_ARM64=""; for f in sig-files/arm64_*.sig; do [ -f "$f" ] && { SIG_ARM64=$(cat "$f"); break; }; done
+          SIG_WIN=""; for f in sig-files/*.msi.sig; do [ -f "$f" ] && { SIG_WIN=$(cat "$f"); break; }; done
+          SIG_LINUX=""; for f in sig-files/*amd64*.sig; do [ -f "$f" ] && { SIG_LINUX=$(cat "$f"); break; }; done
           PUB_DATE=$(date -u +'%Y-%m-%dT%H:%M:%S+08:00')
           BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
-          # macOS: 检查是否有架构前缀的 tar.gz，有则用（updater 使用 tar.gz 格式）
+          # macOS URL: 默认用 DMG，若有架构前缀 tar.gz 则用（updater 格式）
           MACOS_X64_URL="${BASE}/Files.Explorer_${VERSION}_x64.dmg"
           MACOS_ARM64_URL="${BASE}/Files.Explorer_${VERSION}_aarch64.dmg"
-          # 如果 sig-files/ 中有 x64_*.tar.gz，说明 Tauri 生成了 tar.gz 格式
-          if ls sig-files/x64_*.tar.gz 2>/dev/null | head -1 > /dev/null; then
-            FNAME=$(basename $(ls sig-files/x64_*.tar.gz 2>/dev/null | head -1))
+          for f in sig-files/x64_*.tar.gz; do
+            [ -f "$f" ] || continue
+            FNAME=$(basename "$f")
             MACOS_X64_URL="${BASE}/${FNAME}"
-          fi
-          if ls sig-files/arm64_*.tar.gz 2>/dev/null | head -1 > /dev/null; then
-            FNAME=$(basename $(ls sig-files/arm64_*.tar.gz 2>/dev/null | head -1))
+            break
+          done
+          for f in sig-files/arm64_*.tar.gz; do
+            [ -f "$f" ] || continue
+            FNAME=$(basename "$f")
             MACOS_ARM64_URL="${BASE}/${FNAME}"
-          fi
+            break
+          done
           cat > latest.json << JSONEOF
           {
             "version": "$VERSION",
