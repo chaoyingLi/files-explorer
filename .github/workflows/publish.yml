@@ -72,15 +72,15 @@ jobs:
           find src-tauri/target/x86_64-apple-darwin \
             \( -name "*.sig" -o -name "*.tar.gz" -o -name "*.dmg" \) 2>/dev/null
           echo "=== 复制签名 ==="
-          for f in $(find src-tauri/target/x86_64-apple-darwin -name "*.sig" 2>/dev/null); do
-            base=$(basename "$f")
+          find src-tauri/target/x86_64-apple-darwin -name "*.sig" -exec sh -c '
+            f="$1"; base=$(basename "$f")
             cp -v "$f" "dist/x64_$base"
-          done
+          ' _ {} \; 2>/dev/null || true
           echo "=== 复制 tar.gz ==="
-          for f in $(find src-tauri/target/x86_64-apple-darwin -name "*.tar.gz" 2>/dev/null); do
-            base=$(basename "$f")
+          find src-tauri/target/x86_64-apple-darwin -name "*.tar.gz" -exec sh -c '
+            f="$1"; base=$(basename "$f")
             cp -v "$f" "dist/x64_$base"
-          done
+          ' _ {} \; 2>/dev/null || true
           echo "=== dist/ 最终内容 ===" && ls -la dist/
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
@@ -120,15 +120,15 @@ jobs:
           find src-tauri/target/aarch64-apple-darwin \
             \( -name "*.sig" -o -name "*.tar.gz" -o -name "*.dmg" \) 2>/dev/null
           echo "=== 复制签名 ==="
-          for f in $(find src-tauri/target/aarch64-apple-darwin -name "*.sig" 2>/dev/null); do
-            base=$(basename "$f")
+          find src-tauri/target/aarch64-apple-darwin -name "*.sig" -exec sh -c '
+            f="$1"; base=$(basename "$f")
             cp -v "$f" "dist/arm64_$base"
-          done
+          ' _ {} \; 2>/dev/null || true
           echo "=== 复制 tar.gz ==="
-          for f in $(find src-tauri/target/aarch64-apple-darwin -name "*.tar.gz" 2>/dev/null); do
-            base=$(basename "$f")
+          find src-tauri/target/aarch64-apple-darwin -name "*.tar.gz" -exec sh -c '
+            f="$1"; base=$(basename "$f")
             cp -v "$f" "dist/arm64_$base"
-          done
+          ' _ {} \; 2>/dev/null || true
           echo "=== dist/ 最终内容 ===" && ls -la dist/
       - uses: softprops/action-gh-release@v2
         with: { files: "dist/*", fail_on_unmatched_files: false }
