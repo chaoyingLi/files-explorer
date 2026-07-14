@@ -172,11 +172,41 @@ function dismissRestart() {
 async function handleInstall() {
     if (installing.value) return;
     installing.value = true;
-    const result = installDownloadedUpdate();
-    if (!result.started) {
-        toast.show(t("updater.updateInProgress"), true);
-        installing.value = false;
+    // Phase 1: 先下载
+    const dl = downloadSilently();
+    if (!dl.started) {
+        toast.show(dl.reason === "ALREADY_DOWNLOADED"
+            ? t("updater.installing")
+            : t("updater.updateInProgress"), true);
+        // 如果已下载，直接安装
+        if (dl.reason === "ALREADY_DOWNLOADED") {
+            const inst = installDownloadedUpdate();
+            if (!inst.started) {
+                toast.show(t("updater.updateFailed"), true);
+                installing.value = false;
+            }
+        } else {
+            installing.value = false;
+        }
     }
+    // 下载启动后，监听完成自动安装
+    const unsubInstaller = subscribeUpdateTask((snapshot) => {
+        if (snapshot.state === "ready_to_restart") {
+            unsubInstaller();
+            // 下载完成，执行安装
+            const inst = installDownloadedUpdate();
+            if (!inst.started) {
+                toast.show(t("updater.updateFailed"), true);
+                installing.value = false;
+            }
+        }
+        if (snapshot.state === "error") {
+            unsubInstaller();
+            toast.show(snapshot.message || t("updater.updateFailed"), true);
+            updateAvailable.value = false;
+            installing.value = false;
+        }
+    });
 }
 
 async function relaunchNow() {
