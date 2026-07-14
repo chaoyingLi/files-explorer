@@ -1,5 +1,5 @@
 {
-  "version": "0.3.7",
+  "version": "0.3.8",
   "notes": "## v0.3.7\n\n- CI 签名收集全面修复\n- 自动更新超时保护\n- 多端点多路备用\n\n详情见 https://github.com/chaoyingLi/files-explorer/releases/tag/v0.3.7",
   "pub_date": "2026-07-14T08:50:00+08:00",
   "platforms": {
