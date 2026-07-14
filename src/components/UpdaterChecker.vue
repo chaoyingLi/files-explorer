@@ -13,6 +13,13 @@
                 {{ updateInfo.body }}
             </div>
             <p>{{ t("updater.updateDialogDescription") }}</p>
+            <!-- 下载进度 -->
+            <div v-if="installing" class="updater-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+                </div>
+                <span class="progress-text">{{ downloadMessage }}</span>
+            </div>
             <div class="updater-actions">
                 <button
                     class="btn btn-secondary"
@@ -84,6 +91,8 @@ const updateAvailable = ref(false);
 const updateInfo = ref<AvailableUpdate | null>(null);
 const showRestart = ref(false);
 const installing = ref(false);
+const downloadProgress = ref(0);
+const downloadMessage = ref("");
 
 onMounted(async () => {
     try {
@@ -172,28 +181,20 @@ function dismissRestart() {
 async function handleInstall() {
     if (installing.value) return;
     installing.value = true;
-    // Phase 1: 先下载
-    const dl = downloadSilently();
-    if (!dl.started) {
-        toast.show(dl.reason === "ALREADY_DOWNLOADED"
-            ? t("updater.installing")
-            : t("updater.updateInProgress"), true);
-        // 如果已下载，直接安装
-        if (dl.reason === "ALREADY_DOWNLOADED") {
-            const inst = installDownloadedUpdate();
-            if (!inst.started) {
-                toast.show(t("updater.updateFailed"), true);
-                installing.value = false;
-            }
-        } else {
-            installing.value = false;
-        }
-    }
-    // 下载启动后，监听完成自动安装
+    downloadProgress.value = 0;
+    downloadMessage.value = t("updater.downloading") || "准备下载...";
+
+    // 监听进度
     const unsubInstaller = subscribeUpdateTask((snapshot) => {
+        if (snapshot.progress !== undefined) {
+            downloadProgress.value = snapshot.progress;
+        }
+        if (snapshot.message) {
+            downloadMessage.value = snapshot.message;
+        }
         if (snapshot.state === "ready_to_restart") {
             unsubInstaller();
-            // 下载完成，执行安装
+            downloadMessage.value = t("updater.installing") || "正在安装...";
             const inst = installDownloadedUpdate();
             if (!inst.started) {
                 toast.show(t("updater.updateFailed"), true);
@@ -207,6 +208,25 @@ async function handleInstall() {
             installing.value = false;
         }
     });
+
+    // 启动下载
+    const dl = downloadSilently();
+    if (!dl.started) {
+        if (dl.reason === "ALREADY_DOWNLOADED") {
+            downloadMessage.value = t("updater.installing") || "正在安装...";
+            const inst = installDownloadedUpdate();
+            if (!inst.started) {
+                toast.show(t("updater.updateFailed"), true);
+                installing.value = false;
+            }
+        } else {
+            unsubInstaller();
+            toast.show(dl.reason === "NO_UPDATE"
+                ? t("updater.noUpdate")
+                : t("updater.updateInProgress"), true);
+            installing.value = false;
+        }
+    }
 }
 
 async function relaunchNow() {
@@ -302,5 +322,28 @@ async function relaunchNow() {
 }
 .spinner {
     animation: spin 0.8s linear infinite;
+}
+
+.updater-progress {
+    margin: 12px 0;
+}
+.progress-bar {
+    height: 6px;
+    background: var(--bg-secondary, #45475a);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--accent, #89b4fa);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+.progress-text {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, #a6adc8);
+    text-align: center;
 }
 </style>
