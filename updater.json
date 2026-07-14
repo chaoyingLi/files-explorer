@@ -1,7 +1,7 @@
 {
   "version": "0.3.8",
-  "notes": "## v0.3.7\n\n- CI 签名收集全面修复\n- 自动更新超时保护\n- 多端点多路备用\n\n详情见 https://github.com/chaoyingLi/files-explorer/releases/tag/v0.3.7",
-  "pub_date": "2026-07-14T08:50:00+08:00",
+  "notes": "## v0.3.7 - Update test\n\nSee https://github.com/chaoyingLi/files-explorer/releases/tag/v0.3.7 for details",
+    "pub_date": "2026-07-14T08:50:00+08:00",
   "platforms": {
     "darwin-x86_64": {"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUDZFRjhZWG5XOU9lYkdEV2hESk80dXFZUWRtMEJvRlFlWE9XSEozemdtWG9NWHFvamVrYmJCWERINXg3MXNzTkJ4a3hOMUpENU1vb2tEeFpZTXBmell3alVWRjNoN2d3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDExMzU4CWZpbGU6RmlsZXMgRXhwbG9yZXIuYXBwLnRhci5negpNL2t5dDhXcUU5bGVpWXVMaTlCZ0RVNVRjQzhXajVmaDJNNjdMSjNqeHNxR1NET25SeG1YbGlIOWxkZERmdDZhKzdVekdldzBSbTFNc3NCby8wTUNDdz09Cg==","url":"https://gitee.com/hhyd/files-explorer/releases/download/v0.3.7/Files.Explorer_0.3.7_x64.dmg"},
     "darwin-aarch64": {"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUDZFRjhZWG5XOUVaVGUvQ2Nla2Y3aUJFL3YvOEMxOStBU3J3akhFN2luZGkrK29seFJORzRURllmTENJbW1ELzNaa0l5Qm4wem5OdDdtaktXQ2l0ejFPdDg2MTYvMWdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDExMjUxCWZpbGU6RmlsZXMgRXhwbG9yZXIuYXBwLnRhci5negowd3A1Q3dxUXdvK1ZIb0FkUGVVYVNTVXBLa05CZFhFb1JqYUk4bGxNWVlTWUpsTVdBNWZzRGplRFVUREVmOVRlOVFqdnlZeC9McVh3T2ZXbEt3ajFEUT09Cg==","url":"https://gitee.com/hhyd/files-explorer/releases/download/v0.3.7/arm64.tar.gz"},
