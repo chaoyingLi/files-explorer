@@ -2,6 +2,7 @@
 name = "files-explorer"
 version = "0.3.7"
 edition = "2021"
+default-run = "files-explorer"
 
 [lib]
 name = "files_explorer_lib"
