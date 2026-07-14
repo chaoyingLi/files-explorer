@@ -114,6 +114,16 @@ class UpdateManager {
     };
   }
 
+  // ── 辅助：Promise 超时 ──
+  private async withTimeout<T>(promise: Promise<T>, ms: number, msg: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(msg)), ms),
+      ),
+    ]);
+  }
+
   // ── 检查更新 ──
   async checkForUpdates(): Promise<UpdateResult> {
     if (this.mockEnabled) {
@@ -122,7 +132,7 @@ class UpdateManager {
 
     try {
       this.setTaskState("checking");
-      const update = await check();
+      const update = await this.withTimeout(check(), 30000, "检查更新超时（30秒），请确认网络连接");
       this.cachedUpdate = update?.available ? update : null;
 
       if (update?.available) {
@@ -205,10 +215,11 @@ class UpdateManager {
         const MAX_RETRIES = 3;
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
+            // P0: 下载超时保护（15分钟）
             // P0: 传入进度回调（累计已下载字节数）
             let downloadedBytes = 0;
             let totalBytes = 0;
-            await this.cachedUpdate!.download((event) => {
+            const downloadPromise = this.cachedUpdate!.download((event) => {
               if (event.event === "Started") {
                 totalBytes = event.data.contentLength ?? 0;
               } else if (event.event === "Progress") {
@@ -222,6 +233,7 @@ class UpdateManager {
                 });
               }
             });
+            await this.withTimeout(downloadPromise, 900000, "下载超时（15分钟）");
             this.setTaskState("downloading", {
               message: "下载中 100%",
               progress: 100,
