@@ -20,6 +20,10 @@
                 </div>
                 <span class="progress-text">{{ downloadMessage }}</span>
             </div>
+            <div v-if="errorDetail" class="updater-error">
+                <p>{{ errorDetail }}</p>
+                <button class="btn btn-primary" @click="errorDetail = ''; updateAvailable = false">{{ t("common.close") || "关闭" }}</button>
+            </div>
             <div class="updater-actions">
                 <button
                     class="btn btn-secondary"
@@ -93,6 +97,7 @@ const showRestart = ref(false);
 const installing = ref(false);
 const downloadProgress = ref(0);
 const downloadMessage = ref("");
+const errorDetail = ref("");
 
 onMounted(async () => {
     try {
@@ -112,8 +117,7 @@ onMounted(async () => {
             showRestart.value = true;
         }
         if (snapshot.state === "error") {
-            toast.show(snapshot.message || t("updater.updateFailed"), true);
-            updateAvailable.value = false;
+            errorDetail.value = snapshot.message || t("updater.updateFailed");
         }
     });
     onUnmounted(unsub);
@@ -203,8 +207,8 @@ async function handleInstall() {
         }
         if (snapshot.state === "error") {
             unsubInstaller();
-            toast.show(snapshot.message || t("updater.updateFailed"), true);
-            updateAvailable.value = false;
+            errorDetail.value = snapshot.message || t("updater.updateFailed");
+            downloadProgress.value = 0;
             installing.value = false;
         }
     });
@@ -345,5 +349,20 @@ async function relaunchNow() {
     font-size: 12px;
     color: var(--text-secondary, #a6adc8);
     text-align: center;
+}
+
+.updater-error {
+    background: var(--bg-secondary, #181825);
+    border: 1px solid #f44336;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0;
+    text-align: center;
+}
+.updater-error p {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #f44336;
+    word-break: break-all;
 }
 </style>
